@@ -400,6 +400,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ---------- W6.L: onbellek isabet olcumu (kabul kriteri: "isabet journal'a dusuyor") ----------
+    // Capability DEGIL - dispatcher'i atlamiyor, yalnizca gozlemlenebilirlik
+    // icin dogrudan journal'a hafif bir olay yazar. Hash disinda hicbir
+    // hassas veri (prompt metni vb.) TASINMAZ.
+    if (url.pathname === "/prompt-cache-hit" && req.method === "POST") {
+      const body = await readBody(req);
+      const { key } = JSON.parse(body || "{}") as { key?: string };
+      if (key) {
+        journal.append({
+          type: "prompt.cache.hit",
+          correlationId: key,
+          causationId: null,
+          payload: { key },
+          idempotencyKey: null,
+        });
+      }
+      json(res, 200, { ok: true });
+      return;
+    }
+
     // ---------- Gercek uygulama ikonlari (APK'dan cikarilir, onbellekli) ----------
     const iconMatch = url.pathname.match(/^\/appicon\/([a-zA-Z0-9_.]+)$/);
     if (iconMatch && req.method === "GET") {
@@ -610,7 +630,11 @@ const server = createServer(async (req, res) => {
 
     // ---------- capability kesfi ----------
     if (url.pathname === "/capabilities" && req.method === "GET") {
-      json(res, 200, capabilities.map((c) => ({ name: c.name, class: c.class })));
+      // W6.L: risk seviyesi de dondurulur - onbellek anahtari (prompt-cache.js)
+      // buna bagli, risk safe->ask degisince eski onbellek gecersiz sayilmali.
+      // Sizinti degil: risk zaten politika meta verisi, dispatch davranisini
+      // DEGISTIRMEZ (sunucu tarafi risk kapisi bagimsiz kalir).
+      json(res, 200, capabilities.map((c) => ({ name: c.name, class: c.class, risk: c.risk ?? "ask" })));
       return;
     }
 

@@ -19,6 +19,7 @@ import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
+import { cacheKey, getCached, putCached } from "./prompt-cache.js";
 
 const S = SC.S;
 
@@ -59,6 +60,7 @@ let currentTab = "home";
 let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
 let capabilityNames = [];
+let capabilitiesWithRisk = []; // [{name,risk}] - W6.L cacheKey() icin (yalnizca ad degil, risk seviyesi de)
 let capVersion = null; // artifact-contract.js:capabilitySetVersion() - boot()'ta hesaplanir
 // W6.C (orijinal kapsam): "bos pencere" acikken alt composer normal Hermes
 // sohbetine DEGIL, bu pencerenin icini doldurmaya yonlendirilir. null =
@@ -557,6 +559,19 @@ function renderWindowError(icon, title, detail) {
 }
 
 async function fillWindow(id, text) {
+  // W6.L: ayni/kanonik-esdeger istek daha once basariyla uretildiyse LLM'e
+  // HIC gidilmez - onbellekteki spec dogrudan kullanilir (sifir token).
+  const key = await cacheKey(text, capabilitiesWithRisk);
+  const cached = await getCached(key);
+  if (cached) {
+    const item = addArtifact(cached.spec, text, cached.contract, id);
+    updateBadges();
+    fillTarget = null;
+    openArtifact(item.id);
+    fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) }).catch(() => {});
+    return;
+  }
+
   renderWindowLoading(text);
   const r = await sendIntent("llm.generate",
     { prompt: text, max_tokens: 2000, context: deviceContext() },
@@ -581,6 +596,7 @@ async function fillWindow(id, text) {
   updateBadges();
   fillTarget = null;
   openArtifact(item.id);
+  putCached(key, { spec: specs[0], contract: admit.contract, title: specs[0].title || "Artefakt" });
 }
 
 function when(ts) {
@@ -732,6 +748,26 @@ async function ask(q, opts = {}) {
   const history = opts.narrow ? [] : chat.filter((m) => m.text).slice(-7)
     .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
 
+  // W6.L: onbellek YALNIZCA gecmis-siz cagrilarda kullanilir (narrow ya da
+  // sohbetin ilk mesaji). Gercek bir sohbet gecmisi varken ayni metni
+  // onbellekten donmek YANLIS olurdu - "evet" gibi bir yanit onceki soruya
+  // gore anlam degistirir, cache anahtari bunu tasimiyor (bilincli sinir).
+  const cacheable = history.length === 0;
+  let cacheKeyValue = null;
+  if (cacheable) {
+    cacheKeyValue = await cacheKey(text, capabilitiesWithRisk);
+    const cached = await getCached(cacheKeyValue);
+    if (cached) {
+      chat.pop(); // "Hermes calisiyor" yukleme kartini kaldir
+      const item = addArtifact(cached.spec, text, cached.contract);
+      chat.push({ role: "agent", artifactId: item.id });
+      if (!opts.narrow) paintHermes();
+      updateBadges();
+      fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: cacheKeyValue }) }).catch(() => {});
+      return;
+    }
+  }
+
   // OTOMATIK DEVAM (2026-08-16).
   // Sorun: max_tokens dolunca yanit ortasindan kesiliyordu. Kesilen yanitta
   // ```aios blogu KAPANMADIGI icin extractArtifacts hicbir sey bulamiyor,
@@ -785,6 +821,10 @@ async function ask(q, opts = {}) {
       // Mini-app olarak istendiyse kalici kil (opts.pin).
       if (opts.pin) { item.pinned = true; saveArtifacts(); }
       chat.push({ role: "agent", artifactId: item.id });
+      // W6.L: yalnizca gecmis-siz, TEK spec'lik cagrilarda onbellege yazilir -
+      // birden fazla spec varsa hangisinin bu anahtara karsilik geldigi
+      // belirsiz olurdu (bilincli sinir).
+      if (cacheable && specs.length === 1) putCached(cacheKeyValue, { spec: s, contract: admit.contract, title: s.title || "Artefakt" });
     });
     const admittedCount = specs.length - contractRejected.length;
     if (opts.pin && admittedCount) toast("Mini uygulama sabitlendi");
@@ -1081,6 +1121,7 @@ export async function boot() {
 
   const caps = (await getJSON("/capabilities")) || [];
   capabilityNames = caps.map((c) => c.name);
+  capabilitiesWithRisk = caps.map((c) => ({ name: c.name, risk: c.risk || "ask" }));
   ACTIONABLE = new Set(caps.filter((c) => c.class === "REFLEX" || c.class === "AGENT").map((c) => c.name));
   setAllowedActions([...capabilityNames, ...UI_META_ACTIONS]);
   capVersion = await capabilitySetVersion(capabilityNames);
