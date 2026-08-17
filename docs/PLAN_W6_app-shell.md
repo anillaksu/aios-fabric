@@ -257,6 +257,63 @@ Tetikleyici gerçekleşmeden bu makineyi kurmak, K10 ilkesinin (yoktan var etme
 yoktur, her şeyin bir başlangıcı vardır) tersini yapar: henüz var olmayan bir
 ölçek için bugünden bürokrasi icat etmek.
 
+#### W6.5d-ek — Tasarım ilkeleri ve tuzaklar (kullanıcı katkısı, ikinci tur, 2026-08-17)
+
+Tetikleyici gerçekleştiğinde (§ yukarı) bu ilkelerle inşa edilecek. Her biri
+AIOS'un GERÇEK mimarisine karşı süzüldü — biri düzeltildi, biri ölçekle
+anlamsızlaştı, geri kalanı olduğu gibi kabul edildi:
+
+- **Granülarite parametrik kalsın** — kabul, olduğu gibi. Parça boyutunu
+  (fonksiyon/modül/widget) koda gömülü sabit yapmayın.
+- **Meta veri toplama asenkron/kuyruklu olsun** — kabul, olduğu gibi.
+  `lastUsedAt`/`sizeBytes` gibi ölçümler ana okuma/yazma yolunu bloklamaz.
+- **Metadata overhead tuzağı** — kabul, ve zaten §W6.5d'nin granülarite
+  gerekçesini DOĞRULUYOR: parça çok küçük seçilirse (fonksiyon/satır seviyesi)
+  meta veri içerikten büyür. AIOS'un bugünkü 5.9 KB/8 kayıt oranında, parçayı
+  widget SEVİYESİNDE tutmak (fonksiyon seviyesine İNMEMEK) bu tuzağa
+  düşmemenin önkoşulu.
+- **Determinizm yanılsaması** (timestamp/yerel yol/mimari sızıntısı) — kabul,
+  ve ZATEN bir tasarım invaryantı: W6.5b'nin hash formülü
+  `hash(normalize(prompt) + "|" + capabilitySetVersion)` — ortamdan hiçbir
+  şey (saat, yol, cihaz) sızmıyor, yalnızca girdi + capability sürümü.
+  İnşa anında **zorunlu test**: aynı girdi iki farklı "çalıştırmada" (saat
+  ileri alınmış, farklı işlemde) AYNI hash'i üretmeli — bu olmadan W6.5b
+  "tamam" sayılmaz.
+- **Cascading invalidation (bağımlılık zincirinin kırılması)** — kabul, VE
+  bu tam olarak **DAG'ı şimdi kurmama kararını güçlendiriyor**: bu tuzak
+  yalnızca paylaşılan alt-düğümler (§'de ertelenen DAG özelliği) var olunca
+  ortaya çıkar. Grafı henüz kurmadığımız için bu maliyeti henüz taşımıyoruz -
+  DAG'ı erteleyerek bu problemi de erteliyoruz, ayrıca çözmemiz gerekmiyor.
+- **Structure Hash ≠ Content Hash, AST'ten türetilmeli** — **kısmen kabul,
+  netleştirilerek:** AIOS'un BUGÜNKÜ artefaktları (ScreenSpec JSON, W5.1)
+  imperatif kod DEĞİL, deklaratif bir ağaç. Onlar için "AST" karşılığı zaten
+  W6.5b'nin `{structure_hash, parameters}` ayrımı - bileşen TİPİ+YERLEŞİMİ
+  structure, `label`/`value`/renk gibi yapraklar parameters. Değişken adı/
+  boşluk normalizasyonu gibi problemler JSON ağacında YOK (kod değil).
+  Gerçek AST-tabanlı structural hash, **Katman B**'nin (W6.3 KARAR-2, serbest
+  kod üretimi - Worker'da çalışan gerçek JS/HTML) sorunu - orada değişken
+  adı/boşluk gerçekten değişir. Yani bu madde bugün W6.5b'de karşılanmış
+  durumda; AST'nin kendisi yalnızca Katman B açılırsa gerekli.
+- **CapabilitySet bitmask/hiyerarşik olsun** — **kısmen reddedildi,
+  gerekçeli:** bitmask, capability kümesinin İNŞA ZAMANINDA SABİT ve
+  numaralandırılmış olmasını gerektirir. AIOS'ta capability seti SABİT
+  DEĞİL - `kits.ts` ile veri olarak (kod değişikliği gerektirmeden) yeni
+  intent/link/doc kiti eklenebiliyor (bkz. W1 kararı, "sistemin genişleme
+  yüzeyi kod değil veri"). Bitmask bu modeli kırar (her yeni kit demek
+  bitmask genişletmek demek). Ayni "küme teorisi işlemleri" (kesişim/
+  birleşim) hedefi, **hiyerarşik STRING etiketleriyle** (capability adları
+  zaten nokta-adlı: `sensor.battery.read`, `wifi.info` - bir prefix-trie ya da
+  `Set<string>` üzerinde prefix eşleşmesi) bitmask'in esneklik maliyetini
+  ödemeden elde edilir. Hiyerarşi kabul, bitmask reddedildi.
+- **GUID/hash çakışması riski** — **reddedildi, matematiksel gerekçeyle:**
+  SHA-256 çakışma olasılığı doğum günü sınırıyla ~2⁻¹²⁸. Bu risk gerçek
+  mühendislik kaygısı olan yer milyarlarca nesneli sistemlerdir (npm
+  registry, Git'in kendisi ölçeğinde). AIOS gerçekçi en üst sınırda (§
+  tetikleyici: 200 artefakt) bu riskten uzak - tasarlanması gereken GERÇEK
+  hata modu çakışma değil, **normalizasyon hatası** (iki farklı isteğin aşırı
+  agresif normalizasyonla aynı hash'e düşmesi) ya da **capability sürümünün
+  bump edilmemesi** (W6.L'de zaten adı geçen risk). Enerji oraya gitmeli.
+
 ### W6.7 — Dar context yönetimi
 - Widget içi işlemde modele **yalnızca o widget'ın** durumu gider (tüm uygulama durumu değil)
 - `prompt.ts` bölünür: çekirdek sistem promptu + **widget-özel ek** (yalnızca ilgili capability'ler ve o widget'ın şeması)
