@@ -367,6 +367,28 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); }
 .message-received .message-bubble { background: var(--s1); border: 1px solid var(--line); color: var(--fg); }
 .message-sent .message-bubble { background: var(--primary-a); border: 1px solid var(--primary); color: var(--fg); }
 
+/* ── NATIVE TOAST/SHEET (Framework7 kaldirildi, W6.1) ────────── */
+.native-toast {
+  position: fixed; left: 50%; bottom: 18%; translate: -50% 0; margin: 0;
+  max-width: 82vw; padding: 10px 16px; border-radius: var(--r-pill);
+  background: var(--s2); color: var(--fg); border: 1px solid var(--line);
+  font-family: var(--font-ui); font-size: var(--fs-md); text-align: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+}
+.native-toast.err { border-color: var(--error); color: var(--error); }
+
+dialog.aios-sheet {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: none; background: transparent; overflow: visible;
+}
+dialog.aios-sheet::backdrop { background: rgba(0,0,0,.5); }
+dialog.aios-sheet .sheet-modal {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh;
+  background: var(--s1); border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border: 1px solid var(--line); border-bottom: none; overflow-y: auto;
+}
+dialog.aios-sheet .sheet-modal-inner { padding-bottom: env(safe-area-inset-bottom); }
+
 /* ── genel yardimcilar ────────────────────────────────────── */
 .mono { font-family: var(--font-mono); }
 .dim  { color: var(--fg-mute); }

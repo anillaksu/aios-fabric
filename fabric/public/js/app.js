@@ -17,7 +17,40 @@ import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 
 const S = SC.S;
-let app;
+
+/* ════════ TOAST/SHEET (Framework7 kaldirildi, native <dialog>/Popover) ════════ */
+let toastHost = null;
+function showToast(text, err) {
+  if (!toastHost) {
+    toastHost = el("div", "native-toast");
+    toastHost.setAttribute("popover", "manual");
+    document.body.appendChild(toastHost);
+  }
+  toastHost.textContent = text;
+  toastHost.classList.toggle("err", !!err);
+  toastHost.showPopover();
+  clearTimeout(toastHost._t);
+  toastHost._t = setTimeout(() => toastHost.hidePopover(), 2100);
+}
+
+function createSheet(html) {
+  const dlg = document.createElement("dialog");
+  dlg.className = "aios-sheet";
+  dlg.innerHTML = html;
+  document.body.appendChild(dlg);
+  const listeners = {};
+  const close = () => { if (dlg.open) dlg.close(); };
+  dlg.addEventListener("click", (e) => {
+    if (e.target === dlg || e.target.closest(".sheet-close")) close();
+  });
+  dlg.addEventListener("close", () => (listeners.closed || []).forEach((cb) => cb()));
+  return {
+    open: () => dlg.showModal(),
+    close,
+    on(ev, cb) { (listeners[ev] || (listeners[ev] = [])).push(cb); },
+    destroy: () => dlg.remove(),
+  };
+}
 let currentTab = "home";
 let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
@@ -194,8 +227,7 @@ function labelForAction(type, payload) {
   return type;
 }
 
-const toast = (text, err) =>
-  app.toast.show({ text, position: "center", closeTimeout: 2100, cssClass: err ? "color-red" : "" });
+const toast = (text, err) => showToast(text, err);
 
 /* ════════ SON KULLANILAN ════════ */
 function rememberRecent(pkg) {
@@ -605,7 +637,7 @@ function openControlCenter() {
         <button class="c-btn" data-variant="ghost" id="cc-caps" style="flex:1">CAPS</button>
       </div>
     </div></div>`;
-  const sheet = app.sheet.create({ content: html, backdrop: true });
+  const sheet = createSheet(html);
   sheet.open();
 
   const tg = document.getElementById("cc-toggles");
@@ -696,13 +728,12 @@ function openAppSheet(payload) {
     rows.push({ type: "list-row", icon: "snow", title: "Dondur", tone: "error", action: { type: "app.freeze", payload: { pkg } } });
     rows.push({ type: "list-row", icon: "sun_max", title: "Geri aç", action: { type: "app.unfreeze", payload: { pkg } } });
   }
-  const sheet = app.sheet.create({
-    content: `<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner">
+  const sheet = createSheet(
+    `<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner">
       <div style="padding:14px 16px 10px" class="hstack"><span class="k-micro">${(name || pkg || "").toUpperCase()}</span>
       <span style="flex:1"></span><a href="#" class="link sheet-close k-micro">KAPAT</a></div>
-      <div style="padding:0 16px 22px" id="app-sheet-body"></div></div></div>`,
-    backdrop: true,
-  });
+      <div style="padding:0 16px 22px" id="app-sheet-body"></div></div></div>`
+  );
   sheet.open();
   document.getElementById("app-sheet-body").appendChild(render({ type: "list", children: rows }, ctx));
   sheet.on("closed", () => sheet.destroy());
@@ -800,8 +831,7 @@ function handleEntry() {
 }
 
 /* ════════ ACILIS ════════ */
-export async function boot(framework7) {
-  app = framework7;
+export async function boot() {
   loadTheme(); loadRecent(); loadArtifacts();
   // Acilista da senkronla: tarayici deposundaki mevcut artefaktlar sunucuya
   // gecsin (yedek + inceleme). Sadece degisiklikte yazmak yetmiyordu.

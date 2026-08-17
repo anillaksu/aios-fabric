@@ -1,13 +1,11 @@
 // AI-OS service worker.
-// Amac SADECE PWA kurulabilirligi + kabuk varliklarinin (Framework7, HTML)
+// Amac SADECE PWA kurulabilirligi + kabuk varliklarinin (HTML, ikon fontu)
 // hizli acilmasi. VERI (capability okumalari, LLM) ASLA onbelleklenmez -
 // pil/ag/uygulama listesi her zaman canli olmali.
 
-const SHELL = "aios-shell-v5";
+const SHELL = "aios-shell-v6";
 const SHELL_FILES = [
   "/",
-  "/vendor/framework7-bundle.min.css",
-  "/vendor/framework7-bundle.min.js",
   "/vendor/framework7-icons.css",
   "/vendor/fonts/Framework7Icons-Regular.woff2",
   "/css/tokens.css",

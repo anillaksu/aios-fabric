@@ -9,8 +9,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 
-<!-- Framework7 DEGISTIRILMEZ; kendi degiskenleri tokens.css'te ezilir. -->
-<link rel="stylesheet" href="/vendor/framework7-bundle.min.css">
+<!-- Framework7 kaldirildi (W6.1); ikon fontu native olarak korunuyor. -->
 <link rel="stylesheet" href="/vendor/framework7-icons.css">
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/themes.css">
@@ -121,10 +120,8 @@
   </div>
 </div>
 
-<script src="/vendor/framework7-bundle.min.js"></script>
 <script type="module">
   import { boot } from "/js/app.js";
-  const app = new Framework7({ el: "#app", theme: "md", darkMode: true, name: "AI-OS" });
 
   /* Klavye tepkisi: Android'de klavye acilinca layout viewport degismiyor,
      visualViewport degisiyor. Bunu izleyip shell yuksekligini kisiyoruz ki
@@ -141,7 +138,7 @@
     sync();
   }
 
-  boot(app);
+  boot();
 </script>
 </body>
 </html>

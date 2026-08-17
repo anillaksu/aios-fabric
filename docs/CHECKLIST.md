@@ -5,6 +5,10 @@ Bir madde ancak **canlı kanıtı** varsa `[x]` olur — "yazdım, çalışıyor
 
 Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
+**Belge haritası:** bu dosya = *ne yapacağız* · `docs/MIMARI_TEMEL.md` = *nasıl karar veriyoruz*
+· `docs/STANDARTLAR.md` = *hangi standarda dayanıyoruz* · `docs/PLAN_W6_app-shell.md` = *W6 tasarımı*.
+Çakışırlarsa **bu dosya kazanır.**
+
 ---
 
 ## 0. DEĞİŞMEZ KURALLAR (her madde bunlara uyar)
@@ -17,6 +21,7 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] **K6 — Fütürizm.** Geleneksel/eskimiş çözüm reddedilir; modern, esnek, geleceğe uyumlu web platformu tercih edilir
 - [ ] **K7 — Maliyet disiplini.** Gezinme/menü/pencere etkileşimi **sıfır token**; modele yalnızca gereken veri parçası gider
 - [ ] **K8 — Kanıt ilkesi.** *Koddan kanıtlanmayan doğru kabul edilmez; kanıttan türetilmeyen kodlanamaz.* Dışarıdan gelen iddia (rapor, kıyaslama tablosu, tier list) önce koda sorulur
+      · **Kanıt skalası dört seviyeli** (2026-08-17, `docs/MIMARI_TEMEL.md` §0.1): **FACT** (canlı çağrıyla kanıtlı) › **TEST-VERIFIED** (otomatik test var, cihazda koşmadı) › **REVIEW-VERIFIED** (yalnız kod okundu) › **TARGET** (kodda yok). Ayrım bürokrasi değil iş planı: kalan işleri farklı — TEST-VERIFIED dağıtım bekler, REVIEW-VERIFIED test bekler
 - [ ] **K9 — Standart temeli.** *Standardizasyon temel alınmayan çökmeye mahkûmdur.* Kendi format icat etmek son çare; varsayılan mevcut standarda uymak — bkz. `docs/STANDARTLAR.md`
 - [ ] **K10 — Öz alma.** *Yoktan var etme yoktur.* Her yapı için "bunun standart karşılığı ne?" sorusu sorulur; değer yeni format icat etmekte değil, birleşimin çalışan ilk örneği olmakta
 
@@ -120,7 +125,11 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
       *(bugün: `localStorage` + sabitlenmemişlerde 30 kayıt sınırı — `app.js:43`)*
 - [ ] W6.G **Uygulamaya dönüştürme.** Galeriden ana ekrana sürükle → kalıcı "uygulama"; yayınlama yolu
 - [ ] W6.H **Dar context.** Widget içi işlemde modele yalnızca o widget'ın verisi gider, tüm uygulama durumu değil
-- [ ] W6.I **Framework7'yi at.** 1.5 MB yükleniyor, yalnızca `toast` + `sheet` için kullanılıyor — native `<dialog>` + Popover API
+- [~] W6.I **Framework7'yi at.** ✅ kod bitti, **kısmen kanıtlandı** (2026-08-17)
+      · **FACT** — canlı ölçüm (telefon `:9300`, HTTP 200): sayfada `framework7-bundle` referansı **0**; kabuk yükü **1.444 KB → 150 KB (%90 düşüş)**. `app.toast`/`app.sheet` çağrısı kodda **0**, `Framework7` kelimesi **0**
+      · **TEST-VERIFIED** — `BUILD_OK` + 12/12 test (telefonda da geçti); ama toast/sheet'in **görsel olarak** doğru çıktığı henüz cihazda görülmedi → native `<dialog>.showModal()` + `popover` API'sinin Android WebView'de davranışı canlı onaylanmalı
+      · **Kalan iş:** telefonda Control Center'a dokunup sheet'in açıldığının görülmesi (K5)
+      · Not: bundle dosyaları telefonun diskinde **duruyor** (`vendor/` bilinçli olarak md5 kapsamı dışı — B-4); sayfa yüklemiyor ama sunulabiliyorlar → B-8
 - [ ] W6.J **Fütürist temel.** Web Components + CSS Container Queries + View Transitions API + `dvh`/`env()` (zaten kısmen var)
 
 **Tier list denetiminden gelen ekler (2026-08-17):**
@@ -133,7 +142,7 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] W6.P **Yaşam döngüsü ve bellek.** Pencere kapanınca timer/listener/Worker temizliği + bellek eşiği
 - [ ] W6.R **Bozuk sürümden dönüş.** v2 bozuksa v1'e geri alma; yayınlanan widget'ı geri çekme
 - [ ] W6.S **Çevrimdışı davranış.** Kod yerelden gelir ama capability çağrısı başarısız olur — widget bunu nasıl gösterir
-- [ ] W6.T **`sw.js` güncellemesi.** `SHELL_FILES` Framework7'yi önbellekliyor; W6.I ile birlikte güncellenmezse kullanıcı karma sürüm görür
+- [x] W6.T **`sw.js` güncellemesi.** ✅ **FACT** (2026-08-17) — canlı `GET /sw.js` telefondan: `SHELL = "aios-shell-v6"` (v5'ten yükseltildi), `SHELL_FILES`'tan iki F7 bundle'ı çıkarıldı. Sürüm yükseltmesi şart: `activate` handler'ı `SHELL`'den farklı tüm cache'leri siliyor, yani eski v5 önbelleğindeki 1.27 MB bundle bir sonraki açılışta temizlenir — karma sürüm riski kapandı
 - [ ] W6.U **Erişilebilirlik.** Pencere klavyeyle taşınabilmeli; ekran okuyucu yığını anlatabilmeli
 - [ ] W6.V **Performans bütçesi.** Telefonda aynı anda kaç pencere — sayı konmadan "iframe ağır" tartışmasının hakemi yok
 - [ ] W6.Y **Üretilen kodun denetimi.** Kayda geçmeden statik kontrol (W5 şeması ScreenSpec'i kapsıyor, serbest kodu kapsamıyor)
@@ -161,6 +170,19 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] **S-7** Capability eşlemesi **katmanlı** olsun: MCP Tool / MCP Resource / A2A Skill / Device Capability / Worker Capability — birebir `capability = MCP tool` değil
 - [ ] **S-8** Sandbox için **ayrı origin** ayrılsın — MCP Apps şartı (`allow-scripts allow-same-origin` ancak farklı origin'de güvenli); W6.3 gereksinimi
 
+## M — Mimari temelden doğan maddeler ⬜ (`docs/MIMARI_TEMEL.md`, 2026-08-17)
+
+> Owner'ın mimari değerlendirme raporu koda soruldu (K8) ve sabitlendi. Aşağıdakiler
+> o denetimden **yeni** çıkan işler; raporun geri kalanı mevcut K6-K10 ve S-1..S-8'i
+> teyit etti (yeni iş doğurmadı).
+
+- [ ] **M-1** Mevcut maddeler dört seviyeli kanıt skalasına göre yeniden etiketlensin (§0.1) — başlangıç: W6.I `TEST-VERIFIED`, W3.5 `REVIEW-VERIFIED`
+- [ ] **M-2** **B-6 önceliği yükseltildi** — "sıraya girmemiş borç" değil, §8'deki *tek-gerçek invaryantının* bilinen ihlali. **W6 kod yazımından ÖNCE kapatılmalı:** W6 hem `screenspec.ts`'i hem `registry.js`'i büyütecek, iki liste arasındaki fark da onunla birlikte büyür
+- [ ] **M-3** Maliyet ölçümü **beş kalemli** olsun: token · gecikme · ağ · doğrulama işi · cihaz enerjisi. W6.7 bugün yalnızca token sayıyor; K7'nin gerçek konusu beşi birden
+- [ ] **M-4** Korpus artefaktları `provenance: "corpus"` ile işaretlensin ve W6.5d'nin **200 artefakt tetikleyicisinden hariç tutulsun** — aksi hâlde sentetik korpus kendi tetikleyicisini ateşler ve ertelenen derleyiciyi erken açtırır (§11)
+- [ ] **M-5** Artefakt sözleşme alanları W6.F şemasına girsin: `approvalScope` (KARAR-2) + `capabilities` (W6.W) + `version` + `provenance` (§4)
+- [ ] **M-6** `CanCompose` **bağlam ve politika parametreli** tanımlansın: `CanCompose(A,B,Γ,Π)`; adapter uyumluluk ölçümünden **önce** uygulansın (§5.1, §5.3)
+
 ## Bilinen borçlar (henüz sıraya girmedi)
 
 - [x] B-1 `pc-agent` Agent Card sürümü `0.3.0`, `package.json` `0.1.0` — W2.2 ile kapandı, ikisi de artık `0.1.0`
@@ -168,5 +190,6 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] B-3 `fabric/public/js/components.css` ile `fabric/public/css/components.css` **birebir kopya** (21.428 bayt, ikisi de) — hangisinin yüklendiği `aios.html:17` → `/css/`; `js/` altındaki ölü
 - [ ] B-4 `vendor/` + `icons/` md5 doğrulama kapsamı dışında (nadiren değişir, bilinçli)
 - [ ] B-5 PC agent `SAFE_ROOT` artık kanonik depo — eski oturum klasöründeki `pc-agent` kopyası hâlâ diskte duruyor, karışıklık riski
-- [ ] B-6 **(W5'te bilinçli olarak açıldı)** `screenspec.ts`'teki `ALLOWED_TYPES`/`UI_META_ACTIONS` ile `registry.js`/`app.js`'teki eşdeğerleri **elle senkron tutulan iki ayrı liste** — biri güncellenip diğeri unutulursa (W1.9/W1.10 deseni) sunucu ile istemci farklı şeyi geçerli sayar. Tek kaynak (registry.js'i sunucuya JSON olarak servis etmek gibi) ileride değerlendirilebilir
+- [ ] B-6 ⚠️ **ÖNCELİK YÜKSELTİLDİ (2026-08-17, M-2)** — bu bir "borç" değil, **mimari invaryant ihlali**: `docs/MIMARI_TEMEL.md` §8'deki *"keşif yüzeyi ile yürütme yüzeyi aynı tekil gerçeğe dayanmalıdır"* ilkesinin kodda bilinen tek karşı örneği. `screenspec.ts`'teki `ALLOWED_TYPES`/`UI_META_ACTIONS` ile `registry.js`/`app.js`'teki eşdeğerleri **elle senkron tutulan iki ayrı liste** — biri güncellenip diğeri unutulursa (W1.9/W1.10 deseni) sunucu ile istemci farklı şeyi geçerli sayar. Karşılaştır: MCP'de `tools/list`↔`tools/call` bir **testle** bağlandı (`mcp.test.ts`), istemcide `ALLOWED_TYPES` `REGISTRY`'den **türetiliyor** (`renderer.js:22`) — yalnız bu sınır elle. Çözüm yönü: registry'yi sunucuya JSON olarak servis etmek ya da drift'i bir testle yakalamak
+- [ ] B-8 **(2026-08-17'de bulundu)** Framework7 bundle'ları (`framework7-bundle.min.js` 808 KB + `.css` 486 KB) depodan silindi ama **telefonun diskinde duruyor ve `:9300` üzerinden hâlâ 200 dönüyor** — `vendor/` bilinçli olarak md5 kapsamı dışı (B-4). Sayfa artık yüklemiyor (canlı doğrulandı), ama ölü 1.27 MB duruyor; `deploy-to-phone.sh`'e bir "vendor temizliği" adımı gerekiyor
 - [ ] B-7 A2A idempotency yalnızca süreç-içi (`"a2a:"+task.id`) — çağıranın `messageId`'si henüz taşınmıyor, gerçek uçtan-uca dedup yok (W5.7)
