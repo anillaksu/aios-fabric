@@ -125,10 +125,10 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
       *(bugün: `localStorage` + sabitlenmemişlerde 30 kayıt sınırı — `app.js:43`)*
 - [ ] W6.G **Uygulamaya dönüştürme.** Galeriden ana ekrana sürükle → kalıcı "uygulama"; yayınlama yolu
 - [ ] W6.H **Dar context.** Widget içi işlemde modele yalnızca o widget'ın verisi gider, tüm uygulama durumu değil
-- [~] W6.I **Framework7'yi at.** ✅ kod bitti, **kısmen kanıtlandı** (2026-08-17)
-      · **FACT** — canlı ölçüm (telefon `:9300`, HTTP 200): sayfada `framework7-bundle` referansı **0**; kabuk yükü **1.444 KB → 150 KB (%90 düşüş)**. `app.toast`/`app.sheet` çağrısı kodda **0**, `Framework7` kelimesi **0**
-      · **TEST-VERIFIED** — `BUILD_OK` + 12/12 test (telefonda da geçti); ama toast/sheet'in **görsel olarak** doğru çıktığı henüz cihazda görülmedi → native `<dialog>.showModal()` + `popover` API'sinin Android WebView'de davranışı canlı onaylanmalı
-      · **Kalan iş:** telefonda Control Center'a dokunup sheet'in açıldığının görülmesi (K5)
+- [x] W6.I **Framework7'yi at.** ✅ **FACT** — tam kanıtlandı (2026-08-17)
+      · Canlı ölçüm (telefon `:9300`, HTTP 200): sayfada `framework7-bundle` referansı **0**; kabuk yükü **1.444 KB → 150 KB (%90 düşüş)**. `app.toast`/`app.sheet` çağrısı kodda **0**, `Framework7` kelimesi **0**
+      · `BUILD_OK` + 12/12 sözleşme testi (PC'de **ve** telefonda), md5 birebir (34 dosya)
+      · **Görsel kanıt (K5):** owner telefonda Control Center'a dokundu, panel açıldı → native `<dialog>.showModal()` Android 15 WebView'de çalışıyor. Eski Framework7 `sheet`'i ~30 satır native kodla birebir değiştirildi
       · Not: bundle dosyaları telefonun diskinde **duruyor** (`vendor/` bilinçli olarak md5 kapsamı dışı — B-4); sayfa yüklemiyor ama sunulabiliyorlar → B-8
 - [ ] W6.J **Fütürist temel.** Web Components + CSS Container Queries + View Transitions API + `dvh`/`env()` (zaten kısmen var)
 
