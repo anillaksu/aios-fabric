@@ -126,7 +126,7 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 **Tier list denetiminden gelen ekler (2026-08-17):**
 
 - [ ] W6.K **Web Worker çekirdeği.** Üretilen kod Worker'da koşar (izole + `terminate()` edilebilir → kaçak widget telefonu kilitlemez); Worker `ScreenSpec` üretir, çizimi ana thread yapar
-- [ ] W6.L **Prompt→kod önbelleği.** SHA-256 (`crypto.subtle`) ile eşleme; **normalizasyon zorunlu** (ham hash kırılgan) ve hash'e **capability sürümü** katılır
+- [ ] W6.L **Prompt→kod önbelleği.** SHA-256 (`crypto.subtle`) ile eşleme; **normalizasyon zorunlu** (ham hash kırılgan) ve hash'e **capability sürümü** katılır. **(2026-08-17 eklendi)** Kayıt `{structureHash, structure, parameters}` — aynı yapı farklı başlık/renkle tekrar istenince yalnızca parametre değişir, yapı yeniden üretilmez
 - [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
 - [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
 - [ ] W6.O **Widget kalıcı verisi.** Widget başına alan mı, paylaşılan depo mu; paylaşımlıysa yetkiyi kim verir
@@ -138,6 +138,9 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] W6.V **Performans bütçesi.** Telefonda aynı anda kaç pencere — sayı konmadan "iframe ağır" tartışmasının hakemi yok
 - [ ] W6.Y **Üretilen kodun denetimi.** Kayda geçmeden statik kontrol (W5 şeması ScreenSpec'i kapsıyor, serbest kodu kapsamıyor)
 - [ ] W6.Z **AETHER'a kayıt.** Widget üretimi yönetişim hattında görünsün
+- [ ] W6.W **(Artifact Compiler önerisinden alınan, 2026-08-17)** Capability minimal closure — üretilen widget yalnızca gerçekten kullandığı capability'leri bildirir (statik tarama, `screenspec.ts`'e geçiş)
+
+**Artifact Compiler/Optimizer — kapsam kararı (2026-08-17):** Kullanıcı tam bir derleyici hattı önerdi (canonical IR, DAG, terfi yaşam döngüsü, çok aşamalı GC, maliyet-tabanlı reuse). Ölçüldü: telefonda **8 artefakt, 5.9 KB**. Karar: **ERTELENDİ, silinmedi** — ayrıntı ve yeniden gözden geçirme tetikleyicisi `docs/PLAN_W6_app-shell.md` §W6.5d'de. Ucuz/gerçek değerli üç parça şimdi alındı: exact dedup (zaten W6.L'de vardı), structure+parameters ayrımı (W6.L'ye eklendi), capability minimal closure (yukarıda W6.W).
 
 **Kod yazımından ÖNCE cevaplanacak açık kararlar:**
 

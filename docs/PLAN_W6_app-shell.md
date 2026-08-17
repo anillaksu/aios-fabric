@@ -165,6 +165,10 @@ Her widget'ı kod olarak üretmek pahalıdır. Her widget'ı ScreenSpec'e sığd
 - **Hash'e capability sürümü de katılır:** capability seti değişince eski kod sessizce yanlış
   çalışmaya devam etmesin (`hash(normalize(prompt) + "|" + capabilitySetVersion)`)
 - Önbellek isabet oranı journal'a düşer — tasarrufun ölçülebilir olması için
+- **(W6.5d katkısı) Structure + Parameters ayrımı:** kayıt `{structureHash, structure, parameters}`
+  şeklinde tutulur — aynı widget yapısı (örn. "hesap makinesi kartı") farklı başlık/ikon/renk gibi
+  yüzeysel farklarla tekrar istendiğinde tüm yapı yeniden üretilmez, yalnızca parametreler değişir.
+  Bu, DAG/paylaşılan-düğüm kurmadan aynı faydanın **ucuz** kısmını verir.
 - **Kabul:** aynı istek ikinci kez verildiğinde model çağrısı **sıfır**, isabet journal'da görünüyor
 
 ### W6.5c — Deterministik prompt şablonları (kullanıcı katkısı)
@@ -179,6 +183,79 @@ Her widget'ı kod olarak üretmek pahalıdır. Her widget'ı ScreenSpec'e sığd
 - "Yayınla": widget'ı tek dosya HTML olarak dışa aktar **veya** Fabric üzerinden `/app/<id>` yolundan servis et
 - Sürümleme: `stok_widget_v1`, `v2`… — üzerine yazmak yerine yeni sürüm (geri dönülebilir)
 - **Kabul:** bir widget ana ekrana sabitlenip uygulama gibi açılıyor; dışa aktarılan dosya tarayıcıda tek başına çalışıyor
+
+### W6.5d — Artifact Compiler/Optimizer önerisi: değerlendirme ve kapsam kararı (kullanıcı katkısı, 2026-08-17)
+
+Kullanıcı tam bir derleyici hattı önerdi: `normalize → canonicalize → validate →
+deduplicate → compose → optimize → promote → archive/GC`, canonical Artifact IR,
+DAG/reference graph (paylaşılan alt-düğümler, örn. ortak `BatteryCard`), yapısal
+eşdeğerlik hash'i (`Equivalent(a,b) ⇒ Hash(Compile(a))=Hash(Compile(b))`), maliyet
+tabanlı reuse kararı (`E(C_reuse) < E(C_regenerate)`), çok aşamalı terfi
+(`GENERATED→VALIDATED→OBSERVED→CANDIDATE→PROMOTED`) ve çok aşamalı GC
+(`ACTIVE→COLD→ARCHIVED→GC CANDIDATE→DELETE`).
+
+**Teknik olarak sağlam** — gerçek derleyici teorisi (hash-consing, e-graph,
+canonical form), ve kullanıcı kendisi kontrolsüz equality-saturation riskini
+görüp deterministik/sınırlı rewrite kuralları öneriyor; bu naif bir öneri değil.
+
+**Ölçüm (K8 ilkesi — kodlamadan önce koda/veriye sorulur):**
+
+```
+GET /artifacts (telefon, 2026-08-17) → 8 kayıt, 5.9 KB toplam
+```
+
+**Kapsam kararı: şimdi ERTELE, tetikleyici koşulla birlikte yaz.** Gerekçe üç madde:
+
+1. **Ölçek yanlış eşleşiyor.** Bu öneri, birçok kullanıcının örtüşen isteklerini
+   karşılayan bir **çok-kiracılı artefakt deposu** için doğru mimari (aynı
+   `BatteryCard`'ın yüzlerce kez üretilmesi, gerçek bir sorun *o bağlamda*).
+   AIOS tek cihaz, tek kullanıcı. 8 artefaktta yapısal çakışma **ölçülebilir bir
+   sorun değil** — DAG/paylaşılan-düğüm/GC katmanı, var olmayan bir sorunu
+   çözer.
+2. **İstatistiksel sinyal yok.** `reuse frequency`, `success rate`, `structural
+   stability` gibi terfi ölçütleri **anlam kazanmak için hacim ister**. n=8'de
+   bu ölçütler gürültüden ibaret; bürokratik bir yaşam döngüsü (5 aşama) katmak,
+   kazanmadığı bir kesinliği iddia eder.
+3. **Depolama baskısı yok.** GC'nin çözdüğü sorun disk/bellek baskısıdır.
+   IndexedDB'de (W6.F) birkaç KB'lık widget'lar için pratik sınır yok — 8 kayıt
+   5.9 KB'yi henüz bile doldurmuyor. Aşamalı GC (`COLD→ARCHIVED→GC CANDIDATE`)
+   olmayan bir baskıyı yönetmek için makine kurmaktır.
+
+**Zaten doğru olan bir madde:** *"Compiler LLM çağırmamalı, LLM yalnızca
+karşılanamayan yapı için IR önerir."* Bu **hedef değil, mevcut mimari** —
+`screenspec.ts` (W5.1) zaten deterministik, LLM'i hiç çağırmayan bir doğrulama/
+temizleme geçişi. Önerinin bu maddesi ekstra iş gerektirmiyor.
+
+**Şimdi alınan, ucuz ve gerçek değeri olan üç parça** (mevcut W6 maddelerine
+katıldı, ayrı bir "compiler" çatısı **kurulmadan**):
+
+- **Exact dedup** → zaten **W6.5b**'de var (SHA-256 + normalizasyon + capability
+  sürümü). Öneri bunu doğruladı, değiştirmedi.
+- **Structure + Parameters ayrımı** → W6.5b'ye eklendi (aşağı bak): bir widget
+  `{structure_hash, parameters}` olarak saklanır; aynı yapının farklı
+  parametrelerle (örn. farklı başlık/renk) yeniden üretilmesini önler — DAG
+  kurmadan, yalnızca depolama şeklini değiştirerek.
+- **Capability minimal closure** → yeni checklist maddesi **W6.W**: üretilen bir
+  widget yalnızca **gerçekten kullandığı** capability'leri bildirir (statik
+  kullanım taraması, `screenspec.ts`'e bir geçiş olarak). Ucuz, güvenlik +
+  gözlemlenebilirlik kazandırır, DAG/GC gerektirmez.
+
+**Ertelenen, silinmeyen kısım — yeniden gözden geçirme tetikleyicisi:**
+
+Bu belgenin geri kalanı (canonical IR, DAG, terfi yaşam döngüsü, çok aşamalı GC,
+maliyet-tabanlı reuse) **atılmadı** — aşağıdaki **herhangi biri** gerçekleştiğinde
+buraya dönülür:
+
+- Artefakt sayısı **200'ü** geçer (o zaman istatistiksel terfi ölçütleri anlam
+  kazanır) **VEYA**
+- Aynı yapının **ölçülebilir şekilde** (journal'da) tekrar tekrar farklı
+  parametrelerle üretildiği görülür **VEYA**
+- AIOS tek cihazdan **çok-cihaz/çok-kullanıcı** bir modele geçer (o zaman
+  "çok-kiracılı depo" varsayımı gerçek olur).
+
+Tetikleyici gerçekleşmeden bu makineyi kurmak, K10 ilkesinin (yoktan var etme
+yoktur, her şeyin bir başlangıcı vardır) tersini yapar: henüz var olmayan bir
+ölçek için bugünden bürokrasi icat etmek.
 
 ### W6.7 — Dar context yönetimi
 - Widget içi işlemde modele **yalnızca o widget'ın** durumu gider (tüm uygulama durumu değil)
