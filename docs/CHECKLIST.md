@@ -16,6 +16,9 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] **K5 — Görünür doğrulama.** Test ederken cihazda **gerçekten görünür** eylemler tetiklenecek (kullanıcı ilerlemeyi görsün), ama **önceden haber verilerek**
 - [ ] **K6 — Fütürizm.** Geleneksel/eskimiş çözüm reddedilir; modern, esnek, geleceğe uyumlu web platformu tercih edilir
 - [ ] **K7 — Maliyet disiplini.** Gezinme/menü/pencere etkileşimi **sıfır token**; modele yalnızca gereken veri parçası gider
+- [ ] **K8 — Kanıt ilkesi.** *Koddan kanıtlanmayan doğru kabul edilmez; kanıttan türetilmeyen kodlanamaz.* Dışarıdan gelen iddia (rapor, kıyaslama tablosu, tier list) önce koda sorulur
+- [ ] **K9 — Standart temeli.** *Standardizasyon temel alınmayan çökmeye mahkûmdur.* Kendi format icat etmek son çare; varsayılan mevcut standarda uymak — bkz. `docs/STANDARTLAR.md`
+- [ ] **K10 — Öz alma.** *Yoktan var etme yoktur.* Her yapı için "bunun standart karşılığı ne?" sorusu sorulur; değer yeni format icat etmekte değil, birleşimin çalışan ilk örneği olmakta
 
 ---
 
@@ -126,6 +129,15 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] **KARAR-3 — Model seçimi.** Tier list harici API (DeepSeek/GPT-4o) öneriyor; sistemde yerel `llm_bridge` var. Harici API veriyi dışarı taşır, çevrimdışını bitirir, maliyeti artırır — mimariye gömülmemeli, ayrı karar
 
 ---
+
+## S — Standardizasyon maddeleri ⬜ (`docs/STANDARTLAR.md`)
+
+- [ ] **S-1** CloudEvents eşlemesi — journal olayları standart zarfa çevrilebilsin (`{seq,id,ts,type,correlationId}` → `{specversion,id,source,type,time,subject}`)
+- [ ] **S-2** W3C Trace Context — A2A çağrılarında `traceparent` taşınsın; `correlationId`/`causationId` zaten aynı fikir
+- [ ] **S-3** ScreenSpec ↔ Adaptive Cards öz alımı — bileşen adları ve `body`/`actions` ayrımı (W6 ile)
+- [ ] **S-4** Widget köprüsü **JSON-RPC 2.0 over postMessage** — yeni protokol icat edilmesin; A2A/MCP ile aynı zarf ailesi (W6.4 ile)
+- [ ] **S-5** ScreenSpec'ler MCP **resource** olarak yayınlansın — dış istemciler de render edebilsin (W4 ile)
+- [ ] **S-6** Rakip kıyaslama tablosundaki iddialar W6 bitene kadar **"hedef"** etiketli kalsın — bugün 5 iddiadan 4'ü kodda yok
 
 ## Bilinen borçlar (henüz sıraya girmedi)
 
