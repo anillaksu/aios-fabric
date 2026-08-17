@@ -103,6 +103,28 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] W6.I **Framework7'yi at.** 1.5 MB yükleniyor, yalnızca `toast` + `sheet` için kullanılıyor — native `<dialog>` + Popover API
 - [ ] W6.J **Fütürist temel.** Web Components + CSS Container Queries + View Transitions API + `dvh`/`env()` (zaten kısmen var)
 
+**Tier list denetiminden gelen ekler (2026-08-17):**
+
+- [ ] W6.K **Web Worker çekirdeği.** Üretilen kod Worker'da koşar (izole + `terminate()` edilebilir → kaçak widget telefonu kilitlemez); Worker `ScreenSpec` üretir, çizimi ana thread yapar
+- [ ] W6.L **Prompt→kod önbelleği.** SHA-256 (`crypto.subtle`) ile eşleme; **normalizasyon zorunlu** (ham hash kırılgan) ve hash'e **capability sürümü** katılır
+- [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
+- [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
+- [ ] W6.O **Widget kalıcı verisi.** Widget başına alan mı, paylaşılan depo mu; paylaşımlıysa yetkiyi kim verir
+- [ ] W6.P **Yaşam döngüsü ve bellek.** Pencere kapanınca timer/listener/Worker temizliği + bellek eşiği
+- [ ] W6.R **Bozuk sürümden dönüş.** v2 bozuksa v1'e geri alma; yayınlanan widget'ı geri çekme
+- [ ] W6.S **Çevrimdışı davranış.** Kod yerelden gelir ama capability çağrısı başarısız olur — widget bunu nasıl gösterir
+- [ ] W6.T **`sw.js` güncellemesi.** `SHELL_FILES` Framework7'yi önbellekliyor; W6.I ile birlikte güncellenmezse kullanıcı karma sürüm görür
+- [ ] W6.U **Erişilebilirlik.** Pencere klavyeyle taşınabilmeli; ekran okuyucu yığını anlatabilmeli
+- [ ] W6.V **Performans bütçesi.** Telefonda aynı anda kaç pencere — sayı konmadan "iframe ağır" tartışmasının hakemi yok
+- [ ] W6.Y **Üretilen kodun denetimi.** Kayda geçmeden statik kontrol (W5 şeması ScreenSpec'i kapsıyor, serbest kodu kapsamıyor)
+- [ ] W6.Z **AETHER'a kayıt.** Widget üretimi yönetişim hattında görünsün
+
+**Kod yazımından ÖNCE cevaplanacak açık kararlar:**
+
+- [ ] **KARAR-1 — Pano mu, masaüstü mü?** Gridstack ızgaraya oturtur (pano), sizin tarifiniz serbest pencere (masaüstü). İkisi farklı ürün; W6.2 buna göre değişir
+- [ ] **KARAR-2 — Serbest kod üretimi (Katman B) varsayılan açık mı, `ask` mı?** "Bir anda tüm yetki açılmayacak" kararınızla tutarlı olan `ask`, ama akışı yavaşlatır
+- [ ] **KARAR-3 — Model seçimi.** Tier list harici API (DeepSeek/GPT-4o) öneriyor; sistemde yerel `llm_bridge` var. Harici API veriyi dışarı taşır, çevrimdışını bitirir, maliyeti artırır — mimariye gömülmemeli, ayrı karar
+
 ---
 
 ## Bilinen borçlar (henüz sıraya girmedi)

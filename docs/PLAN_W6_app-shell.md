@@ -22,6 +22,23 @@ Plan varsayıma değil, şu ölçümlere dayanıyor:
 
 ---
 
+## 0b. Tier list denetimi (2026-08-17, kullanıcı mimari önerisi)
+
+Kullanıcı bir "Composable Micro-Frontend OS" tier list'i sundu. Her katman canlı testle
+sınandı; sonuç sayfası: **Mimari Tier Denetimi** artefaktı (Test 1–4 tarayıcıda çalışıyor).
+
+| Katman | Karar | Gerekçe |
+|---|---|---|
+| S · Shadow DOM izolasyon | **Düzeltildi** | JS izolasyonu sağlamıyor — §1 |
+| S · Web Workers + RPC | **Kabul, yükseltildi** | Doğru sınır **ve** `terminate()` ile kaçak widget çözümü — §1b |
+| S · DeepSeek/GPT-4o | **Ertelendi** | Model seçimi mimariye gömülmemeli; yerel `llm_bridge` zaten var, harici API veriyi dışarı taşır |
+| A · PostMessage bus | **Kabul, eksikle** | Kanal başına yetki modeli tasarlanmadan "secure" değil |
+| A · IndexedDB + hash | **Kabul, yeni katkı** | Planda yoktu → W6.5b |
+| B · Web Components | **Kabul** | W6.J ile aynı |
+| B · Gridstack/Muuri | **Farklı ürün** | Izgara ≠ pencere; karar §6'da |
+
+---
+
 ## 1. Bir teknik düzeltme: Shadow DOM güvenlik sınırı değildir
 
 Vizyonunuzda **"Shadow DOM veya güvenli bir iframe"** diyorsunuz. İkisi aynı şey değil ve fark bu projede kritik:
@@ -34,6 +51,31 @@ Vizyonunuzda **"Shadow DOM veya güvenli bir iframe"** diyorsunuz. İkisi aynı 
 **Beklediğiniz faydayı (widget menüleri patlatmasın) iframe zaten veriyor; üstüne gerçek güvenlik sınırını da veriyor.** W1'de kurduğumuz risk katmanı ancak böyle istemciye kadar uzanır.
 
 İlgili güzel yan etki: **W1.5'te CORS wildcard'ını kaldırdık.** Bu sayede opaque-origin bir iframe'in `/envelope`'a doğrudan `fetch` denemesi tarayıcı tarafından engellenir — izolasyon teoride değil, uygulamada geçerli.
+
+### 1b. Worker: kullanıcının önerisi kabul edildi ve çekirdeğe alındı
+
+Tier list'teki **Web Workers** önerisi isabetli ve tek başına iframe'den üstün:
+
+- Ayrı global bağlam — `window`, `document`, `localStorage` yok (Test 3 ile doğrulandı)
+- **`terminate()` edilebilir** — sonsuz döngüye giren bozuk bir widget telefonu kilitlemez.
+  Bu, iframe'in bile temiz çözemediği bir sorun ve tier list'te gerekçe olarak yazılmamıştı.
+- iframe'e göre ucuz (Test 4: iframe ölçülebilir şekilde daha pahalı)
+
+Eksik parçası: **Worker DOM'a erişemez**, yani widget'ın arayüzünü kendisi çizemez.
+Çözüm zaten kodumuzda: Worker *ne çizileceğini* söyler (`ScreenSpec`), ana thread bilinen
+bileşenlerle çizer (`renderer.js`). Güvenilmeyen kod hiçbir zaman DOM'a dokunmaz.
+
+**Çekirdek katman sırası (düzeltilmiş):**
+
+```
+1. Üretilen kod        → Web Worker (izole, terminate edilebilir)
+2. Worker çıktısı      → ScreenSpec (JSON) — "ne çizilecek", çizim değil
+3. Ana thread          → deterministik çizim + Shadow DOM ile STİL kapsüllemesi
+                         (Shadow DOM burada doğru yerde: güvenlik için değil,
+                          tasarım dilini korumak için)
+4. Capability isteği   → W1 risk kapısı (widget çağırmaz, ister)
+5. Serbest HTML şartsa → iframe sandbox, yalnızca kaçış kapağı olarak
+```
 
 ---
 
@@ -100,6 +142,25 @@ Her widget'ı kod olarak üretmek pahalıdır. Her widget'ı ScreenSpec'e sığd
 - Sunucu senkronu korunur (`/artifacts`) — cihaz kaybında geri dönüş
 - **Kabul:** üretilen widget kapatılıp yeniden açıldığında **hiç ağ/model çağrısı olmadan** geliyor
 
+### W6.5b — Prompt→kod önbelleği (kullanıcı katkısı, planda yoktu)
+- Başarılı her widget, üreten isteğin **SHA-256** özetiyle eşlenip IndexedDB'ye yazılır
+  (`crypto.subtle.digest` — bağımlılık yok)
+- Benzer istek gelince modele **hiç gidilmez**, kod doğrudan yerelden yüklenir
+- **Normalizasyon zorunlu:** ham prompt hash'i kırılgan ("hesap makinesi yap" ≠ "bana hesap
+  makinesi yapar mısın"). Küçük harfe indirme + noktalama/dolgu kelime temizliği + boşluk
+  sadeleştirmesi hash'ten önce uygulanır
+- **Hash'e capability sürümü de katılır:** capability seti değişince eski kod sessizce yanlış
+  çalışmaya devam etmesin (`hash(normalize(prompt) + "|" + capabilitySetVersion)`)
+- Önbellek isabet oranı journal'a düşer — tasarrufun ölçülebilir olması için
+- **Kabul:** aynı istek ikinci kez verildiğinde model çağrısı **sıfır**, isabet journal'da görünüyor
+
+### W6.5c — Deterministik prompt şablonları (kullanıcı katkısı)
+- Modele serbest istek gitmez; **sınırları çizilmiş görev** gider:
+  ~~"bana bir muhasebe paneli yaz"~~ → "girdi olarak iki tarih alan, çıktı olarak şu şemadaki
+  veriyi listeleyen bir ScreenSpec üret; kullanabileceğin bileşenler şunlar"
+- Şablon = sabit iskelet + değişken yuvalar. Sabit kısım önbelleğe girer, yalnızca yuvalar değişir
+- Yan fayda: çıktı daha kararlı → hash isabet oranı yükselir → maliyet daha da düşer
+
 ### W6.6 — Uygulamaya dönüştürme ve yayınlama
 - Galeriden ana ekrana sürükle → kalıcı kısayol (ikon + ad), açılışta doğrudan IndexedDB'den
 - "Yayınla": widget'ı tek dosya HTML olarak dışa aktar **veya** Fabric üzerinden `/app/<id>` yolundan servis et
@@ -135,3 +196,31 @@ Her widget'ı kod olarak üretmek pahalıdır. Her widget'ı ScreenSpec'e sığd
 ## 5. Açık karar (W6 başlarken sorulacak)
 
 - **Katman B'nin varsayılan durumu:** serbest kod üretimi baştan açık mı, yoksa `risk:"ask"` gibi açık onayla mı çalışsın? Sizin "bir anda tüm yetki açılmayacak" kararınızla tutarlı olan ikincisi — ama üretim akışını yavaşlatır. W6.3'e gelindiğinde karar verilecek.
+
+## 6. Açık karar — pano mu, masaüstü mü?
+
+Tier list `Gridstack.js / Muuri` öneriyor. Bunlar **ızgara** kütüphaneleri: bileşenleri hücrelere oturturlar, çakışmayı engellerler, otomatik yeniden dizerler. Sizin tarif ettiğiniz şey ise **pencere**: serbest konum, üst üste binme, z-index, "Android gibi". Bunlar farklı ürünler ve ikisi aynı anda olmaz:
+
+| | Pano (Gridstack) | Masaüstü (kendi WindowManager) |
+|---|---|---|
+| Yerleşim | ızgaraya oturur, çakışma yok | serbest, üst üste binebilir |
+| Kod | ~50 KB dış bağımlılık | ~250 satır kendi kodumuz |
+| Uygun olduğu iş | sürekli görünen göstergeler | açılıp kapanan mini uygulamalar |
+| Bağımlılık ölçütü | F7'yi 1.5 MB diye atarken yeni paket eklemek tutarsız olur | sıfır bağımlılık |
+
+"Widget'larla uygulama üzerinde gezme, uygulama içi pencereler" ifadeniz **masaüstünü** işaret ediyor; W6.2 buna göre yazıldı. Pano isteniyorsa W6.2 baştan değişir — bu yüzden kod yazımından önce netleşmeli.
+
+## 7. Açık boşluklar (tier list'te de, ilk planda da yoktu)
+
+Denetim sırasında ortaya çıktı; W6 başlamadan cevaplanması gerekenler:
+
+1. **Widget'ın kalıcı verisi** — widget başına ayrılmış alan mı, paylaşılan depo mu? Paylaşımlı ise yetkiyi kim veriyor?
+2. **Kaçak widget** — sonsuz döngü (Worker + `terminate()` ile çözülüyor, §1b)
+3. **Yaşam döngüsü** — pencere kapanınca timer/listener/Worker temizliği; bellek eşiği
+4. **Bozuk sürümden dönüş** — v2 bozuksa v1'e geri alma; yayınlanan widget'ı geri çekme
+5. **Çevrimdışı** — kod IndexedDB'den gelir ama capability çağrısı başarısız olur; widget bunu nasıl gösterir
+6. **`sw.js` bağımlılığı** — `SHELL_FILES` Framework7'yi önbellekliyor; W6.1'de F7 atılınca bu liste güncellenmezse kullanıcılar karma sürüm görür
+7. **Erişilebilirlik** — pencere klavyeyle nasıl taşınır, ekran okuyucu yığını nasıl anlatır
+8. **Performans bütçesi** — telefonda aynı anda kaç pencere; ölçüm eşiği
+9. **Üretilen kodun denetimi** — kayda geçmeden statik kontrol; W5 şeması ScreenSpec'i kapsıyor, serbest kodu kapsamıyor
+10. **AETHER'a kayıt** — widget üretimi yönetişim hattında görünecek mi
