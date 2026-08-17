@@ -15,6 +15,7 @@ import { read, getJSON, postJSON, sendIntent, events } from "./api.js";
 import { render, el } from "./registry.js";
 import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
+import { UI_META_ACTIONS } from "./ui-actions.js";
 
 const S = SC.S;
 
@@ -866,10 +867,7 @@ export async function boot() {
   const caps = (await getJSON("/capabilities")) || [];
   capabilityNames = caps.map((c) => c.name);
   ACTIONABLE = new Set(caps.filter((c) => c.class === "REFLEX" || c.class === "AGENT").map((c) => c.name));
-  setAllowedActions([...capabilityNames, "ui.goto", "ui.back", "ui.appsheet",
-    "ui.control", "ui.ask", "ui.artifact", "ui.compose", "cap.test",
-    "ui.taskCancel", "ui.taskRetry", "ui.taskUndo", "ui.miniapp",
-    "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove"]);
+  setAllowedActions([...capabilityNames, ...UI_META_ACTIONS]);
   S.services.llm = capabilityNames.includes("llm.generate");
   S.services.gateway = true;
   S.peers = (await getJSON("/a2a/peers")) || [];

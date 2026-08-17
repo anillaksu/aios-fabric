@@ -21,7 +21,8 @@ import { capabilityMap } from "./capabilities.ts";
 
 // public/js/registry.js:REGISTRY ile BIREBIR ayni liste olmali - biri
 // degisip digeri unutulursa istemci ve sunucu farkli seyi "gecerli" sayar.
-const ALLOWED_TYPES = new Set([
+// export: fabric/test/registry-drift.test.ts bu iki listeyi karsilastirir (B-6).
+export const ALLOWED_TYPES = new Set([
   "section", "tile", "info-card", "action-card", "task-card", "agent-card",
   "app-tile", "list", "list-row", "status-chip", "metric", "progress",
   "action-receipt", "button", "button-row", "skeleton", "empty-state",
@@ -29,8 +30,9 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 // UI'nin kendi ic gezinme eylemleri (capability degil, capabilityMap'te yok)
-// - client-side app.js:839'daki setAllowedActions listesiyle ayni.
-const UI_META_ACTIONS = new Set([
+// - client-side public/js/ui-actions.js:UI_META_ACTIONS ile BIREBIR ayni
+// olmali. fabric/test/registry-drift.test.ts bu ikisini karsilastirir (B-6).
+export const UI_META_ACTIONS = new Set([
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
   "ui.compose", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
   "ui.miniapp", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
