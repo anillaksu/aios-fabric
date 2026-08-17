@@ -20,8 +20,21 @@ import { buildSystemPrompt } from "./prompt.ts";
 import { labelFor, hasRealLabel, resolveLabels, pendingLabels } from "./applabels.ts";
 import { isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import type { Capability, CapabilityResult } from "./types.ts";
+import type { A2AHub } from "./a2a.ts";
 
 const execFileAsync = promisify(execFile);
+
+// ─── A2A HUB ENJEKSIYONU (2026-08-17) ───
+// a2a.delegate capability'si a2a.ts'teki A2AHub'i CAGIRMASI gerekiyor, ama
+// a2a.ts zaten capabilityMap'i buradan import ediyor (capability: <ad> | <arg>
+// bicimini calistirmak icin) - dogrudan import etseydik dongusel bagimlilik
+// olurdu. Bunun yerine server.ts, iki nesneyi de kurduktan SONRA burayi
+// setA2AHub ile doldurur. `import type` derleme zamaninda silinir, calisma
+// zamaninda dongu olusturmaz.
+let a2aHub: A2AHub | null = null;
+export function setA2AHub(hub: A2AHub) {
+  a2aHub = hub;
+}
 
 const BIN = "/data/data/com.termux/files/usr/bin";
 const RISH = `${BIN}/rish`;
@@ -501,14 +514,18 @@ export const capabilities: Capability[] = [
     },
   },
   {
-    // ─── A2A DELEGASYONU (2026-08-17) ───
+    // ─── A2A DELEGASYONU (2026-08-17, self-fetch kaldirildi) ───
     // A2A altyapisi vardi ama YALNIZCA HTTP ucu olarak (/a2a/delegate).
     // Yani Hermes bir artefakt icinden baska cihaza is veremiyordu - eylem
     // sozlugunde karsiligi yoktu. Capability olunca "PC'de sunu calistir"
     // artik normal bir buton eylemi.
     //
-    // Uzak is UZUN surebilir; burada BEKLIYORUZ (peer'i pollamak yerine
-    // sonucu dogrudan dondurmek icin), o yuzden timeout comert.
+    // ONCEKI SURUM kendi sunucusuna HTTP ile geri fetch atiyordu
+    // (127.0.0.1:PORT/a2a/delegate + tasks pollama) - gereksiz bir ag
+    // sicramasiydi VE peer auth eklendiginde (W1) kendi kendini 401'e
+    // dusurecekti (bu istek de disaridan gelen bir istek gibi gorunurdu).
+    // Artik A2AHub'a SURC ICI cagiriliyor - delegateToPeer zaten sonucu
+    // BEKLEYIP donuyor, ayrica pollamaya gerek yok.
     name: "a2a.delegate",
     class: "AGENT",
     maxRetries: 0,
@@ -516,35 +533,14 @@ export const capabilities: Capability[] = [
       const peer = str(payload?.peer, "pc");
       const text = str(payload?.text);
       if (!text) return { ok: false, error: "text gerekli (orn: \"skill: system.info\")" };
+      if (!a2aHub) return { ok: false, error: "A2A hub henuz hazir degil" };
       try {
-        const res = await fetch(`http://127.0.0.1:${process.env.FABRIC_PORT ?? 9300}/a2a/delegate`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ peer, text }),
-        });
-        if (!res.ok) return { ok: false, error: `delegate ${res.status}` };
-        const task = (await res.json()) as { id?: string; error?: string };
-        if (!task.id) return { ok: false, error: task.error ?? "peer gorev acmadi" };
-
-        // Sonucu bekle - peer tamamlayana kadar (en fazla ~45sn).
-        const deadline = Date.now() + 45000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1200));
-          const t = await fetch(`http://127.0.0.1:${process.env.FABRIC_PORT ?? 9300}/a2a/tasks/${task.id}`);
-          if (!t.ok) continue;
-          const cur = (await t.json()) as {
-            state?: string; error?: string;
-            history?: { role: string; parts: { text?: string }[] }[];
-          };
-          if (cur.state === "completed" || cur.state === "failed") {
-            const last = cur.history?.[cur.history.length - 1];
-            const reply = last?.parts?.[0]?.text ?? "";
-            return cur.state === "completed"
-              ? { ok: true, data: { peer, reply } }
-              : { ok: false, error: cur.error ?? reply.slice(0, 200) };
-          }
-        }
-        return { ok: false, error: `peer "${peer}" 45sn icinde yanit vermedi (is arka planda surebilir)` };
+        const task = await a2aHub.delegateToPeer(peer, text);
+        const last = task.history[task.history.length - 1];
+        const reply = last?.parts?.[0]?.text ?? "";
+        return task.state === "failed"
+          ? { ok: false, error: task.error ?? reply.slice(0, 200) }
+          : { ok: true, data: { peer, reply } };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
@@ -954,10 +950,15 @@ export const capabilities: Capability[] = [
         { role: "user", content: prompt },
       ];
       try {
+        // 2026-08-17 W0.3: bu fetch'te timeout YOKTU - llm_bridge takilirsa
+        // sunucu tarafi SONSUZA dek asili kalirdi (B4). UI bu cagriyi 90sn
+        // ile sariyor (app.js LLM_TIMEOUT); burasi ondan KISA olmali ki
+        // gercek hata donsun, UI'nin sessiz vazgecmesi degil.
         const res = await fetch("http://127.0.0.1:9201/generate", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ messages, max_tokens: Number(payload?.max_tokens ?? 800) }),
+          signal: AbortSignal.timeout(80000),
         });
         const data = (await res.json()) as {
           text?: string; error?: string; finish_reason?: string;
@@ -976,6 +977,9 @@ export const capabilities: Capability[] = [
           },
         };
       } catch (err) {
+        if (err instanceof Error && err.name === "TimeoutError") {
+          return { ok: false, error: "llm_bridge 80sn icinde yanit vermedi" };
+        }
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },

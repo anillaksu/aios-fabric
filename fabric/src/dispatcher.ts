@@ -107,13 +107,15 @@ export class Dispatcher {
     this.applyOptimisticProjection(intent, taskId, correlationId, createdEvent.id);
 
     // --- Gercek yurutme ARKA PLANDA (await edilmiyor - dispatch() hemen doner) ---
-    if (cls === "AGENT") {
-      // Bu ilk vertical slice'ta yerel bir capability karsiligi yok -
-      // agent delegation plane'ine (a2a.ts) devredilecek. Simdilik
-      // "desteklenmiyor" olarak isaretleyip A2A katmanina birakiyoruz.
-      void this.executeViaAgentPlaceholder(taskId, correlationId, intent);
+    // 2026-08-17 DUZELTMESI: sinifa gore degil, executor'un VAR OLUP OLMADIGINA
+    // gore dallan. Onceden "cls === AGENT" gorunce capability.execute() HIC
+    // cagrilmadan placeholder'a dusuyordu - a2a.delegate gibi calisan bir
+    // AGENT capability'si dahi hicbir zaman yurutulmuyordu. Placeholder artik
+    // yalnizca GERCEKTEN karsiligi olmayan (taninmayan) intent tipleri icin.
+    if (capability) {
+      void this.executeCapability(taskId, correlationId, intent, capability);
     } else {
-      void this.executeCapability(taskId, correlationId, intent, capability!);
+      void this.executeViaAgentPlaceholder(taskId, correlationId, intent);
     }
 
     return { taskId, class: cls, deduped: false };

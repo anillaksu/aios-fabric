@@ -59,6 +59,13 @@ function savePeers(peers: Peer[]) {
 const GATEWAY_URL = "http://127.0.0.1:8642/v1/chat/completions";
 const GATEWAY_KEY = "local-retro-os-9f2c"; // config.yaml'daki api_server.extra.key ile ayni
 
+// TIMEOUT ZINCIRI (2026-08-17 W0.3): capability < envelope < UI olmali, yoksa
+// kullanici "zaman asimi" gorurken sunucudaki fetch sinirsiz asili kalir (B4).
+// Envelope varsayilani 30sn (server.ts), UI varsayilani 35sn (app.js) -
+// peer'a giden bu cagri ikisinden de KISA olmak zorunda ki hata gercek
+// sebebiyle donsun, sessiz asilma yerine.
+const DELEGATE_TIMEOUT_MS = 25000;
+
 /**
  * A2A v1.0 payload'undan metni cikarir.
  *
@@ -286,23 +293,32 @@ export class A2AHub {
     const ctx = contextId ?? randomUUID();
     const rpcId = randomUUID();
 
-    const res = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: rpcId,
-        method: "SendMessage",
-        params: {
-          message: {
-            role: "user",
-            parts: [{ text, mediaType: "text/plain" }],
-            messageId: randomUUID(),
-            contextId: ctx,
+    let res: Response;
+    try {
+      res = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: rpcId,
+          method: "SendMessage",
+          params: {
+            message: {
+              role: "user",
+              parts: [{ text, mediaType: "text/plain" }],
+              messageId: randomUUID(),
+              contextId: ctx,
+            },
           },
-        },
-      }),
-    });
+        }),
+        signal: AbortSignal.timeout(DELEGATE_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "TimeoutError") {
+        throw new Error(`peer ${peerName} ${DELEGATE_TIMEOUT_MS / 1000}sn icinde yanit vermedi`);
+      }
+      throw err;
+    }
     if (!res.ok) throw new Error(`peer ${peerName} HTTP ${res.status}`);
 
     const body = (await res.json()) as {

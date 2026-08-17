@@ -146,10 +146,13 @@ const ctx = {
     // Her eylem ZARF olarak gider: kaynak + ham ifade kaydedilir, gorev
     // olusur, AKTİF sekmesinde ve DevTools ta gorunur. Sonuc yine burada.
     const t0 = performance.now();
+    // 2026-08-17 W0.3: timeout zinciri capability < envelope < UI olmali.
+    // Envelope varsayilani 30sn (server.ts); UI'nin kendi bekleme suresi
+    // ondan uzun olmali, yoksa sunucu hala calisirken UI "zaman asimi" gosterir.
     const res = await sendIntent(type, payload, {
       source: action.source || "ui",
       raw: action.raw || labelForAction(type, payload),
-      timeoutMs: type === "script.run" ? 60000 : 30000,
+      timeoutMs: type === "script.run" ? 60000 : 35000,
     });
     const ms = Math.round(performance.now() - t0);
 

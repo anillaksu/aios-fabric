@@ -10,7 +10,7 @@ import { replayToState, markInterrupted } from "./state.ts";
 import { Dispatcher } from "./dispatcher.ts";
 import { SseHub } from "./sse.ts";
 import { A2AHub } from "./a2a.ts";
-import { capabilities, capabilityMap } from "./capabilities.ts";
+import { capabilities, capabilityMap, setA2AHub } from "./capabilities.ts";
 import { getAppIcon, isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import { listRules, addRule, removeRule, toggleRule, makeAutomationListener } from "./automations.ts";
 import { allKits, kitsOf, addKit, removeKit } from "./kits.ts";
@@ -119,6 +119,8 @@ const a2a = new A2AHub(SELF_URL, (task) => {
     idempotencyKey: null,
   });
 });
+// a2a.delegate capability'si bu hub'i surec ici cagirir (self-fetch degil, bkz. capabilities.ts).
+setA2AHub(a2a);
 
 /**
  * Journal'a yazilacak KOPYADA hassas alanlari maskeler.
