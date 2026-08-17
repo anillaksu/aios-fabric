@@ -18,6 +18,7 @@ import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
+import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 
 const S = SC.S;
 
@@ -80,17 +81,29 @@ let artifacts = [];        // { id, title, spec, prompt, createdAt, pinned }
 // cizilir - YENI URETIM YOK, yalnizca ac/kapa durumu WindowManager'a tasindi.
 const wm = new WindowManager();
 
-function loadArtifacts() {
-  try { artifacts = JSON.parse(localStorage.getItem(ART_KEY) || "[]"); } catch (_) { artifacts = []; }
-}
-function saveArtifacts() {
+async function loadArtifacts() {
   try {
-    // sabitlenenler her zaman korunur; sabitsizlerden en yeni 30 tanesi
-    const pinned = artifacts.filter((a) => a.pinned);
-    const rest = artifacts.filter((a) => !a.pinned).slice(0, 30);
-    artifacts = [...pinned, ...rest];
-    localStorage.setItem(ART_KEY, JSON.stringify(artifacts));
-  } catch (_) {}
+    artifacts = await storeGetAll();
+  } catch (_) { artifacts = []; }
+  if (artifacts.length === 0) {
+    // W6.F GOC (2026-08-17): IndexedDB bos ise eski localStorage'da veri
+    // kalmis olabilir - TEK SEFERLIK tasi, veri kaybi olmasin. IndexedDB
+    // gercekten bos olan yeni bir kurulumda bu no-op'tur (eski anahtar da bos).
+    try {
+      const legacy = JSON.parse(localStorage.getItem(ART_KEY) || "[]");
+      if (Array.isArray(legacy) && legacy.length) {
+        artifacts = legacy;
+        await storePutAll(artifacts);
+        localStorage.removeItem(ART_KEY);
+      }
+    } catch (_) { /* eski veri okunamadi, sifirdan basla */ }
+  }
+}
+async function saveArtifacts() {
+  // 30 kayit sinirlamasi KALDIRILDI (W6.F) - IndexedDB kotasi bunu
+  // gerektirmiyor (localStorage'in aksine). Sabitlenenler zaten hicbir
+  // zaman silinmiyordu, simdi sabitsizler de silinmiyor.
+  try { await storePutAll(artifacts); } catch (_) { /* IndexedDB yoksa/reddedildiyse sessizce gec */ }
   // Sunucuya da yaz: yedek + hata incelemesi icin gorunurluk
   fetch("/artifacts", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -992,7 +1005,8 @@ function handleEntry() {
 
 /* ════════ ACILIS ════════ */
 export async function boot() {
-  loadTheme(); loadRecent(); loadArtifacts();
+  loadTheme(); loadRecent(); await loadArtifacts();
+  requestPersistence(); // B-9 ile ayni riskin veri tarafi: Android baski altinda depoyu temizleyebilir
   // Acilista da senkronla: tarayici deposundaki mevcut artefaktlar sunucuya
   // gecsin (yedek + inceleme). Sadece degisiklikte yazmak yetmiyordu.
   if (artifacts.length) {

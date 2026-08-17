@@ -130,8 +130,11 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
       · **Kalan gerçek boşluk:** 12 bölüm "mikro" için gevşek bir sınır — `prompt.ts`'te modele "küçük/odaklı üret" diye açık bir talimat **yok**, yalnızca kod tarafında sert bir tavan var. Bugün tipik çıktı küçük ama bu **garantili** değil, alışkanlıkla küçük. Sıkılaştırma isteniyorsa `prompt.ts`'e açık bir kısıt eklenmeli — bu FACT'e çıkmadan önce netleşmeli
 - [ ] W6.E **İzolasyon.** Üretilen widget ana tasarımı/menüleri patlatamaz
       *(teknik düzeltme: Shadow DOM stil izolasyonu verir ama **güvenlik sınırı değildir** — `iframe sandbox` + `postMessage`; gerekçe plan dosyasında)*
-- [ ] W6.F **Kalıcı galeri + önbellek.** Üretilen widget `IndexedDB`'ye yazılır; tekrar açılışta **yapay zekaya sorulmaz**, sıfır gecikme/sıfır maliyet
-      *(bugün: `localStorage` + sabitlenmemişlerde 30 kayıt sınırı — `app.js:43`)*
+- [~] W6.F **Kalıcı galeri + önbellek.** Üretilen widget `IndexedDB`'ye yazılır; tekrar açılışta **yapay zekaya sorulmaz**, sıfır gecikme/sıfır maliyet
+      · **FACT — göç ve temel okuma/yazma (2026-08-17):** `fabric/public/js/artifact-store.js` yazıldı (`getAll/putAll/requestPersistence`, saf IndexedDB sarmalayıcı). `loadArtifacts()`/`saveArtifacts()` asenkron oldu, hedefleri `localStorage`'dan `IndexedDB`'ye taşındı — diğer **hiçbir çağrı noktası değişmedi** (`artifacts` hâlâ bellekte senkron bir dizi, yalnızca kalıcılık hedefi değişti — 4 `saveArtifacts()` çağrısı da zaten `await`'siz, bloklanmıyordu). Tek seferlik göç: IndexedDB boşsa eski `localStorage` anahtarı okunup taşınır, eski anahtar temizlenir. **Canlı kanıt:** owner sayfayı tamamen kapatıp açtı, **tüm önceki kayıtlar** (Kablosuz Hata Ayıklama, Pil Durumu, Çalışan Servisler, vb.) sıfır veri kaybıyla göründü — bu aynı zamanda `putAll()`'ın gerçek bir yazmayı (8 kayıt) başarıyla yaptığının kanıtı
+      · **30 kayıt sınırı kaldırıldı** — kod düzeyinde doğrulandı (`slice(0,30)` satırı tamamen silindi), ama **ölçekte canlı test edilmedi** (30+ gerçek artefakt üretmek pratik değildi bu oturumda) → REVIEW-VERIFIED bu alt-iddia için
+      · `navigator.storage.persist()` çağrısı eklendi (B-9'un veri tarafı — Android baskı altında depoyu temizleyebilir) ama başarılı/başarısız olduğu **gözlemlenemedi** (konsol erişimi yok) → TARGET, yalnızca kod var
+      · Sunucu senkronu (`/artifacts` POST) **korundu**, dokunulmadı
 - [ ] W6.G **Uygulamaya dönüştürme.** Galeriden ana ekrana sürükle → kalıcı "uygulama"; yayınlama yolu
 - [ ] W6.H **Dar context.** Widget içi işlemde modele yalnızca o widget'ın verisi gider, tüm uygulama durumu değil
 - [x] W6.I **Framework7'yi at.** ✅ **FACT** — tam kanıtlandı (2026-08-17)
