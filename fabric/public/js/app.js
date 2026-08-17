@@ -59,6 +59,10 @@ let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
 let capabilityNames = [];
 let capVersion = null; // artifact-contract.js:capabilitySetVersion() - boot()'ta hesaplanir
+// W6.C (orijinal kapsam): "bos pencere" acikken alt composer normal Hermes
+// sohbetine DEGIL, bu pencerenin icini doldurmaya yonlendirilir. null =
+// normal sohbet modu.
+let fillTarget = null; // { id } - pending (henuz artifacts[]'e yazilmamis) pencere
 // Artefakt sozlesmesi icin: yalnizca REFLEX/AGENT capability leri "is yapar"
 // sayilir. THOUGHT (llm.generate) ve ui.* gezinme eylemleri haric.
 let ACTIONABLE = new Set();
@@ -93,9 +97,9 @@ function saveArtifacts() {
     body: JSON.stringify(artifacts),
   }).catch(() => {});
 }
-function addArtifact(spec, prompt, contract) {
+function addArtifact(spec, prompt, contract, id) {
   const item = {
-    id: "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: id || ("a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
     title: spec.title || "Artefakt", spec, prompt: prompt || "",
     createdAt: Date.now(), pinned: false,
     // M-5 sozlesme alanlari (2026-08-17): admitArtifact()'in urettigi kapi
@@ -256,6 +260,10 @@ function loadRecent() {
 
 /* ════════ NAVIGASYON ════════ */
 function goTab(tab) {
+  // Bos pencere doldurulmadan sekme degistirilirse iptal say - kalici
+  // hicbir sey yazilmadi (M-8: dogrulanmadan kalicilasmaz), WindowManager
+  // kaydi da temizlenir ki orphan kalmasin.
+  if (fillTarget) { wm.remove(fillTarget.id); fillTarget = null; }
   currentTab = tab; secondary = null; secondaryArg = null;
   document.querySelectorAll(".aios-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
   syncComposer();
@@ -266,6 +274,7 @@ function goSecondary(screen, arg = null) { secondary = screen; secondaryArg = ar
 function syncComposer() {
   const inp = $("#input");
   inp.placeholder =
+    fillTarget              ? "Bu pencere için ne üretilsin?" :
     currentTab === "hermes" ? "Hermes'e yaz…" :
     currentTab === "komut"  ? "Uygulama, komut veya soru ara…" :
                               "Ne yapmak istiyorsun?";
@@ -302,10 +311,36 @@ async function paint() {
 }
 
 /* ════════ ARTEFAKT GALERISI ════════ */
+function newWindowCard() {
+  // Direkt DOM click - action-bus'a girmez (renderer.js:cleanAction /
+  // UI_META_ACTIONS). Bu saf istemci navigasyonu (K7: sifir token) ve
+  // B-6'nin drift-korumali listesine yeni bir eylem eklemeyi gerektirmez -
+  // control-center dugmeleri de ayni sekilde dogrudan baglaniyor.
+  const n = el("div", "c-card art-card");
+  n.dataset.tap = "1";
+  const row = el("div", "c-row");
+  const i = el("i", "icon f7-icons"); i.textContent = "plus";
+  i.style.color = "var(--primary)";
+  row.appendChild(i);
+  const g = el("div", "c-grow");
+  g.appendChild(el("div", "c-title", "Yeni boş pencere"));
+  g.appendChild(el("div", "c-sub", "Hermes yalnızca bu pencerenin içini üretsin"));
+  row.appendChild(g);
+  n.appendChild(row);
+  n.addEventListener("click", createEmptyWindow);
+  return n;
+}
+
 function paintArtifacts() {
   const host = $("#screen");
   host.innerHTML = "";
   host.appendChild(pageHead("Artefakt", artifacts.length + " KAYIT"));
+
+  const newWrap = el("div", "c-section");
+  const newBody = el("div", "body");
+  newBody.appendChild(newWindowCard());
+  newWrap.appendChild(newBody);
+  host.appendChild(newWrap);
 
   if (!artifacts.length) {
     const wrap = el("div", "c-section");
@@ -422,6 +457,94 @@ function openArtifact(id) {
   // Desteklenmeyen tarayicida sessizce dogrudan cizer (ozellik algila, tarayici degil).
   if (document.startViewTransition) document.startViewTransition(draw);
   else draw();
+}
+
+/* ════════ W6.C (orijinal kapsam): BOŞ PENCERE ════════
+   "Yeni boş pencere" -> WindowManager'a icerik OLMADAN kaydedilir, tam
+   ekrana odaklanir. Icerik alt composer'dan gelir (fillTarget devreye
+   girer). Basarili uretim ayni id ile addArtifact()'e yazilir - pencere
+   kimligi degismez, sadece ici dolar. Iptal edilirse (geri/sekme
+   degistir) hicbir yere yazilmaz - M-8: dogrulanmadan kalicilasmaz. */
+function createEmptyWindow() {
+  const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  wm.register({ id, title: "Yeni pencere" });
+  openEmptyWindow(id);
+}
+
+function openEmptyWindow(id) {
+  wm.focus(id);
+  fillTarget = { id };
+  syncComposer();
+  const draw = () => {
+    const host = $("#screen");
+    host.innerHTML = "";
+    const head = pageHead("Yeni pencere", "boş", () => goTab("artifacts"));
+    host.appendChild(head);
+    const wrap = el("div", "c-section");
+    const body = el("div", "body");
+    body.appendChild(render({
+      type: "empty-state", icon: "square_stack_3d_up",
+      title: "Bu pencere boş",
+      detail: "Alttaki kutuya ne olmasını istediğini yaz — yalnızca bu pencerenin içi üretilecek, sayfanın geri kalanı değişmez.",
+    }, ctx));
+    wrap.appendChild(body);
+    host.appendChild(wrap);
+  };
+  if (document.startViewTransition) document.startViewTransition(draw);
+  else draw();
+}
+
+function renderWindowLoading(text) {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Yeni pencere", "boş", () => goTab("artifacts")));
+  const wrap = el("div", "c-section");
+  const body = el("div", "body");
+  // "Hermes calisiyor" ile ayni yukleme deseni (ask()'ta da kullanilan) - yeni bir gorsel dil icat edilmedi
+  body.appendChild(render({
+    type: "task-card", title: "Üretiliyor…", source: text.slice(0, 60),
+    status: "WORKING", tone: "info", state: "loading",
+  }, ctx));
+  wrap.appendChild(body);
+  host.appendChild(wrap);
+}
+
+function renderWindowError(icon, title, detail) {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Yeni pencere", "boş", () => goTab("artifacts")));
+  const wrap = el("div", "c-section");
+  const body = el("div", "body");
+  body.appendChild(render({ type: "error-state", icon, title, detail }, ctx));
+  wrap.appendChild(body);
+  host.appendChild(wrap);
+}
+
+async function fillWindow(id, text) {
+  renderWindowLoading(text);
+  const r = await sendIntent("llm.generate",
+    { prompt: text, max_tokens: 2000, context: deviceContext() },
+    { source: "hermes", raw: text, by: "llm", timeoutMs: 90000 });
+  if (!fillTarget || fillTarget.id !== id) return; // kullanici bu arada baska yere gitti
+  if (!r.ok || !r.data || !r.data.text) {
+    renderWindowError("hand_raised", "Üretim başarısız", (r.error || "bilinmeyen hata") + " — tekrar yazmayı deneyebilirsin.");
+    return;
+  }
+  const { specs, rejected } = extractArtifacts(r.data.text);
+  if (!specs.length) {
+    renderWindowError("hand_raised", "Artefakt üretilemedi",
+      (rejected.length ? rejected.join(", ") + " — içinde çalıştırılabilir bir iş yok." : "Boş yanıt.") + " Tekrar yazmayı deneyebilirsin.");
+    return;
+  }
+  const admit = admitArtifact(specs[0], { knownCapabilities: capabilityNames, versionStamp: capVersion });
+  if (!admit.ok) {
+    renderWindowError("hand_raised", "Artefakt reddedildi", admit.reason + " — tekrar yazmayı deneyebilirsin.");
+    return;
+  }
+  const item = addArtifact(specs[0], text, admit.contract, id);
+  updateBadges();
+  fillTarget = null;
+  openArtifact(item.id);
 }
 
 function when(ts) {
@@ -828,6 +951,7 @@ function submit() {
   if (!v) return;
   inp.value = ""; inp.style.height = "";
   query = "";
+  if (fillTarget) { fillWindow(fillTarget.id, v); return; }
   ask(v);
 }
 
@@ -895,8 +1019,12 @@ export async function boot() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   });
   inp.addEventListener("focus", () => {
-    // Yazmaya baslayinca arama yuzeyine gec (tek giris, baglama duyarli)
-    if (["home", "artifacts", "activity"].includes(currentTab) && !inp.value) goTab("komut");
+    // Yazmaya baslayinca arama yuzeyine gec (tek giris, baglama duyarli).
+    // BUG (2026-08-17, W6.C canli testinde bulundu): bu otomatik gecis
+    // fillTarget (bos pencere doldurma modu) acikken de tetikleniyordu -
+    // goTab("komut") fillTarget'i TEMIZLIYOR (bkz. goTab), kullanicinin
+    // yazdigi sey yanlislikla normal Hermes sohbetine gidiyordu.
+    if (!fillTarget && ["home", "artifacts", "activity"].includes(currentTab) && !inp.value) goTab("komut");
   });
 
   const caps = (await getJSON("/capabilities")) || [];
