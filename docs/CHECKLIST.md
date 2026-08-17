@@ -132,12 +132,14 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 ## S — Standardizasyon maddeleri ⬜ (`docs/STANDARTLAR.md`)
 
-- [ ] **S-1** CloudEvents eşlemesi — journal olayları standart zarfa çevrilebilsin (`{seq,id,ts,type,correlationId}` → `{specversion,id,source,type,time,subject}`)
-- [ ] **S-2** W3C Trace Context — A2A çağrılarında `traceparent` taşınsın; `correlationId`/`causationId` zaten aynı fikir
-- [ ] **S-3** ScreenSpec ↔ Adaptive Cards öz alımı — bileşen adları ve `body`/`actions` ayrımı (W6 ile)
-- [ ] **S-4** Widget köprüsü **JSON-RPC 2.0 over postMessage** — yeni protokol icat edilmesin; A2A/MCP ile aynı zarf ailesi (W6.4 ile)
-- [ ] **S-5** ScreenSpec'ler MCP **resource** olarak yayınlansın — dış istemciler de render edebilsin (W4 ile)
-- [ ] **S-6** Rakip kıyaslama tablosundaki iddialar W6 bitene kadar **"hedef"** etiketli kalsın — bugün 5 iddiadan 4'ü kodda yok
+- [ ] **S-1** CloudEvents **adapter** — journal iç formatını korur, dışa açılırken map edilir ("yeni event standardı icat ettik" denmez)
+- [ ] **S-2** W3C Trace Context — `traceparent`/`tracestate` zarfa **eklenir**; `correlationId`/`causationId` yerine geçmez (farklı kavramlar)
+- [ ] **S-3** ScreenSpec ↔ **A2UI** hizalaması — A2UI'nin "güvenilir bileşen kataloğu" deseni bizde zaten var (`renderer.js:22`); adapter yazılırsa FACT, yazılmazsa TARGET
+- [ ] **S-4** Widget köprüsü: JSON-RPC 2.0 **mesaj biçimi** + postMessage **binding** + AIOS widget **semantiği** (yeni wire protokol yok)
+- [ ] **S-5** ScreenSpec'ler MCP **resource / App** olarak yayınlansın (W4 ile)
+- [ ] **S-6** Her mimari tablo **üç sütunlu** olsun: özellik · gerçek kod durumu · standart/hedef
+- [ ] **S-7** Capability eşlemesi **katmanlı** olsun: MCP Tool / MCP Resource / A2A Skill / Device Capability / Worker Capability — birebir `capability = MCP tool` değil
+- [ ] **S-8** Sandbox için **ayrı origin** ayrılsın — MCP Apps şartı (`allow-scripts allow-same-origin` ancak farklı origin'de güvenli); W6.3 gereksinimi
 
 ## Bilinen borçlar (henüz sıraya girmedi)
 

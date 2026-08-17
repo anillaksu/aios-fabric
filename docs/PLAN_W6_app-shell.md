@@ -46,7 +46,20 @@ Vizyonunuzda **"Shadow DOM veya güvenli bir iframe"** diyorsunuz. İkisi aynı 
 - **Shadow DOM** yalnızca **stil ve DOM kapsüllemesi** verir. İçindeki JavaScript ana sayfayla **aynı** bağlamda çalışır: `window`, `document`, `localStorage`, `fetch` — hepsine erişir. Yani üretilen bir widget, galerinizi silebilir, temayı bozabilir, `/envelope`'a doğrudan capability çağrısı atabilir.
 - **`<iframe sandbox="allow-scripts">`** (dikkat: `allow-same-origin` **verilmeden**) opaque origin yaratır: `localStorage` yok, çerez yok, ana DOM'a erişim yok, aynı-origin `fetch` yok. Tek iletişim yolu `postMessage`.
 
-> `allow-scripts` ve `allow-same-origin` **birlikte** verilirse sandbox anlamsızlaşır — iframe kendi `sandbox` niteliğini kaldırabilir. Bu ikisi asla yan yana yazılmayacak.
+> **DÜZELTME (2026-08-17, MCP Apps spec'i incelendikten sonra):** Yukarıdaki kural
+> **aynı origin'de** (`srcdoc`) geçerlidir — orada `allow-same-origin` sandbox'ı anlamsız
+> kılar, iframe kendi `sandbox` niteliğini kaldırabilir. Ancak MCP Apps (SEP-1865) sandbox'ı
+> **ayrı bir origin'de** barındırır ve o durumda `allow-scripts allow-same-origin` ikisini
+> birden **zorunlu** kılar: "same origin" artık sandbox'ın kendi origin'idir, host'unki değil.
+> Widget kendi depolamasını kullanabilir, host'unkine erişemez.
+>
+> | Barındırma | Doğru sandbox değeri |
+> |---|---|
+> | Aynı origin (`srcdoc`) | `allow-scripts` — `allow-same-origin` **verilmez** |
+> | Ayrı origin (MCP Apps deseni) | `allow-scripts allow-same-origin` — host ≠ sandbox origin **şart** |
+>
+> Pratik sonuç: telefon bugün tek origin sunuyor (`:9300`). Standarda uymak için sandbox'a
+> **ayrı bir origin** (farklı port ya da hostname) ayrılmalı — S-8 maddesi.
 
 **Beklediğiniz faydayı (widget menüleri patlatmasın) iframe zaten veriyor; üstüne gerçek güvenlik sınırını da veriyor.** W1'de kurduğumuz risk katmanı ancak böyle istemciye kadar uzanır.
 
