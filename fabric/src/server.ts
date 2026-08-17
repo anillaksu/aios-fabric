@@ -9,7 +9,7 @@ import { Journal } from "./journal.ts";
 import { replayToState, markInterrupted } from "./state.ts";
 import { Dispatcher } from "./dispatcher.ts";
 import { SseHub } from "./sse.ts";
-import { A2AHub } from "./a2a.ts";
+import { A2AHub, toWireState, toWireRole } from "./a2a.ts";
 import { capabilities, capabilityMap, setA2AHub } from "./capabilities.ts";
 import { getAppIcon, isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import { listRules, addRule, removeRule, toggleRule, makeAutomationListener } from "./automations.ts";
@@ -138,7 +138,7 @@ const envelopes = makeEnvelopeRecorder(
   (e) => sse.broadcast(e),
 );
 
-const a2a = new A2AHub(SELF_URL, (task) => {
+const a2a = new A2AHub(SELF_URL, journal, (task) => {
   // A2A durum degisikligini de FabricEvent akisina yayinla (UI tek yerden izlesin)
   sse.broadcast({
     seq: -1,
@@ -223,10 +223,49 @@ const server = createServer(async (req, res) => {
       }
       const body = JSON.parse((await readBody(req)) || "{}") as {
         jsonrpc?: string; id?: unknown; method?: string;
-        params?: { message?: { parts?: { text?: string }[]; contextId?: string } };
+        params?: {
+          message?: { parts?: { text?: string }[]; contextId?: string };
+          taskId?: string; id?: string;
+        };
       };
       const rpcId = body.id ?? null;
       const method = String(body.method ?? "");
+
+      // W2.4: task lifecycle - onceden yalnizca SendMessage vardi, GetTask/
+      // ListTasks/CancelTask -32601 (desteklenmiyor) donuyordu. Bu, "uzun
+      // isin yeniden baglanmasi yok" bulgusunun dogrudan sebebiydi.
+      const wireTask = (t: ReturnType<typeof a2a.getTask>) => {
+        if (!t) return null;
+        const last = t.history[t.history.length - 1];
+        const reply = last?.parts?.[0]?.text ?? t.error ?? "";
+        return {
+          id: t.id,
+          contextId: t.contextId,
+          status: {
+            state: toWireState(t.state),
+            message: { role: toWireRole("agent"), parts: [{ text: reply, mediaType: "text/plain" }], messageId: t.id },
+          },
+          artifacts: [{ parts: [{ text: reply, mediaType: "text/plain" }] }],
+        };
+      };
+
+      if (/^GetTask$/i.test(method)) {
+        const t = a2a.getTask(String(body.params?.taskId ?? body.params?.id ?? ""));
+        const wire = wireTask(t);
+        if (!wire) { json(res, 200, { jsonrpc: "2.0", id: rpcId, error: { code: -32001, message: "gorev bulunamadi" } }); return; }
+        json(res, 200, { jsonrpc: "2.0", id: rpcId, result: { task: wire } });
+        return;
+      }
+      if (/^ListTasks$/i.test(method)) {
+        json(res, 200, { jsonrpc: "2.0", id: rpcId, result: { tasks: a2a.listTasks().map(wireTask) } });
+        return;
+      }
+      if (/^CancelTask$/i.test(method)) {
+        const r = a2a.cancelTask(String(body.params?.taskId ?? body.params?.id ?? ""));
+        if (!r.ok) { json(res, 200, { jsonrpc: "2.0", id: rpcId, error: { code: -32002, message: r.error ?? "iptal edilemedi" } }); return; }
+        json(res, 200, { jsonrpc: "2.0", id: rpcId, result: { task: wireTask(a2a.getTask(String(body.params?.taskId ?? body.params?.id ?? ""))) } });
+        return;
+      }
       if (!/^(SendMessage|message\/send)$/i.test(method)) {
         json(res, 200, { jsonrpc: "2.0", id: rpcId, error: { code: -32601, message: `desteklenmeyen metot: ${method}` } });
         return;
@@ -245,22 +284,7 @@ const server = createServer(async (req, res) => {
       while (Date.now() < deadline) {
         const cur = a2a.getTask(task.id);
         if (cur && (cur.state === "completed" || cur.state === "failed")) {
-          const last = cur.history[cur.history.length - 1];
-          const reply = last?.parts?.[0]?.text ?? cur.error ?? "";
-          json(res, 200, {
-            jsonrpc: "2.0", id: rpcId,
-            result: {
-              task: {
-                id: cur.id,
-                contextId: cur.contextId,
-                status: {
-                  state: cur.state,
-                  message: { role: "agent", parts: [{ text: reply, mediaType: "text/plain" }], messageId: cur.id },
-                },
-                artifacts: [{ parts: [{ text: reply, mediaType: "text/plain" }] }],
-              },
-            },
-          });
+          json(res, 200, { jsonrpc: "2.0", id: rpcId, result: { task: wireTask(cur) } });
           return;
         }
         await new Promise((s) => setTimeout(s, 300));
@@ -610,7 +634,9 @@ const server = createServer(async (req, res) => {
     }
 
     // ---------- A2A: Agent Card ----------
-    if (url.pathname === "/.well-known/agent.json" && req.method === "GET") {
+    // W2.1: canonical yol artik agent-card.json; agent.json geriye donuk
+    // uyum icin alias olarak duruyor (AYNI govdeyi doner).
+    if ((url.pathname === "/.well-known/agent-card.json" || url.pathname === "/.well-known/agent.json") && req.method === "GET") {
       json(res, 200, a2a.getAgentCard());
       return;
     }

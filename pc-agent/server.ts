@@ -14,8 +14,7 @@
 
 import { createServer } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
-import { hostname, uptime, platform, cpus, totalmem, freemem } from "node:os";
-import { readdirSync, statSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { SKILLS, SAFE_ROOT as SKILL_ROOT, resolveSkill } from "./skills.ts";
 
@@ -60,6 +59,35 @@ interface Task {
 
 const tasks = new Map<string, Task>();
 
+// W2.3: A2A v1.0 tel formati TASK_STATE_*/ROLE_* kullanir; ic model kucuk
+// harfli kaliyor, donusum yalnizca disariya giden govdede yapilir.
+function toWireState(s: TaskState): string { return "TASK_STATE_" + s.toUpperCase(); }
+function toWireRole(r: "user" | "agent"): string { return "ROLE_" + r.toUpperCase(); }
+function wireTask(t: Task | undefined) {
+  if (!t) return null;
+  const last = t.history[t.history.length - 1];
+  const reply = last?.parts?.[0]?.text ?? t.error ?? "";
+  return {
+    id: t.id,
+    contextId: t.contextId,
+    status: {
+      state: toWireState(t.state),
+      message: { role: toWireRole("agent"), parts: [{ text: reply, mediaType: "text/plain" }], messageId: t.id },
+    },
+    artifacts: [{ parts: [{ text: reply, mediaType: "text/plain" }] }],
+  };
+}
+
+// W2.2: surum TEK kaynaktan - package.json (B-1 borcu: kart 0.3.0 diyordu,
+// package.json 0.1.0 - iki taraf da eliyle senkron tutulan iki ayri sabitti).
+const PKG_VERSION: string = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 function agentCard() {
   return {
     name: "PC Agent",
@@ -69,7 +97,7 @@ function agentCard() {
       "is delege eder. Bicim:  skill: <ad> | <arg>. " +
       `Calisma kokü: ${SKILL_ROOT} (disina cikilamaz).`,
     url: SELF_URL,
-    version: "0.3.0",
+    version: PKG_VERSION,
     protocolVersion: "1.0",
     // v1.0 kesif alani: karsi taraf RPC adresini BURADAN cozer, tahmin etmez.
     supportedInterfaces: [{ transport: "JSONRPC", url: SELF_URL }],
@@ -80,48 +108,6 @@ function agentCard() {
       description: s.description,
     })),
   };
-}
-
-function detectSkill(text: string): "system.info" | "fs.list" | "echo" {
-  const t = text.toLowerCase();
-  if (t.includes("system") || t.includes("sistem") || t.includes("cpu") || t.includes("bellek")) return "system.info";
-  if (t.includes("dosya") || t.includes("dizin") || t.includes("list") || t.includes("fs.")) return "fs.list";
-  return "echo";
-}
-
-function execSkill(skill: string, text: string): string {
-  if (skill === "system.info") {
-    const mb = (n: number) => Math.round(n / 1024 / 1024);
-    return JSON.stringify(
-      {
-        hostname: hostname(),
-        platform: platform(),
-        uptimeSec: Math.round(uptime()),
-        cpuCount: cpus().length,
-        cpuModel: cpus()[0]?.model,
-        totalMemMB: mb(totalmem()),
-        freeMemMB: mb(freemem()),
-      },
-      null,
-      2,
-    );
-  }
-  if (skill === "fs.list") {
-    try {
-      const entries = readdirSync(SAFE_ROOT).slice(0, 50).map((name) => {
-        const full = join(SAFE_ROOT, name);
-        const st = statSync(full);
-        return `${st.isDirectory() ? "[D]" : "[F]"} ${name}`;
-      });
-      return entries.join("\n") || "(bos dizin)";
-    } catch (err) {
-      return `HATA: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  }
-  return (
-    `[PC Test Peer - stub yanit] Bu peer'in arkasinda bir dil modeli YOK, sadece round-trip'i ` +
-    `kanitlamak icin echo yapiyor. Gonderdiginiz metin: "${text}"`
-  );
 }
 
 // CORS kaldirildi (W1.5) - bu ajanin cagiranlari tarayici degil, sunucudan
@@ -159,6 +145,34 @@ async function handleJsonRpc(body: string): Promise<unknown> {
   }
   const id = req.id ?? null;
   const method = String(req.method ?? "");
+
+  // W2.4: GetTask/ListTasks/CancelTask - onceden yalnizca SendMessage vardi
+  // ve JSON-RPC yolunda acilan gorevler `tasks` Map'ine HIC yazilmiyordu
+  // (yalnizca eski REST /a2a/tasks yolu kaydediyordu). Yani standart yoldan
+  // gelen bir GetTask, JSON-RPC'nin kendi actigi hicbir gorevi bulamazdi -
+  // W2 denetiminin somut bulgusu buydu.
+  if (/^GetTask$/i.test(method)) {
+    const wire = wireTask(tasks.get(String(req.params?.taskId ?? req.params?.id ?? "")));
+    if (!wire) return { jsonrpc: "2.0", id, error: { code: -32001, message: "gorev bulunamadi" } };
+    return { jsonrpc: "2.0", id, result: { task: wire } };
+  }
+  if (/^ListTasks$/i.test(method)) {
+    const list = [...tasks.values()].sort((a, b) => b.updatedAt - a.updatedAt).map(wireTask);
+    return { jsonrpc: "2.0", id, result: { tasks: list } };
+  }
+  if (/^CancelTask$/i.test(method)) {
+    const t = tasks.get(String(req.params?.taskId ?? req.params?.id ?? ""));
+    if (!t) return { jsonrpc: "2.0", id, error: { code: -32001, message: "gorev bulunamadi" } };
+    if (t.state !== "submitted" && t.state !== "working") {
+      return { jsonrpc: "2.0", id, error: { code: -32002, message: `gorev zaten ${t.state}` } };
+    }
+    // Ayni durust sinir: SKILLS[skill].run(arg) zaten calisiyorsa GERCEKTEN
+    // kesilemez - bu yol yalnizca senkron JSON-RPC cagrisi icin anlamli
+    // degil (asagidaki dal zaten await ile bitmis olur), REST yolundaki
+    // arka plan gorevleri icin islevseldir.
+    t.state = "failed"; t.error = "kullanici tarafindan iptal edildi"; t.updatedAt = Date.now();
+    return { jsonrpc: "2.0", id, result: { task: wireTask(t) } };
+  }
   if (!/^(SendMessage|message\/send)$/i.test(method)) {
     return { jsonrpc: "2.0", id, error: { code: -32601, message: `desteklenmeyen metot: ${method}` } };
   }
@@ -167,6 +181,18 @@ async function handleJsonRpc(body: string): Promise<unknown> {
   if (!text) {
     return { jsonrpc: "2.0", id, error: { code: -32602, message: "metin parcasi yok" } };
   }
+
+  const taskId = randomUUID();
+  const ctx = req.params?.message?.contextId ?? randomUUID();
+  const task: Task = {
+    id: taskId,
+    contextId: ctx,
+    state: "working",
+    history: [{ role: "user", parts: [{ type: "text", text }] }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  tasks.set(taskId, task); // W2.4: artik GetTask/ListTasks bu gorevi de bulabiliyor
 
   const { skill, arg } = resolveSkill(text);
   let reply: string;
@@ -182,22 +208,12 @@ async function handleJsonRpc(body: string): Promise<unknown> {
     reply = `[${skill}] ${r.ok ? "OK" : "HATA"}\n${r.output}`;
   }
 
-  const taskId = randomUUID();
-  const ctx = req.params?.message?.contextId ?? randomUUID();
-  return {
-    jsonrpc: "2.0", id,
-    result: {
-      task: {
-        id: taskId,
-        contextId: ctx,
-        status: {
-          state: ok ? "completed" : "failed",
-          message: { role: "agent", parts: [{ text: reply, mediaType: "text/plain" }], messageId: taskId },
-        },
-        artifacts: [{ parts: [{ text: reply, mediaType: "text/plain" }] }],
-      },
-    },
-  };
+  task.state = ok ? "completed" : "failed";
+  task.updatedAt = Date.now();
+  task.history.push({ role: "agent", parts: [{ type: "text", text: reply }] });
+  if (!ok) task.error = reply.slice(0, 200);
+
+  return { jsonrpc: "2.0", id, result: { task: wireTask(task) } };
 }
 
 const server = createServer(async (req, res) => {
@@ -225,7 +241,8 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (url.pathname === "/.well-known/agent.json" && req.method === "GET") {
+  // W2.1: canonical yol artik agent-card.json; agent.json alias kaliyor.
+  if ((url.pathname === "/.well-known/agent-card.json" || url.pathname === "/.well-known/agent.json") && req.method === "GET") {
     json(res, 200, agentCard());
     return;
   }

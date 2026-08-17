@@ -139,6 +139,10 @@ export interface AgentCard {
   description: string;
   url: string;
   version: string;
+  /** W2.3: A2A v1.0 protokol surumu - karsi taraf hangi surumu konustugumuzu buradan okur. */
+  protocolVersion: string;
+  /** W2.3: RPC adresi burada duyurulur - istemci taban URL'i tahmin etmez. */
+  supportedInterfaces: { transport: string; url: string }[];
   capabilities: { streaming: boolean; pushNotifications: boolean };
   skills: { id: string; name: string; description: string }[];
 }

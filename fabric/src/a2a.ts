@@ -14,9 +14,36 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { capabilityMap } from "./capabilities.ts";
+import type { Journal } from "./journal.ts";
 import type { AgentCard } from "./types.ts";
 
+// W2.2: surum TEK kaynaktan - package.json. Iki taraf da (biz ve karsi peer)
+// hangi surumu konustugumuzu Agent Card'dan gorsun; elle senkron tutulan
+// iki ayri sabit (kart + package.json) B-1 borcunun sebebiydi.
+const PKG_VERSION: string = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 export type A2ATaskState = "submitted" | "working" | "completed" | "failed" | "canceled";
+
+// W2.3: A2A v1.0 tel formati TASK_STATE_*/ROLE_* kullanir; ic modelimiz
+// (dispatcher.ts, journal) okunabilirlik icin kucuk harfli kaliyor - yalnizca
+// DISARIYA giden/DISARIDAN gelen JSON-RPC govdesinde donusum yapilir.
+export function toWireState(s: A2ATaskState): string {
+  return "TASK_STATE_" + s.toUpperCase();
+}
+export function toWireRole(r: "user" | "agent"): string {
+  return "ROLE_" + r.toUpperCase();
+}
+/** Peer'dan gelen durumu normalize eder - hem v1 (TASK_STATE_X) hem eski (x) kabul edilir. */
+function fromWireState(s: unknown): A2ATaskState {
+  const raw = String(s ?? "completed").replace(/^TASK_STATE_/, "").toLowerCase();
+  return (["submitted", "working", "completed", "failed", "canceled"].includes(raw) ? raw : "completed") as A2ATaskState;
+}
 
 export interface A2AMessage {
   role: "user" | "agent";
@@ -122,18 +149,60 @@ function extractA2AText(payload: unknown): string {
   return "";
 }
 
+const A2A_SNAPSHOT_EVENT = "a2a.task.snapshot";
+
 export class A2AHub {
   private tasks = new Map<string, A2ATask>();
   private peers: Peer[] = loadPeers();
   private selfUrl: string;
+  private journal: Journal;
   private onStateChange?: (task: A2ATask) => void;
 
-  constructor(selfUrl: string, onStateChange?: (task: A2ATask) => void) {
+  /**
+   * W2.5: A2A gorevleri onceden yalnizca surec belleginde tutuluyordu -
+   * sunucu yeniden baslayinca (deploy, crash) tum A2A gecmisi kayboluyordu.
+   * Dispatcher'in kendi task'lari icin zaten yaptigi seyi (journal'dan
+   * yeniden insa) burada da uyguluyoruz: her durum degisikliginde tam bir
+   * "goruntu" (snapshot) journal'a yazilir; baslangicta ayni tip event'ler
+   * geri oynatilir, taskId basina EN SON goruntu tutulur.
+   */
+  constructor(selfUrl: string, journal: Journal, onStateChange?: (task: A2ATask) => void) {
     this.selfUrl = selfUrl;
+    this.journal = journal;
     this.onStateChange = onStateChange;
+    for (const ev of journal.replayAll()) {
+      if (ev.type === A2A_SNAPSHOT_EVENT) {
+        this.tasks.set((ev.payload as A2ATask).id, ev.payload as A2ATask);
+      }
+    }
+  }
+
+  private persist(task: A2ATask) {
+    this.journal.append({
+      type: A2A_SNAPSHOT_EVENT,
+      correlationId: task.contextId,
+      causationId: null,
+      payload: task,
+      idempotencyKey: null,
+    });
   }
 
   getAgentCard(): AgentCard {
+    // W2.2: skills artik ELLE yazilmis 5 genis kategori degil, capability
+    // registry'den TURETILIYOR - ve yalnizca risk:"safe" olanlar. "ask"
+    // olanlari (script.run, whatsapp.send...) disariya duyurmak, W1'de
+    // kurulan onay zorunlulugunu kesif asamasinda bosa cikarirdi: uzak bir
+    // ajan onlari "elimde var" sanip denemeye kalkardi (deneyince zaten
+    // W1.9'daki risk kapisina takilir, ama kesif seviyesinde durustluk
+    // daha iyi - kart NE YAPABILECEGIMIZI, ONAYSIZ ne calisacagini soylemeli).
+    const safeSkills = [...capabilityMap.entries()]
+      .filter(([, cap]) => (cap.risk ?? "ask") === "safe")
+      .map(([name]) => ({
+        id: name,
+        name,
+        description: `Cihaz capability (risk: safe) - onaysiz calisir`,
+      }));
+
     return {
       // 2026-08-17: kart GERCEKLE ORTUSMUYORDU. "retro-os render" diye bir sey
       // kalmadi, Shizuku ise artik opsiyonel bir katman (ve genelde kapali).
@@ -144,28 +213,17 @@ export class A2AHub {
       description:
         "Xiaomi 13 Lite / Android 15 uzerinde calisan AI-OS. Arkasinda GERCEK bir model var " +
         "(Hermes gateway -> gpt-5.6-luna): serbest metin gonderebilirsin, dusunur ve yanitlar. " +
-        "Ayrica 37 cihaz capability'si var - telefonda fiziksel/yerel is yaptirmak icin " +
-        "istegini duz Turkce yaz, telefondaki Hermes uygun capability'yi secer. " +
-        "Yapabildikleri: pil/ag/konum okuma, fener, ses, titresim, bildirim, sesli okuma, " +
-        "uygulama listeleme ve acma, pano, belge uretimi (pdf/md/txt/csv/json/html), " +
-        "dosya ve metin paylasimi (WhatsApp dahil), deeplink acma (Spotify/YouTube/harita), " +
-        "kabuk betigi calistirma, ekran artefakti uretme. " +
-        "Shizuku gerektirenler (medya kumandasi, dokunma, uygulama dondurma) telefon " +
-        "yeniden baslatildiysa KAPALI olabilir.",
+        "Ayrica cihaz capability'leri var - `skills` listesi ONAYSIZ calisanlari (risk:safe) " +
+        "gosterir; digerleri (script.run, whatsapp.send, a2a.delegate...) onay gerektirir ve " +
+        "bu kanaldan dogrudan calistirilamaz.",
       url: this.selfUrl,
-      version: "0.3.0",
+      version: PKG_VERSION,
+      protocolVersion: "1.0",
+      supportedInterfaces: [{ transport: "JSONRPC", url: this.selfUrl }],
       capabilities: { streaming: false, pushNotifications: false },
-      skills: [
+      skills: safeSkills.length ? safeSkills : [
         { id: "agent.respond", name: "Genel yanit",
           description: "Serbest metin gorev - telefondaki Hermes dusunur ve yanitlar" },
-        { id: "device.control", name: "Cihaz kontrolu",
-          description: "Pil/ag okuma, fener, ses, bildirim, uygulama acma - duz metinle iste" },
-        { id: "doc.create", name: "Belge uret",
-          description: "pdf/md/txt/csv/json/html belge uretir, yolunu doner" },
-        { id: "share", name: "Paylas",
-          description: "Metin veya dosyayi WhatsApp/Drive/e-posta paylasim akisina verir" },
-        { id: "script.run", name: "Betik calistir",
-          description: "Telefonda kabuk komutu calistirir (guvenlik kaliplari uygulanir)" },
       ],
     };
   }
@@ -184,10 +242,36 @@ export class A2AHub {
     return this.tasks.get(id);
   }
 
+  /** W2.4: tum gorevler (en yeni once) - JSON-RPC ListTasks bunu kullanir. */
+  listTasks(): A2ATask[] {
+    return [...this.tasks.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * W2.4: dispatcher.ts'teki cancel()'la AYNI durust sinir - bir capability
+   * zaten calisiyorsa (orn. executeLocally icindeki await) onu GERCEKTEN
+   * kesemeyiz; iptal, henuz terminal olmayan gorevi "failed" isaretler ve
+   * sonucu ISLEMEZ. Kullanici asili bir gorevden kurtulur, yan etki geri
+   * alinmaz - ayni not dispatcher.ts:22'de de var.
+   */
+  cancelTask(id: string): { ok: boolean; error?: string } {
+    const task = this.tasks.get(id);
+    if (!task) return { ok: false, error: "gorev bulunamadi" };
+    if (task.state !== "submitted" && task.state !== "working") {
+      return { ok: false, error: `gorev zaten ${task.state}` };
+    }
+    this.setState(task, "canceled", { error: "kullanici tarafindan iptal edildi" });
+    return { ok: true };
+  }
+
   private setState(task: A2ATask, state: A2ATaskState, patch: Partial<A2ATask> = {}) {
+    // Iptal edilmis bir gorev GERI degismez - executeLocally'nin gec gelen
+    // cap.execute() sonucu "canceled" durumunu ezmesin (bkz. cancelTask notu).
+    if (task.state === "canceled" && state !== "canceled") return;
     task.state = state;
     task.updatedAt = Date.now();
     Object.assign(task, patch);
+    this.persist(task);
     this.onStateChange?.(task);
   }
 
@@ -206,6 +290,7 @@ export class A2AHub {
       updatedAt: Date.now(),
     };
     this.tasks.set(task.id, task);
+    this.persist(task);
     void this.executeLocally(task);
     return task;
   }
@@ -331,7 +416,7 @@ export class A2AHub {
           method: "SendMessage",
           params: {
             message: {
-              role: "user",
+              role: toWireRole("user"),
               parts: [{ text, mediaType: "text/plain" }],
               messageId: randomUUID(),
               contextId: ctx,
@@ -359,15 +444,15 @@ export class A2AHub {
 
     const payload = body.result?.task ?? body.result?.message ?? {};
     const reply = extractA2AText(payload);
-    const state = String(
-      (payload as { status?: { state?: string } }).status?.state ?? "completed",
-    ) as A2ATaskState;
+    // W2.3: peer'in durumu v1 (TASK_STATE_X) ya da eski (x) bicimde
+    // yazmis olabilir - fromWireState ikisini de kabul eder.
+    const remoteState = fromWireState((payload as { status?: { state?: unknown } }).status?.state);
 
     // Yerel "gölge" kayit - UI ve journal ayni sekilde gorsun.
     const task: A2ATask = {
       id: String((payload as { id?: string }).id ?? rpcId),
       contextId: String((payload as { contextId?: string }).contextId ?? ctx),
-      state: state === "failed" ? "failed" : "completed",
+      state: remoteState === "failed" ? "failed" : "completed",
       history: [
         { role: "user", parts: [{ type: "text", text }] },
         { role: "agent", parts: [{ type: "text", text: reply }] },
@@ -376,17 +461,22 @@ export class A2AHub {
       updatedAt: Date.now(),
     };
     this.tasks.set(task.id, task);
+    this.persist(task);
     this.onStateChange?.(task);
     return task;
   }
 
-  /** Agent Card'dan JSON-RPC adresini cozer (v1.0 supportedInterfaces oncelikli). */
+  /**
+   * Agent Card'dan JSON-RPC adresini cozer.
+   * W2.6: ONCE canonical `agent-card.json` denenir, olmazsa eski `agent.json`
+   * aliasina dusulur - istemci taraf da protokolun yeni adini tercih etsin.
+   */
   private async resolveRpcUrl(peer: Peer): Promise<string> {
-    try {
-      const res = await fetch(`${peer.url.replace(/\/$/, "")}/.well-known/agent.json`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
+    const base = peer.url.replace(/\/$/, "");
+    for (const path of ["/.well-known/agent-card.json", "/.well-known/agent.json"]) {
+      try {
+        const res = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
         const card = (await res.json()) as {
           url?: string;
           supportedInterfaces?: { transport?: string; url?: string }[];
@@ -396,26 +486,11 @@ export class A2AHub {
         );
         if (iface?.url) return iface.url;
         if (card.url) return card.url;
-      }
-    } catch {
-      /* kart okunamadi - taban adrese dus */
-    }
-    return peer.url.replace(/\/$/, "");
-  }
-
-  private async pollPeerTask(peer: Peer, taskId: string) {
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      try {
-        const res = await fetch(`${peer.url}/a2a/tasks/${taskId}`);
-        if (!res.ok) continue;
-        const remote = (await res.json()) as A2ATask;
-        this.tasks.set(taskId, remote);
-        this.onStateChange?.(remote);
-        if (remote.state === "completed" || remote.state === "failed" || remote.state === "canceled") return;
+        return base; // kart okundu ama RPC adresi yok - taban adrese dus
       } catch {
-        /* ag hatasi - devam et */
+        /* bu yol calismadi - digerini dene */
       }
     }
+    return base;
   }
 }
