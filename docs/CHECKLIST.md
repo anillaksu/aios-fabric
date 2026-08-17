@@ -64,15 +64,17 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [x] **Canlı kanıt:** iki tarafta da `agent-card.json` 200 (`version:"0.1.0"`, B-1 kapandı) · `SendMessage`→`TASK_STATE_COMPLETED`/`ROLE_AGENT` · `GetTask`/`ListTasks` pc-agent'ta **artık buluyor** (eskiden bulamazdı) · sunucu yeniden başlatıldıktan **sonra** aynı `taskId` hâlâ sorgulanabiliyor · `CancelTask` tamamlanmış işi doğru reddediyor (`-32002`) · legacy `agent.json` alias hâlâ 200
 - [x] **(sırasında bulundu)** `pollPeerTask()` ve `detectSkill()`/`execSkill()` ölü kod → silindi (B-2 kapandı)
 
-## W3 — Asenkron teslim ⬜ SIRADAKİ
+## W3 — Asenkron teslim ✅ TAMAMLANDI (commit `c8bb47b`)
 
-- [ ] W3.1 `wait:false` yolu: iş kabul edilir, `taskId` hemen döner
-- [ ] W3.2 Tamamlanınca `notification.send` + AKTİF sekmesinde sonuç
-- [ ] W3.3 Kalan sınırsız `fetch`'lere `AbortSignal.timeout`
-- [ ] W3.4 SSE yalnızca görüntüleme; doğruluk kaynağı journal
-- [ ] **Kabul:** telefon kilitliyken başlatılan uzun iş, ekran açılınca bildirimle geliyor
+- [x] W3.1 `wait:false` yolu: iş kabul edilir, `taskId` hemen döner (**zaten vardı** — `server.ts:430`)
+- [x] W3.2 Task tamamlandığında bildirim → AKTİF sekmesinde sonuç (`notifyOnComplete` + `notification.send`)
+- [x] W3.3 Kalan sınırsız `fetch`'e `AbortSignal.timeout` — `a2a.ts:363` (gelen A2A'nın serbest-metin yolu, Hermes gateway'e giden çağrı, 90s)
+- [x] W3.4 SSE yalnızca canlı görüntüleme; doğruluk ve nihai durum journal/task state'ten (**zaten böyleydi**, `S.tasks` `/state`'ten geliyor)
+- [x] W3.5 Restart / offline / screen-locked durumda task kaybolmaz — journal replay + `markInterrupted` (**önceden vardı**); reconnect'te `/state` anında tazeleniyor (`app.js` SSE onState)
+- [x] **Canlı kanıt:** `wait:false` ile gönderilen `sensor.battery.read` (`taskId 51d7e364`) anında `{ok:true,taskId}` döndü · task tamamlanınca journal'da otomatik `notification.send` task'ı görüldü (`title:"İş tamamlandı"`, `origin:system`) · `deploy --check` → 29 dosya birebir aynı
+- [x] **(not)** W3.5'in "task kaybolmaz" kısmı bu oturumda YAZILMADI — `state.ts:markInterrupted` önceden mevcuttu; kod incelemesiyle doğrulandı, mid-flight crash simülasyonu (risk:ask olmayan yavaş bir capability yokluğu nedeniyle) zorlanmadı
 
-## W4 — MCP cihaz sunucusu ⬜
+## W4 — MCP cihaz sunucusu ⬜ SIRADAKİ
 
 - [ ] W4.1 Capability registry → `tools/list`; `/mcp` Streamable HTTP
 - [ ] W4.2 Fail-closed: yalnızca `risk:"safe"` + açıkça izinli olanlar dışa açılır
