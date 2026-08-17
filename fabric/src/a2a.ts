@@ -15,7 +15,8 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { capabilityMap } from "./capabilities.ts";
 import type { Journal } from "./journal.ts";
-import type { AgentCard } from "./types.ts";
+import type { Dispatcher } from "./dispatcher.ts";
+import type { AgentCard, Intent } from "./types.ts";
 
 // W2.2: surum TEK kaynaktan - package.json. Iki taraf da (biz ve karsi peer)
 // hangi surumu konustugumuzu Agent Card'dan gorsun; elle senkron tutulan
@@ -156,6 +157,7 @@ export class A2AHub {
   private peers: Peer[] = loadPeers();
   private selfUrl: string;
   private journal: Journal;
+  private dispatcher: Dispatcher;
   private onStateChange?: (task: A2ATask) => void;
 
   /**
@@ -165,10 +167,16 @@ export class A2AHub {
    * yeniden insa) burada da uyguluyoruz: her durum degisikliginde tam bir
    * "goruntu" (snapshot) journal'a yazilir; baslangicta ayni tip event'ler
    * geri oynatilir, taskId basina EN SON goruntu tutulur.
+   *
+   * `dispatcher` (W5.B, 2026-08-17): gelen "capability: X | Y" cagrilari
+   * artik BUNUN UZERINDEN yuruyor - W4'te MCP tools/call icin kurulan AYNI
+   * desen. Boylece UI/A2A/MCP/otomasyon TEK bir action bus'tan gecer; hicbiri
+   * capability.execute()'u dogrudan cagirmaz (bkz. docs/CHECKLIST.md W5).
    */
-  constructor(selfUrl: string, journal: Journal, onStateChange?: (task: A2ATask) => void) {
+  constructor(selfUrl: string, journal: Journal, dispatcher: Dispatcher, onStateChange?: (task: A2ATask) => void) {
     this.selfUrl = selfUrl;
     this.journal = journal;
+    this.dispatcher = dispatcher;
     this.onStateChange = onStateChange;
     for (const ev of journal.replayAll()) {
       if (ev.type === A2A_SNAPSHOT_EVENT) {
@@ -333,12 +341,16 @@ export class A2AHub {
         this.setState(task, "failed", { error: `bilinmeyen capability: ${name}` });
         return;
       }
-      // ─── RISK KAPISI (2026-08-17, W1.5 sirasinda bulundu) ───
-      // Bu yol cap.execute()'u DOGRUDAN cagiriyor - dispatcher.dispatch()'i
-      // (ve W1.3'teki risk kapisini) TAMAMEN atliyor. Duzeltilmezse gelen bir
-      // A2A mesaji "capability: script.run | {...}" ile risk:ask olan HER
-      // seyi, dispatcher hic gormeden calistirabilirdi - UI icin kurulan
-      // onay zorunlulugu, gelen A2A yolunda hicbir sey ifade etmezdi.
+      // ─── RISK KAPISI (2026-08-17, W1.9'da bulundu; W5.B'de duzeltildi) ───
+      // Bu yol ONCEDEN cap.execute()'u DOGRUDAN cagiriyordu - dispatcher.
+      // dispatch()'i (ve W1.3'teki risk kapisini) TAMAMEN atliyordu. W1.9'da
+      // buraya yalnizca AYNI kontrolun bir KOPYASI eklenmisti (asagidaki
+      // erken-cikis) - calisiyordu ama UI/MCP'den FARKLI bir yoldan. W5'te
+      // ("A2A ve otomasyonun action yolunu atlamamasi icin TEK bus") tam
+      // dispatcher.dispatch()'e tasindi - W4'te MCP tools/call icin kurulan
+      // AYNI desen. Erken kontrol KASITLI KALDI: dispatcher zaten reddedecek
+      // olsa da, burada hemen donmek gereksiz bir task.created/optimistic
+      // olay cifti yazmayi (ve A2A gorevini "submitted" gibi gostermeyi) onler.
       const risk = cap.risk ?? "ask";
       if (risk === "ask") {
         task.history.push({ role: "agent", parts: [{ type: "text",
@@ -347,10 +359,38 @@ export class A2AHub {
         return;
       }
       try {
-        const r = await cap.execute(payload);
-        task.history.push({ role: "agent", parts: [{ type: "text",
-          text: `[${name}] ${r.ok ? "OK" : "HATA"}\n${JSON.stringify(r.ok ? r.data : r.error, null, 2)}` }] });
-        this.setState(task, r.ok ? "completed" : "failed", r.ok ? {} : { error: String(r.error ?? "") });
+        // W5.7 (idempotency, bilinen sinir): key task.id'ye dayanir - bu
+        // A2AHub SURECI ICINDE bir cagriyi iki kez calistirmayi engeller,
+        // ama JSON-RPC katmani AYNI istegi YENI bir task.id ile tekrar
+        // gonderirse (orn. istemci retry'i) dedup OLMAZ. Gercek uctan-uca
+        // idempotency, cagiranin kendi messageId'sini burada tasimasini
+        // gerektirir - bu henuz plumbing edilmedi (docs/CHECKLIST.md not).
+        const r = await this.dispatcher.dispatch({
+          type: name,
+          payload,
+          idempotencyKey: "a2a:" + task.id,
+          origin: { source: "a2a", raw: `A2A capability: ${name}`, by: "deterministic", envelopeId: "a2a:" + task.id },
+        } as Intent);
+        const deadline = Date.now() + 25000; // capability seviyesi zaman asimi (W0.3 ile ayni mertebede)
+        let settled = false;
+        while (Date.now() < deadline) {
+          const t = this.dispatcher.getState().tasks[r.taskId];
+          if (t && ["completed", "failed", "cancelled", "interrupted"].includes(t.status)) {
+            const live = this.dispatcher.getLiveResult(r.taskId);
+            const data = live !== undefined ? live : t.result;
+            const ok = t.status === "completed";
+            task.history.push({ role: "agent", parts: [{ type: "text",
+              text: `[${name}] ${ok ? "OK" : "HATA"}\n${JSON.stringify(ok ? data : (t.error ?? "bilinmeyen hata"), null, 2)}` }] });
+            this.setState(task, ok ? "completed" : "failed", ok ? {} : { error: String(t.error ?? "") });
+            settled = true;
+            break;
+          }
+          await new Promise((s) => setTimeout(s, 40));
+        }
+        if (!settled) {
+          task.history.push({ role: "agent", parts: [{ type: "text", text: `HATA: "${name}" 25sn icinde tamamlanmadi (arka planda journal'a yazilmaya devam ediyor)` }] });
+          this.setState(task, "failed", { error: "zaman asimi" });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         task.history.push({ role: "agent", parts: [{ type: "text", text: `HATA: ${msg}` }] });

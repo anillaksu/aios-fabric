@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { findKit, kitsOf, allKits, fill, buildUri } from "./kits.ts";
 import { buildSystemPrompt } from "./prompt.ts";
+import { sanitizeAiosBlock } from "./screenspec.ts";
 import { labelFor, hasRealLabel, resolveLabels, pendingLabels } from "./applabels.ts";
 import { isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import type { Capability, CapabilityResult } from "./types.ts";
@@ -1013,10 +1014,14 @@ export const capabilities: Capability[] = [
         // gercek sebep (rate limit? token? timeout?) hicbir yerde gorunmuyordu.
         if (!res.ok) return { ok: false, error: data?.error ? `llm_bridge ${res.status}: ${data.error}` : `llm_bridge ${res.status}` };
         if (data.error) return { ok: false, error: data.error };
+        // W5.1/W5.2: model ciktisi SUNUCUDA da dogrulanir/temizlenir - istemci
+        // dogrulamasi (renderer.js) tek basina guven siniri sayilmiyor artik.
+        // Bozuk/izinsiz bir yapi (bilinmeyen bilesen, izinsiz action) hicbir
+        // istemciye HAM ulasmaz; gecersizse blok tamamen silinir.
         return {
           ok: true,
           data: {
-            text: data.text ?? "",
+            text: sanitizeAiosBlock(data.text ?? ""),
             finishReason: data.finish_reason ?? "stop",
             truncated: data.truncated === true,
           },

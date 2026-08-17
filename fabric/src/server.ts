@@ -168,7 +168,7 @@ const envelopes = makeEnvelopeRecorder(
   (e) => sse.broadcast(e),
 );
 
-const a2a = new A2AHub(SELF_URL, journal, (task) => {
+const a2a = new A2AHub(SELF_URL, journal, dispatcher, (task) => {
   // A2A durum degisikligini de FabricEvent akisina yayinla (UI tek yerden izlesin)
   sse.broadcast({
     seq: -1,

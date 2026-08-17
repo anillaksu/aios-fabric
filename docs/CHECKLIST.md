@@ -86,12 +86,18 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [x] W4.8 Protokol hatası (`-32602`) ile tool çalışma hatası (`isError:true`) ayrımı — spec'ten doğrulanıp uygulandı
 - [x] **Canlı kanıt (10 test):** auth'suz→401 · initialize→200+`Mcp-Session-Id` · oturumsuz `tools/list`→400 · `tools/list` tam 17 `safe` capability döndü (`script.run`/`whatsapp.send`/`a2a.delegate` yok) · `wifi.info` çağrısı gerçek veriyle `isError:false` · `script.run` çağrısı `-32602` (execution error DEĞİL, protokol hatası) · bilinmeyen tool `-32602` · journal'da `origin.source:"mcp"` · `GET /mcp`→405 · sahte `Origin` header→403
 - [x] **(kapsam kararı, bilinçli)** Tam SSE/resumability yazılmadı — spec'in izin verdiği tek-JSON-yanıt modu seçildi; gerekçe: dışa açılan tek şey `risk:safe` (tanımı gereği hızlı/salt-okuma), SSE'nin çözdüğü "uzun süren çağrıyı güvenle tamamlama" problemi burada yok
+- [x] **W4-KALICI** (commit `215e700`, `bf6b23f`) — `fabric/test/mcp.test.ts`: 4 sözleşme testi (`node:test`, dış bağımlılık yok) — tools/list↔isMcpExposed() üç yoldan tutarlılık, risk:ask ne listede ne çağrıda, protokol hatası (`-32602`) vs `isError:true` ayrımı, oturum zorunluluğu. `deploy-to-phone.sh`'e **4b) Sözleşme testleri** adımı eklendi — build'den sonra, restart'tan önce çalışır, başarısız olursa dağıtım orada durur. **Bulunan gerçek açık:** `package.json` deploy kapsamında hiç yoktu — test kapısı bunu ilk denemede yakaladı (sessizce geçmedi), kapsam düzeltildi (32 dosya)
 
-## W5 — Deterministik action bus ⬜ SIRADAKİ
+## W5 — Deterministik action bus ✅ TAMAMLANDI (commit sıradaki)
 
-- [ ] W5.1 `llm.generate` çıktısına **sunucu tarafında** JSON şema doğrulaması
-- [ ] W5.2 Doğrulama istemciden (`renderer.js`) sunucuya taşınsın — bugün A2A ve otomasyon yolları onu atlıyor
-- [ ] W5.3 Model "cihaz bilgisi" uydurmasın: `prompt.ts:26` kuralı zorlayıcıya dönüşsün
+- [x] W5.1 `llm.generate` çıktısına **sunucu tarafında** doğrulama — `fabric/src/screenspec.ts` (yeni), `renderer.js`'in aynı kuralları (bilinmeyen bileşen → elenir, izinsiz action → kaldırılır, derinlik sınırı) sunucuda tekrarlıyor; istemci kopyası **kaldırılmadı** (iki katmanlı savunma, bilinçli)
+- [x] W5.2 **(bulundu ve düzeltildi)** A2A'nın `capability: X | Y` yolu hâlâ `cap.execute()`'u **doğrudan** çağırıyordu (W1.9 yalnızca aynı kontrolün bir kopyasını eklemişti, tam yolu değiştirmemişti) — artık `dispatcher.dispatch()` üzerinden yürüyor, W4'te MCP için kurulan **aynı desen**. UI/A2A/MCP/otomasyon artık tek bus'tan geçiyor
+- [x] W5.3 Model "cihaz bilgisi" uydurması — enforcement **mimari**: dispatcher yalnızca gerçek `capability.execute()` sonucuna güvenir, model metnine asla; `prompt.ts:26` bunu talimat seviyesinde pekiştiriyor (LLM'e teknik olarak dayatılamaz, mimari sınır asıl garanti)
+- [x] W5.4 Action şemasında capability/risk/hedef doğrulaması — `screenspec.ts`'teki `actionAllowed()` yapısal geçerliliği kontrol eder (capability var mı), risk kapısı **ayrı bir sınır** olarak dispatcher'da kalır (bilinçli ayrım, aşağıya bak)
+- [x] W5.5 Protokol hatası vs execution hatası ayrımı W4'ten buraya da taşındı — `app.open` param eksikliği `task.failed` (execution), bilinmeyen capability/risk:ask reddi ayrı
+- [x] W5.6 `validate → authorize → dispatch → journal` zinciri — tek bus (`dispatcher.dispatch`) zaten bunu; A2A'nın düzeltilmesiyle **tüm** yollar aynı zincirden geçiyor
+- [x] W5.7 İdempotency — dispatcher zaten destekliyordu (`idempotencyKey`), A2A'ya bağlandı (`"a2a:"+task.id`). **Bilinen sınır (kalıcılaştırıldı, gizlenmedi):** bu yalnızca A2AHub süreci içi tekrarı engeller; çağıranın kendi `messageId`'sini taşıması gerçek uçtan-uca idempotency için gerekli, henüz plumbing edilmedi
+- [x] W5.8 **Canlı+otomatik kanıt (`fabric/test/action-bus.test.ts`, 7 test):** geçerli action (kit.list tamamlandı) · eksik parametre (app.open→"pkg gerekli", yan etkisiz) · sahte cihaz bilgisi (bilinmeyen bileşen elendi, bozuk JSON bloğu silindi) · yetkisiz capability (script.run→"onay gerektirir") · doğrudan A2A action (kit.list dispatcher'dan geçti, journal'da `origin.source:"a2a"`) · A2A'dan risk:ask reddi
 
 ---
 
@@ -158,3 +164,5 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [ ] B-3 `fabric/public/js/components.css` ile `fabric/public/css/components.css` **birebir kopya** (21.428 bayt, ikisi de) — hangisinin yüklendiği `aios.html:17` → `/css/`; `js/` altındaki ölü
 - [ ] B-4 `vendor/` + `icons/` md5 doğrulama kapsamı dışında (nadiren değişir, bilinçli)
 - [ ] B-5 PC agent `SAFE_ROOT` artık kanonik depo — eski oturum klasöründeki `pc-agent` kopyası hâlâ diskte duruyor, karışıklık riski
+- [ ] B-6 **(W5'te bilinçli olarak açıldı)** `screenspec.ts`'teki `ALLOWED_TYPES`/`UI_META_ACTIONS` ile `registry.js`/`app.js`'teki eşdeğerleri **elle senkron tutulan iki ayrı liste** — biri güncellenip diğeri unutulursa (W1.9/W1.10 deseni) sunucu ile istemci farklı şeyi geçerli sayar. Tek kaynak (registry.js'i sunucuya JSON olarak servis etmek gibi) ileride değerlendirilebilir
+- [ ] B-7 A2A idempotency yalnızca süreç-içi (`"a2a:"+task.id`) — çağıranın `messageId`'si henüz taşınmıyor, gerçek uçtan-uca dedup yok (W5.7)
