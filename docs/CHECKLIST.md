@@ -135,6 +135,7 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 **Tier list denetiminden gelen ekler (2026-08-17):**
 
 - [ ] W6.K **Web Worker çekirdeği.** Üretilen kod Worker'da koşar (izole + `terminate()` edilebilir → kaçak widget telefonu kilitlemez); Worker `ScreenSpec` üretir, çizimi ana thread yapar
+      · **Sınır (zaten karar, `PLAN_W6_app-shell.md §1b` adım 4'te yazılı — burada çapraz referans için tekrarlanıyor):** Worker yalnızca compute/transform/parse yapar, **privileged capability çağıramaz**. Üç yol ayrı kalır: `UI → sandbox/native çizim` · `compute → Worker` · `privileged capability → dispatcher/policy`. Worker capability *ister*, W1 risk kapısından geçirilmeden asla çalışmaz — W6.4'ün postMessage köprüsüyle aynı kural
 - [ ] W6.L **Prompt→kod önbelleği.** SHA-256 (`crypto.subtle`) ile eşleme; **normalizasyon zorunlu** (ham hash kırılgan) ve hash'e **capability sürümü** katılır. **(2026-08-17 eklendi)** Kayıt `{structureHash, structure, parameters}` — aynı yapı farklı başlık/renkle tekrar istenince yalnızca parametre değişir, yapı yeniden üretilmez
 - [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
 - [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
@@ -174,14 +175,18 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 > Owner'ın mimari değerlendirme raporu koda soruldu (K8) ve sabitlendi. Aşağıdakiler
 > o denetimden **yeni** çıkan işler; raporun geri kalanı mevcut K6-K10 ve S-1..S-8'i
-> teyit etti (yeni iş doğurmadı).
+> teyit etti (yeni iş doğurmadı). **M-7/M-8:** owner'ın 2026-08-17 ikinci turdaki
+> denetimi (Artifact Contract'ın kapı olması, ephemeral/persistent ayrımının
+> koda yansıması) — M-5'i tamamlıyor, bkz. aşağı.
 
 - [ ] **M-1** Mevcut maddeler dört seviyeli kanıt skalasına göre yeniden etiketlensin (§0.1) — başlangıç: W6.I `TEST-VERIFIED`, W3.5 `REVIEW-VERIFIED`
 - [ ] **M-2** **B-6 önceliği yükseltildi** — "sıraya girmemiş borç" değil, §8'deki *tek-gerçek invaryantının* bilinen ihlali. **W6 kod yazımından ÖNCE kapatılmalı:** W6 hem `screenspec.ts`'i hem `registry.js`'i büyütecek, iki liste arasındaki fark da onunla birlikte büyür
 - [ ] **M-3** Maliyet ölçümü **beş kalemli** olsun: token · gecikme · ağ · doğrulama işi · cihaz enerjisi. W6.7 bugün yalnızca token sayıyor; K7'nin gerçek konusu beşi birden
 - [ ] **M-4** Korpus artefaktları `provenance: "corpus"` ile işaretlensin ve W6.5d'nin **200 artefakt tetikleyicisinden hariç tutulsun** — aksi hâlde sentetik korpus kendi tetikleyicisini ateşler ve ertelenen derleyiciyi erken açtırır (§11)
-- [ ] **M-5** Artefakt sözleşme alanları W6.F şemasına girsin: `approvalScope` (KARAR-2) + `capabilities` (W6.W) + `version` + `provenance` (§4)
+- [ ] **M-5** Artefakt sözleşme alanları W6.F şemasına girsin: `approvalScope` (KARAR-2) + `capabilities` (W6.W) + `version` + `provenance` (§4). **Onay kaydı W6.L'nin hash'ine kilitlensin:** `approvalScope`, `{structureHash, capabilitySetVersion}` ikilisine bağlı saklanır — capability sürümü değişince (W6.L zaten hash'e katıyor) eski onay **otomatik geçersiz** sayılır, KARAR-2'nin "kapsam genişleyince yeniden sor" kuralı bunsuz neyin değiştiğini bilemez
 - [ ] **M-6** `CanCompose` **bağlam ve politika parametreli** tanımlansın: `CanCompose(A,B,Γ,Π)`; adapter uyumluluk ölçümünden **önce** uygulansın (§5.1, §5.3)
+- [ ] **M-7 (owner katkısı, 2026-08-17)** **Sözleşme yalnızca alan değil, kapı olsun.** M-5 alanları (`Input/Output/Event/Capability/Policy/Lifecycle/Version/Provenance`, §4) şemaya yazılmakla yetinmesin — her mikro-artefakt galeriye kaydedilmeden **ve** yeniden kullanılmadan önce bu alanlara karşı makinece doğrulansın (şema kontrolü, W5.1'in `screenspec.ts`'i yaptığı gibi). Aksi hâlde sözleşme yalnızca dokümantasyon olur, gerçek bir sınır olmaz
+- [ ] **M-8 (owner katkısı, 2026-08-17)** **Geçici yürütme ↔ kalıcı artefakt iki ayrı aşama olsun.** Bugün W6.F/W6.L "üret → doğrudan IndexedDB'ye yaz" akışını tarif ediyor; §6'daki ayrım ("her yürütme artefakta dönüşmek zorunda değil") kod düzeyinde bir kapıya çevrilmemiş. Akış: `üretim → geçici çalıştırma (galeriye YAZILMAZ) → ölçülen tekrar kullanım/kullanıcı onayı → terfi → kalıcı galeri`. W6.F'nin "kabul" ölçütü buna göre güncellenmeli: yalnızca *doğrulanmış* üretim kalıcı olur, her deneme değil
 
 ## Bilinen borçlar (henüz sıraya girmedi)
 
