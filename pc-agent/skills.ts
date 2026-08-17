@@ -115,8 +115,15 @@ export const SKILLS = {
   },
 
   "shell.run": {
-    description: "PC'de komut calistirir (SAFE_ROOT icinde, yikici kaliplar reddedilir)",
+    description: "PC'de komut calistirir (SAFE_ROOT icinde, yikici kaliplar reddedilir) " +
+                  "- VARSAYILAN KAPALI, PC_AGENT_ALLOW_SHELL=1 ile acilir",
     run: async (arg: string): Promise<SkillResult> => {
+      // W1.6: "bir anda tum yetki acilmayacak" karari - keyfi kabuk erisimi
+      // varsayilan KAPALI. disk.free/proc.list gibi dar isler cogu ihtiyaci
+      // karsilar; gercekten shell gerekiyorsa operator env ile ACIKCA acar.
+      if (process.env.PC_AGENT_ALLOW_SHELL !== "1") {
+        return { ok: false, output: "shell.run KAPALI (varsayilan). Acmak icin PC_AGENT_ALLOW_SHELL=1 ile baslat." };
+      }
       if (!arg) return { ok: false, output: "komut gerekli" };
       if (DANGEROUS.some((re) => re.test(arg))) {
         return { ok: false, output: `Reddedildi - yikici kalip: ${arg.slice(0, 80)}` };
@@ -155,6 +162,45 @@ export const SKILLS = {
         return { ok: true, output: stdout.trim() || "(temiz)" };
       } catch (err) {
         return { ok: false, output: `git calistirilamadi: ${err instanceof Error ? err.message : err}` };
+      }
+    },
+  },
+
+  // ─── DAR, SALT-OKUMA ISLER (2026-08-17, W1.6) ───
+  // shell.run kapaliyken en cok istenecek iki sey: "ne kadar yer var" ve
+  // "hangi surecler calisiyor". Ikisi de node:os / dar bir komutla, keyfi
+  // kabuk calistirmadan cevaplanabilir.
+  "disk.free": {
+    description: "SAFE_ROOT'un bulundugu surucude bos/toplam alan",
+    run: async (): Promise<SkillResult> => {
+      try {
+        const drive = resolve(SAFE_ROOT).slice(0, 2); // orn "C:"
+        const { stdout } = await execFileAsync(
+          "powershell.exe",
+          ["-NoProfile", "-NonInteractive", "-Command",
+            `Get-PSDrive -Name ${drive.replace(":", "")} | Select-Object Used,Free | ConvertTo-Json`],
+          { timeout: 10000, maxBuffer: 65536, windowsHide: true },
+        );
+        return { ok: true, output: stdout.trim() || "(bos yanit)" };
+      } catch (err) {
+        return { ok: false, output: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  },
+
+  "proc.list": {
+    description: "CPU'ya gore ilk 15 surec (ad, PID, CPU saniye)",
+    run: async (): Promise<SkillResult> => {
+      try {
+        const { stdout } = await execFileAsync(
+          "powershell.exe",
+          ["-NoProfile", "-NonInteractive", "-Command",
+            "Get-Process | Sort-Object CPU -Descending | Select-Object -First 15 Name,Id,CPU | Format-Table -AutoSize | Out-String -Width 200"],
+          { timeout: 10000, maxBuffer: 65536, windowsHide: true },
+        );
+        return { ok: true, output: stdout.trim() || "(bos yanit)" };
+      } catch (err) {
+        return { ok: false, output: err instanceof Error ? err.message : String(err) };
       }
     },
   },

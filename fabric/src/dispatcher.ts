@@ -103,6 +103,27 @@ export class Dispatcher {
       idempotencyKey: intent.idempotencyKey ?? null,
     });
 
+    // ─── RISK KAPISI (2026-08-17, W1.3) ───
+    // Belirtilmemis risk de "ask" sayilir - kanitlanmadikca en kisitli.
+    // Bugun (AETHER onay kuyrusu baglanana kadar) "ask" calisma zamaninda
+    // KOSULSUZ reddedilir; sessizce izin verilmez, ama denenen is task.created
+    // ile gorunur kalir (denetim izi kaybolmaz). UI/otomasyon/retry/undo hepsi
+    // BURADAN gectigi icin kapi tek yerden ve merkezi.
+    const risk = capability?.risk ?? "ask";
+    if (risk === "ask") {
+      this.apply({
+        type: "task.failed",
+        correlationId,
+        causationId: null,
+        payload: {
+          taskId,
+          error: `"${intent.type}" onay gerektirir (risk: ask) - onay kuyrugu henuz baglanmadi, is calistirilmadi`,
+        },
+        idempotencyKey: null,
+      });
+      return { taskId, class: cls, deduped: false };
+    }
+
     // --- IYIMSER PROJEKSIYON: kullanici BEKLEMEDEN once state degisir ---
     this.applyOptimisticProjection(intent, taskId, correlationId, createdEvent.id);
 

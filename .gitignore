@@ -7,3 +7,5 @@ node_modules/
 fabric-artifacts.json
 fabric-automations.json
 fabric-kits.json
+.a2a-token
+.pc-agent-token

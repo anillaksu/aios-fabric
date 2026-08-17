@@ -37,6 +37,14 @@ export interface Peer {
   name: string;
   url: string; // orn http://100.x.x.x:9310  (peer'in Fabric/A2A endpoint kokü)
   description?: string;
+  /**
+   * Paylasilan sir (2026-08-17, W1.5). Bu peer'a giden her istekte
+   * `Authorization: Bearer <token>` olarak gonderilir; peer da bize gelen
+   * istekte AYNI degeri bekler (bkz. server.ts requireA2AAuth). Tailscale
+   * agi kendi basina kimlik dogrulamasi degil - "tailnet'te olan herkes"
+   * ile "bu ozel peer" arasindaki fark bu alan.
+   */
+  token?: string;
 }
 
 const PEERS_FILE = new URL("../peers.json", import.meta.url);
@@ -57,7 +65,10 @@ function savePeers(peers: Peer[]) {
 }
 
 const GATEWAY_URL = "http://127.0.0.1:8642/v1/chat/completions";
-const GATEWAY_KEY = "local-retro-os-9f2c"; // config.yaml'daki api_server.extra.key ile ayni
+// W1.8: sabit deger depoda duz metin duruyordu (git gecmisine girmisti).
+// Artik env'den okunuyor; env yoksa config.yaml'daki eski varsayilana duser
+// (geriye donuk uyum - operator FABRIC_GATEWAY_KEY ile degistirebilir).
+const GATEWAY_KEY = process.env.FABRIC_GATEWAY_KEY ?? "local-retro-os-9f2c";
 
 // TIMEOUT ZINCIRI (2026-08-17 W0.3): capability < envelope < UI olmali, yoksa
 // kullanici "zaman asimi" gorurken sunucudaki fetch sinirsiz asili kalir (B4).
@@ -237,6 +248,19 @@ export class A2AHub {
         this.setState(task, "failed", { error: `bilinmeyen capability: ${name}` });
         return;
       }
+      // ─── RISK KAPISI (2026-08-17, W1.5 sirasinda bulundu) ───
+      // Bu yol cap.execute()'u DOGRUDAN cagiriyor - dispatcher.dispatch()'i
+      // (ve W1.3'teki risk kapisini) TAMAMEN atliyor. Duzeltilmezse gelen bir
+      // A2A mesaji "capability: script.run | {...}" ile risk:ask olan HER
+      // seyi, dispatcher hic gormeden calistirabilirdi - UI icin kurulan
+      // onay zorunlulugu, gelen A2A yolunda hicbir sey ifade etmezdi.
+      const risk = cap.risk ?? "ask";
+      if (risk === "ask") {
+        task.history.push({ role: "agent", parts: [{ type: "text",
+          text: `HATA: "${name}" onay gerektirir (risk: ask) - A2A uzerinden dogrudan calistirilamaz.` }] });
+        this.setState(task, "failed", { error: `"${name}" onay gerektirir (risk: ask)` });
+        return;
+      }
       try {
         const r = await cap.execute(payload);
         task.history.push({ role: "agent", parts: [{ type: "text",
@@ -297,7 +321,10 @@ export class A2AHub {
     try {
       res = await fetch(rpcUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(peer.token ? { authorization: `Bearer ${peer.token}` } : {}),
+        },
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: rpcId,

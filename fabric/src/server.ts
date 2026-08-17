@@ -2,8 +2,8 @@
 // (POST /intent ve POST /a2a/tasks hemen doner, sonuc SSE'den gelir).
 
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { randomUUID, randomBytes } from "node:crypto";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Journal } from "./journal.ts";
 import { replayToState, markInterrupted } from "./state.ts";
@@ -64,6 +64,32 @@ const ARTIFACTS_PATH = `${HOME}/fabric-artifacts.json`;
 // cihazda - PC'de - calistirirken).
 const SELF_URL = process.env.FABRIC_SELF_URL ?? `http://100.75.177.88:${PORT}`;
 
+// ─── A2A GELEN ISTEK KIMLIK DOGRULAMASI (2026-08-17, W1.5) ───
+// Tailscale agi kimlik dogrulamasi DEGIL - "tailnet'te olan herkes" ile
+// "guvendigimiz belirli bir peer" arasindaki tek fark bu token. Env
+// verilmemisse HER baslangicta yeni bir token URETILIR ve diske yazilir
+// (fail-closed: token yoksa varsayilan "acik kapi" degil, "kimse giremez"
+// olsun - operator dosyayi okuyup peer'a taniyarak acikca yetki verir).
+const A2A_TOKEN_PATH = `${HOME}/fabric/.a2a-token`;
+function loadOrCreateA2AToken(): string {
+  if (process.env.FABRIC_A2A_TOKEN) return process.env.FABRIC_A2A_TOKEN;
+  try {
+    if (existsSync(A2A_TOKEN_PATH)) return readFileSync(A2A_TOKEN_PATH, "utf8").trim();
+  } catch { /* devam, yeniden uret */ }
+  const token = randomBytes(24).toString("hex");
+  try { writeFileSync(A2A_TOKEN_PATH, token, "utf8"); } catch { /* diske yazilamadi - yine de bellekte gecerli */ }
+  return token;
+}
+const A2A_TOKEN = loadOrCreateA2AToken();
+console.log(`[fabric] A2A gelen istek tokeni: ${A2A_TOKEN_PATH} (peer'a ekleyecegin deger)`);
+
+/** POST "/" (A2A JSON-RPC) ve POST /a2a/tasks icin zorunlu Bearer token. */
+function requireA2AAuth(req: import("node:http").IncomingMessage): boolean {
+  const header = req.headers["authorization"];
+  const value = Array.isArray(header) ? header[0] : header;
+  return value === `Bearer ${A2A_TOKEN}`;
+}
+
 // ---------- baslangic: journal'i oynat, crash recovery uygula ----------
 const journal = new Journal(JOURNAL_PATH);
 const replayedEvents = journal.replayAll();
@@ -81,15 +107,21 @@ const dispatcher = new Dispatcher(journal, bootState, sse);
 // ---------- Otomasyon motoru (2026-08-16'da eklendi) ----------
 // Kurallar journal akisini dinler ve eslesme olunca bir capability calistirir.
 // Dongu korumasi automations.ts icinde (automation.* event'leri tetiklemez +
-// kural basina cooldown).
+// kural basina cooldown + zincir derinligi kesici).
 sse.onEvent(
   makeAutomationListener(
     // origin GECIRILIYOR: otomasyonun tetikledigi is AKTİF sekmesinde
     // "otomasyon kurali tetikledi" diye gorunsun. Denetimde bu eksikti,
     // kural tetikli isler kaynaksiz ("sistem ici") cikiyordu.
-    (type, payload, ruleName) => {
+    //
+    // correlationId "automation-chain:<derinlik>:<uuid>" olarak KASITLI
+    // kodlanir - dispatcher bunu task.created/completed/failed'a AYNEN
+    // tasir, automations.ts'teki zincir derinligi kesicisi bir sonraki
+    // olayda derinligi BURADAN okur (W1.4).
+    (type, payload, ruleName, depth) => {
       void dispatcher.dispatch({
         type, payload,
+        correlationId: `automation-chain:${depth}:${randomUUID()}`,
         origin: { source: "automation", raw: ruleName, by: "deterministic", envelopeId: "automation" },
       } as never);
     },
@@ -143,9 +175,16 @@ function redactFieldsForJournal(
   return out;
 }
 
+// CORS (2026-08-17, W1.5): kaldirildi. UI ayni origin'den yukleniyor (bu
+// sunucu HEM sayfayi HEM API'yi ayni portta sunuyor) - tarayicinin ayni-
+// kaynak fetch'i CORS baslikina hic ihtiyac duymaz. A2A peer'lari da
+// tarayici degil (Node fetch) - CORS zaten yalnizca TARAYICILARIN uydugu
+// bir sozlesme, sunucudan sunucuya cagrilari kisitlamaz. Yani wildcard hic
+// gercek bir koruma saglamiyordu; kaldirilmasi hicbir mesru kullanimi
+// bozmuyor, "*" ile disari acik gorunmeyi bitiriyor.
 function json(res: import("node:http").ServerResponse, status: number, body: unknown) {
   const data = JSON.stringify(body);
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  res.writeHead(status, { "Content-Type": "application/json" });
   res.end(data);
 }
 
@@ -159,11 +198,7 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", SELF_URL);
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
-    });
+    res.writeHead(204, {});
     res.end();
     return;
   }
@@ -180,6 +215,12 @@ const server = createServer(async (req, res) => {
     // Fabric yalnizca Hermes'le degil herhangi bir A2A ajaniyla (LangChain,
     // CrewAI, Google ADK...) konusabilir. Eski REST ucu de duruyor.
     if (url.pathname === "/" && req.method === "POST") {
+      // W1.5: bu uc DISARIDAN gelen A2A cagrilarini kabul ediyor - token
+      // zorunlu. Tailscale agi burada "kimlik" degil.
+      if (!requireA2AAuth(req)) {
+        json(res, 401, { jsonrpc: "2.0", id: null, error: { code: -32001, message: "gecersiz veya eksik Bearer token" } });
+        return;
+      }
       const body = JSON.parse((await readBody(req)) || "{}") as {
         jsonrpc?: string; id?: unknown; method?: string;
         params?: { message?: { parts?: { text?: string }[]; contextId?: string } };
@@ -421,6 +462,15 @@ const server = createServer(async (req, res) => {
         json(res, 400, { ok: false, error: `bilinmeyen capability: ${body.then.type}` });
         return;
       }
+      // W1.4: kural, capability'nin azami riskini asamaz. "ask" zaten
+      // dispatcher'da kosulsuz reddediliyor (W1.3) - onu hedefleyen bir
+      // kural kurmak, her tetiklenmede sessizce basarisiz olan otomasyon
+      // biriktirmekten baska bir sey yapmaz. Erken ve acik reddet.
+      const targetCap = body?.then?.type ? capabilityMap.get(String(body.then.type)) : undefined;
+      if (targetCap && (targetCap.risk ?? "ask") === "ask") {
+        json(res, 400, { ok: false, error: `"${body.then.type}" onay gerektirir (risk: ask) - otomasyon kurali hedefi olamaz` });
+        return;
+      }
       json(res, 200, addRule(body));
       return;
     }
@@ -567,6 +617,11 @@ const server = createServer(async (req, res) => {
 
     // ---------- A2A: inbound task olustur (baska bir peer bize delege eder) ----------
     if (url.pathname === "/a2a/tasks" && req.method === "POST") {
+      // W1.5: eski REST ucu de disaridan cagrilabiliyordu - ayni token zorunlu.
+      if (!requireA2AAuth(req)) {
+        json(res, 401, { error: "gecersiz veya eksik Bearer token" });
+        return;
+      }
       const body = await readBody(req);
       const { text, contextId } = JSON.parse(body || "{}") as { text?: string; contextId?: string };
       if (!text) {
@@ -597,12 +652,14 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/a2a/peers" && req.method === "POST") {
       const body = await readBody(req);
-      const peer = JSON.parse(body || "{}") as { name?: string; url?: string; description?: string };
+      const peer = JSON.parse(body || "{}") as { name?: string; url?: string; description?: string; token?: string };
       if (!peer.name || !peer.url) {
         json(res, 400, { error: "name ve url gerekli" });
         return;
       }
-      a2a.addPeer({ name: peer.name, url: peer.url, description: peer.description });
+      // W1.5: token da kaydedilebilsin - delegateToPeer bunu Authorization
+      // basligina koyar (bkz. a2a.ts).
+      a2a.addPeer({ name: peer.name, url: peer.url, description: peer.description, token: peer.token });
       json(res, 200, { ok: true });
       return;
     }

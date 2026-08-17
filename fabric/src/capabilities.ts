@@ -181,6 +181,7 @@ export const capabilities: Capability[] = [
     // filtresine bagli GERCEK bileseni bul, sonra `am start -n <bilesen>`.
     name: "app.open",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const pkg = str(payload?.pkg);
@@ -205,6 +206,7 @@ export const capabilities: Capability[] = [
   {
     name: "app.list",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => {
       // `pm list packages -3` duz Termux'tan calisiyor (test edildi)
@@ -231,6 +233,7 @@ export const capabilities: Capability[] = [
     // arayuzden dokunarak degistirilemiyordu.
     name: "appicons.network",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const on = payload?.on === true || payload?.on === "true";
@@ -244,6 +247,7 @@ export const capabilities: Capability[] = [
     // uygulama coozer, sonuc kalici onbellege yazilir.
     name: "app.labels.resolve",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 0,
     execute: async (payload) => {
       const r = await run("pm", ["list", "packages", "-3"], 15000);
@@ -267,6 +271,7 @@ export const capabilities: Capability[] = [
     // diye reddediyordu. Model dogru dusunuyordu, capability dardi.
     name: "activity.start",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     execute: async (payload) => {
       const args = ["start"];
@@ -308,6 +313,7 @@ export const capabilities: Capability[] = [
     // "su numarayi ara" gibi istekler icin en dogal yol.
     name: "deeplink.open",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
     execute: async (payload) => {
       let uri = str(payload?.uri) || str(payload?.url) || str(payload?.data);
@@ -339,6 +345,7 @@ export const capabilities: Capability[] = [
     // metin zaten dolu olur.
     name: "share.text",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     sensitiveFields: ["text"],
     execute: async (payload) => {
@@ -368,6 +375,7 @@ export const capabilities: Capability[] = [
     // format (odt, ics, ne gerekiyorsa) eklemek icin BU DOSYA DEGISMEZ.
     name: "doc.create",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
     sensitiveFields: ["content", "text"],
     execute: async (payload) => {
@@ -403,7 +411,13 @@ export const capabilities: Capability[] = [
     // icin kod degil, kit gerekir.
     name: "link.open",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
+    // W1.7 (denetim B6): "q" arama terimi/telefon numarasi tasiyabilir ve
+    // eskiden redaksiyonsuzdu. Sonuctaki "uri" de ayni degeri gomulu tasir -
+    // sensitiveResult onu da redakte eder.
+    sensitiveFields: ["q"],
+    sensitiveResult: true,
     execute: async (payload) => {
       const id = str(payload?.kit);
       if (!id) return { ok: false, error: `kit gerekli (mevcut: ${kitsOf("link").map((k) => k.id).join(", ")})` };
@@ -426,7 +440,10 @@ export const capabilities: Capability[] = [
     // Defterdeki bir INTENT kit'ini calistirir (alarm kur, sayac baslat...).
     name: "intent.run",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
+    sensitiveFields: ["q"],
+    sensitiveResult: true,
     execute: async (payload) => {
       const id = str(payload?.kit);
       if (!id) return { ok: false, error: `kit gerekli (mevcut: ${kitsOf("intent").map((k) => k.id).join(", ")})` };
@@ -455,6 +472,7 @@ export const capabilities: Capability[] = [
     // Kesif: hangi kit'ler var? Model ve arayuz bunu okuyup kendini gunceller.
     name: "kit.list",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const kind = str(payload?.kind);
@@ -469,6 +487,7 @@ export const capabilities: Capability[] = [
     // e-posta gibi hedefler burada cikar.
     name: "file.share",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     execute: async (payload) => {
       const path = str(payload?.path);
@@ -491,6 +510,7 @@ export const capabilities: Capability[] = [
     // wa.me deep link'i WhatsApp tarafindan resmen desteklenir.
     name: "whatsapp.send",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     sensitiveFields: ["text", "phone"],
     execute: async (payload) => {
@@ -528,6 +548,7 @@ export const capabilities: Capability[] = [
     // BEKLEYIP donuyor, ayrica pollamaya gerek yok.
     name: "a2a.delegate",
     class: "AGENT",
+    risk: "ask",
     maxRetries: 0,
     execute: async (payload) => {
       const peer = str(payload?.peer, "pc");
@@ -556,6 +577,7 @@ export const capabilities: Capability[] = [
     // kullanicinin Termux'a girip betik calistirmasi gerekmez.
     name: "shizuku.status",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 0,
     execute: async () => {
       const alive = await runRish("id", 8000);
@@ -580,6 +602,7 @@ export const capabilities: Capability[] = [
   {
     name: "shizuku.start",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 0,
     execute: async () => {
       const already = await runRish("id", 8000);
@@ -607,30 +630,35 @@ export const capabilities: Capability[] = [
   {
     name: "sensor.battery.read",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => run("termux-battery-status", [], 8000),
   },
   {
     name: "sensor.location.read",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 0,
     execute: async () => run("termux-location", ["-p", "network", "-r", "last"], 12000),
   },
   {
     name: "wifi.info",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => run("termux-wifi-connectioninfo", [], 8000),
   },
   {
     name: "volume.read",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => run("termux-volume", [], 8000),
   },
   {
     name: "volume.set",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const stream = str(payload?.stream, "music");
@@ -642,6 +670,7 @@ export const capabilities: Capability[] = [
   {
     name: "torch.set",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const on = payload?.on === true || payload?.on === "true";
@@ -651,6 +680,7 @@ export const capabilities: Capability[] = [
   {
     name: "vibrate",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const ms = Number(payload?.ms ?? 200);
@@ -660,6 +690,7 @@ export const capabilities: Capability[] = [
   {
     name: "notification.send",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
     sensitiveFields: ["content"],
     execute: async (payload) =>
@@ -668,6 +699,7 @@ export const capabilities: Capability[] = [
   {
     name: "tts.speak",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
     sensitiveFields: ["text"],
     execute: async (payload) => {
@@ -680,6 +712,7 @@ export const capabilities: Capability[] = [
     // Sesli komut girisi - AI-OS'un "dokunmadan kullanim" yolu
     name: "speech.listen",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 0,
     sensitiveResult: true,   // ses dokumu
     execute: async () => run("termux-speech-to-text", [], 30000),
@@ -687,6 +720,7 @@ export const capabilities: Capability[] = [
   {
     name: "clipboard.get",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     sensitiveResult: true,   // pano parola/2FA tasiyabilir
     execute: async () => run("termux-clipboard-get", [], 8000),
@@ -694,6 +728,7 @@ export const capabilities: Capability[] = [
   {
     name: "clipboard.set",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     sensitiveFields: ["text"],   // panoya yazilan sey parola olabilir
     execute: async (payload) => run("termux-clipboard-set", [str(payload?.text)], 8000),
@@ -703,12 +738,14 @@ export const capabilities: Capability[] = [
     // OOM/cokme dongusunun (bu oturumda defalarca yasandi) hafifletmesi
     name: "wakelock.acquire",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => run("termux-wake-lock", [], 8000),
   },
   {
     name: "wakelock.release",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async () => run("termux-wake-unlock", [], 8000),
   },
@@ -721,6 +758,7 @@ export const capabilities: Capability[] = [
     // dokunmak gerekiyor -> autoTap ile Shizuku uzerinden ilk sonuca basilir.
     name: "media.play_search",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 0,
     execute: async (payload) => {
       const query = str(payload?.query);
@@ -766,6 +804,7 @@ export const capabilities: Capability[] = [
     // Calisan tek yol Shizuku uzerinden gercek tus olayi.
     name: "media.control",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const KEYS: Record<string, number> = {
@@ -783,6 +822,7 @@ export const capabilities: Capability[] = [
     // herhangi bir uygulamada bir butona basmayi mumkun kilar.
     name: "ui.tap",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 0,
     execute: async (payload) => {
       const x = Number(payload?.x), y = Number(payload?.y);
@@ -798,6 +838,7 @@ export const capabilities: Capability[] = [
   {
     name: "app.freeze",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 1,
     execute: async (payload) => {
       const pkg = str(payload?.pkg);
@@ -808,6 +849,7 @@ export const capabilities: Capability[] = [
   {
     name: "app.unfreeze",
     class: "REFLEX",
+    risk: "notify",
     maxRetries: 1,
     execute: async (payload) => {
       const pkg = str(payload?.pkg);
@@ -821,6 +863,7 @@ export const capabilities: Capability[] = [
     // Once native dene, olmazsa Shizuku'ya dus.
     name: "brightness.set",
     class: "REFLEX",
+    risk: "safe",
     maxRetries: 1,
     execute: async (payload) => {
       const value = Number(payload?.value ?? NaN);
@@ -843,6 +886,7 @@ export const capabilities: Capability[] = [
     // yikici kaliplar reddedilir ve her cagri journal'a duser.
     name: "script.run",
     class: "REFLEX",
+    risk: "ask",
     maxRetries: 0,
     sensitiveResult: true,   // kabuk ciktisi (env, dosya icerigi, token...)
     execute: async (payload) => {
@@ -927,6 +971,7 @@ export const capabilities: Capability[] = [
   {
     name: "llm.generate",
     class: "THOUGHT",
+    risk: "safe",
     maxRetries: 1,
     // prompt/history journal a yazilmaz: zarfin `raw` alani zaten kullanicinin
     // ne dedigini tasiyor (DevTools icin gereken o), history ise tum sohbeti

@@ -116,6 +116,19 @@ export interface Capability {
    * deger yalnizca yurutmeye gider.
    */
   sensitiveFields?: string[];
+  /**
+   * Bu capability'nin CALISMADAN ONCE gerektirdigi izin duzeyi.
+   * (2026-08-17, W1.1 - yetki katmani)
+   *
+   * "safe"   -> serbest calisir (salt-okuma ya da zararsiz/tersinir etki)
+   * "notify" -> calisir, ama kullaniciya bildirim/journal ile gorunur kalir
+   * "ask"    -> calismadan ONCE onay gerekir (dispatcher.ts bunu ZORUNLU kilar)
+   *
+   * Belirtilmezse "ask" varsayilir - kanitlanmadikca en kisitli secenek.
+   * Bugun (W2'ye kadar - AETHER onay kuyrugu baglanana dek) "ask" calisma
+   * zamaninda reddedilir, sessizce izin verilmez.
+   */
+  risk?: "safe" | "notify" | "ask";
 }
 // Not: iyimser (optimistic) projeksiyonlar capability basina degil,
 // dispatcher.ts'te intent.type'a gore merkezi olarak tanimlanir - hangi

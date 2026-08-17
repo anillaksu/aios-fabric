@@ -113,35 +113,57 @@ function conditionHolds(rule: AutomationRule, event: FabricEvent): boolean {
   }
 }
 
+// ─── ZINCIR DERINLIGI KESICISI (2026-08-17, W1.4 / denetim #2) ───
+// Cooldown, ayni kuralin en fazla 60sn'de bir calismasini garanti eder ama
+// A -> capability -> event -> B -> capability -> event -> A gibi bir CAPRAZ
+// dongu kurmayi ENGELLEMEZ - yalnizca yavaslatir (60sn'de bir dönen sonsuz
+// döngü). Derinlik, dispatcher.ts'in her intent icin oldugu gibi TASIDIGI
+// correlationId'ye kodlanir: bir otomasyonun tetikledigi is
+// "automation-chain:<derinlik>:<uuid>" correlationId'siyle gonderilir;
+// dispatcher bu id'yi task.created/completed/failed olaylarina AYNEN
+// tasir, o yuzden zincirdeki bir sonraki olay derinligini buradan okuyabiliriz.
+const MAX_CHAIN_DEPTH = 3;
+
+function chainDepth(correlationId: string): number {
+  const m = /^automation-chain:(\d+):/.exec(correlationId);
+  return m ? Number(m[1]) : 0;
+}
+
 /**
  * Olay dinleyicisi. `run` = bir intent'i calistiran fonksiyon (dispatcher).
  *
  * SONSUZ DONGU KORUMASI: otomasyonun tetikledigi is de journal'a event
  * yazar; onlemezsek kural kendi sonucuyla yeniden tetiklenip cihazi kilitler.
- * Iki katman: (1) `automation.*` event'leri hicbir kurali tetiklemez,
- * (2) her kuralin cooldown'u var (varsayilan 60sn).
+ * Uc katman: (1) `automation.*` event'leri hicbir kurali tetiklemez,
+ * (2) her kuralin cooldown'u var (varsayilan 60sn), (3) zincir derinligi
+ * MAX_CHAIN_DEPTH'i asarsa (farkli kurallar CAPRAZ tetiklese bile) kesilir.
  */
 export function makeAutomationListener(
-  run: (type: string, payload: Record<string, unknown> | undefined, ruleName: string) => void,
+  run: (type: string, payload: Record<string, unknown> | undefined, ruleName: string, depth: number) => void,
   log: (type: string, payload: Record<string, unknown>) => void,
 ) {
   return (event: FabricEvent) => {
     if (event.type.startsWith("automation.")) return;
     if (!rules.length) return;
 
+    const depth = chainDepth(event.correlationId);
     const now = Date.now();
     for (const rule of rules) {
       if (!rule.enabled || rule.when !== event.type) continue;
       const cooldown = rule.cooldownMs ?? 60000;
       if (rule.lastRunAt && now - rule.lastRunAt < cooldown) continue;
       if (!conditionHolds(rule, event)) continue;
+      if (depth >= MAX_CHAIN_DEPTH) {
+        log("automation.chain_capped", { ruleId: rule.id, name: rule.name, trigger: event.type, depth });
+        continue;
+      }
 
       rule.lastRunAt = now;
       rule.runCount = (rule.runCount ?? 0) + 1;
       save(rules);
-      log("automation.fired", { ruleId: rule.id, name: rule.name, trigger: event.type, then: rule.then.type });
+      log("automation.fired", { ruleId: rule.id, name: rule.name, trigger: event.type, then: rule.then.type, depth: depth + 1 });
       try {
-        run(rule.then.type, rule.then.payload, rule.name);
+        run(rule.then.type, rule.then.payload, rule.name, depth + 1);
       } catch (err) {
         log("automation.failed", { ruleId: rule.id, error: err instanceof Error ? err.message : String(err) });
       }

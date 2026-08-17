@@ -13,15 +13,38 @@
 // Varsayilan port: 9310
 
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { hostname, uptime, platform, cpus, totalmem, freemem } from "node:os";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { SKILLS, SAFE_ROOT as SKILL_ROOT, resolveSkill } from "./skills.ts";
 
 const PORT = Number(process.env.PC_AGENT_PORT ?? 9310);
 const SELF_URL = process.env.PC_AGENT_SELF_URL ?? `http://100.109.236.30:${PORT}`;
 const SAFE_ROOT = resolve(process.env.PC_AGENT_SAFE_ROOT ?? process.cwd());
+
+// ─── GELEN ISTEK KIMLIK DOGRULAMASI (2026-08-17, W1.5) ───
+// Bu ajan TAM bir kabuk erisimi sunuyor (shell.run, fs.read...). Tailscale
+// agindaki HERKES token olmadan bunu cagirabiliyordu. Env verilmemisse
+// yeni bir token URETILIR ve diske yazilir (fail-closed varsayilan).
+const TOKEN_PATH = join(SAFE_ROOT, ".pc-agent-token");
+function loadOrCreateToken(): string {
+  if (process.env.PC_AGENT_TOKEN) return process.env.PC_AGENT_TOKEN;
+  try {
+    if (existsSync(TOKEN_PATH)) return readFileSync(TOKEN_PATH, "utf8").trim();
+  } catch { /* devam, yeniden uret */ }
+  const token = randomBytes(24).toString("hex");
+  try { writeFileSync(TOKEN_PATH, token, "utf8"); } catch { /* diske yazilamadi - yine de bellekte gecerli */ }
+  return token;
+}
+const TOKEN = loadOrCreateToken();
+console.log(`[pc-agent] gelen istek tokeni: ${TOKEN_PATH} (telefondaki peer'a bu degeri ekle)`);
+
+function requireAuth(req: import("node:http").IncomingMessage): boolean {
+  const header = req.headers["authorization"];
+  const value = Array.isArray(header) ? header[0] : header;
+  return value === `Bearer ${TOKEN}`;
+}
 
 type TaskState = "submitted" | "working" | "completed" | "failed";
 interface Message { role: "user" | "agent"; parts: { type: "text"; text: string }[]; }
@@ -101,8 +124,10 @@ function execSkill(skill: string, text: string): string {
   );
 }
 
+// CORS kaldirildi (W1.5) - bu ajanin cagiranlari tarayici degil, sunucudan
+// sunucuya Node fetch; CORS zaten bir koruma saglamiyordu.
 function json(res: import("node:http").ServerResponse, status: number, body: unknown) {
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 }
 
@@ -179,17 +204,18 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", SELF_URL);
 
   // Standart A2A: Agent Card'daki `url`e JSON-RPC POST gelir (kok yol).
+  // W1.5: bu ajan kabuk erisimi sunuyor - token zorunlu.
   if (url.pathname === "/" && req.method === "POST") {
+    if (!requireAuth(req)) {
+      json(res, 401, { jsonrpc: "2.0", id: null, error: { code: -32001, message: "gecersiz veya eksik Bearer token" } });
+      return;
+    }
     json(res, 200, await handleJsonRpc(await readBody(req)));
     return;
   }
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
-    });
+    res.writeHead(204, {});
     res.end();
     return;
   }
@@ -205,6 +231,10 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/a2a/tasks" && req.method === "POST") {
+    if (!requireAuth(req)) {
+      json(res, 401, { error: "gecersiz veya eksik Bearer token" });
+      return;
+    }
     const body = await readBody(req);
     const { text, contextId } = JSON.parse(body || "{}") as { text?: string; contextId?: string };
     if (!text) {
