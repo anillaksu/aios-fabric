@@ -666,6 +666,16 @@ const server = createServer(async (req, res) => {
 
     // ---------- A2A: baska bir peer'a delege et (bu Fabric'in DIŞ cikisi) ----------
     if (url.pathname === "/a2a/delegate" && req.method === "POST") {
+      // W1.5 sirasinda bulundu: bu uc auth'suz ve risk kapisi olmadan
+      // a2a.delegate ile AYNI seyi yapiyordu - dispatcher.ts'in "ask"
+      // kapisini (W1.3) tamamen atlayan ikinci bir yoldu (ui.ts'teki eski
+      // debug paneli buradan cagiriyor). a2a.delegate capability'siyle
+      // AYNI politika burada da uygulaniyor.
+      const delegateRisk = capabilityMap.get("a2a.delegate")?.risk ?? "ask";
+      if (delegateRisk === "ask") {
+        json(res, 403, { error: "a2a.delegate onay gerektirir (risk: ask) - onay kuyrugu henuz baglanmadi" });
+        return;
+      }
       const body = await readBody(req);
       const { peer, text, contextId } = JSON.parse(body || "{}") as {
         peer?: string;
