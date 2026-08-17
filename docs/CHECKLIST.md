@@ -76,9 +76,15 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 ## W4 — MCP cihaz sunucusu ⬜ SIRADAKİ
 
-- [ ] W4.1 Capability registry → `tools/list`; `/mcp` Streamable HTTP
+- [ ] W4.1 Capability registry → `tools/list`; `/mcp` Streamable HTTP (tek endpoint, POST+GET)
 - [ ] W4.2 Fail-closed: yalnızca `risk:"safe"` + açıkça izinli olanlar dışa açılır
-- [ ] **Kabul:** harici bir MCP istemcisi `tools/list` çekip `risk:safe` bir aracı çalıştırabiliyor
+- [ ] W4.3 `tools/list` ve `tools/call` **aynı** politika fonksiyonunu paylaşır (iki ayrı kontrol yazılmaz)
+- [ ] W4.4 Yetkilendirme (Bearer token + `Mcp-Session-Id`) `risk:safe` filtresinden **ayrı bir katman** — "kim bağlanabilir" ile "neyi çağırabilir" karışmaz
+- [ ] W4.5 `tools/call` `dispatcher.dispatch()` üzerinden yürütülür — sonuç journal/task lifecycle'a bağlı, capability.execute() doğrudan çağrılmaz
+- [ ] W4.6 `risk:"ask"` bir capability hem discovery'de (tools/list'te yok) hem doğrudan çağrıda (-32602) test edilir
+- [ ] W4.7 Origin header doğrulaması (DNS rebinding koruması), oturum yönetimi (`Mcp-Session-Id`), GET/DELETE davranışı spec'e uygun
+- [ ] W4.8 Hata semantiği: protokol hatası (bilinmeyen/izinsiz tool → JSON-RPC `error`, `-32602`) ile tool çalışma hatası (`result.isError:true`) ayrımı korunur
+- [ ] **Kabul:** harici bir MCP istemcisi `initialize` → `tools/list` çekip `risk:safe` bir aracı çalıştırabiliyor · `risk:ask` bir capability listede yok ve doğrudan çağrılınca `-32602` dönüyor · sonuç journal'da görünüyor
 
 ## W5 — Deterministik action bus ⬜
 

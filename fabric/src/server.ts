@@ -16,6 +16,7 @@ import { listRules, addRule, removeRule, toggleRule, makeAutomationListener } fr
 import { allKits, kitsOf, addKit, removeKit } from "./kits.ts";
 import { createEnvelope, makeEnvelopeRecorder } from "./envelope.ts";
 import { UI_HTML } from "./ui.ts";
+import { handleMcpRequest, requireMcpAuth, originAllowed } from "./mcp.ts";
 import type { Intent } from "./types.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
@@ -589,6 +590,50 @@ const server = createServer(async (req, res) => {
     // ---------- capability kesfi ----------
     if (url.pathname === "/capabilities" && req.method === "GET") {
       json(res, 200, capabilities.map((c) => ({ name: c.name, class: c.class })));
+      return;
+    }
+
+    // ---------- MCP: Streamable HTTP (W4, 2026-08-17) ----------
+    // Spec: modelcontextprotocol.io/specification/2025-03-26/basic/transports
+    // Kapsam karari icin fabric/src/mcp.ts'teki basliktaki notu oku - tam
+    // SSE/resumability degil, spec'in izin verdigi TEK-JSON-yanit modu.
+    if (url.pathname === "/mcp") {
+      // W4.7: DNS rebinding korumasi - spec'in MUST'u.
+      if (!originAllowed(req, SELF_URL)) {
+        json(res, 403, { error: "Origin izinli degil" });
+        return;
+      }
+      if (req.method === "GET" || req.method === "DELETE") {
+        // Sunucu-baslatilan push (GET/SSE) ve istemci-baslatilan oturum
+        // sonlandirma (DELETE) desteklenmiyor - spec'in izin verdigi ikinci
+        // gecerli yanit: 405.
+        res.writeHead(405, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "desteklenmiyor - bu sunucu yalnizca tek-JSON-yaniti modunda calisiyor" }));
+        return;
+      }
+      if (req.method === "POST") {
+        if (!requireMcpAuth(req)) {
+          json(res, 401, { jsonrpc: "2.0", id: null, error: { code: -32001, message: "gecersiz veya eksik Bearer token" } });
+          return;
+        }
+        const raw = await readBody(req);
+        let body: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
+        try {
+          body = JSON.parse(raw || "{}");
+        } catch {
+          json(res, 200, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "gecersiz JSON" } });
+          return;
+        }
+        const sessionHeader = req.headers["mcp-session-id"];
+        const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
+        const r = await handleMcpRequest(body, dispatcher, sessionId);
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (r.sessionId) headers["Mcp-Session-Id"] = r.sessionId;
+        res.writeHead(r.httpStatus, headers);
+        res.end(r.body === null ? "" : JSON.stringify(r.body));
+        return;
+      }
+      json(res, 405, { error: "desteklenmeyen metot" });
       return;
     }
 
