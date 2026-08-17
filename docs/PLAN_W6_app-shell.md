@@ -128,11 +128,20 @@ Her widget'ı kod olarak üretmek pahalıdır. Her widget'ı ScreenSpec'e sığd
 - **Kabul:** sayfa Framework7 olmadan açılıyor, toast ve sheet çalışıyor, ilk yük boyutu ölçülüp raporlanıyor
 
 ### W6.2 — Pencere yöneticisi (saf istemci, sıfır token)
-- `<aios-window>` **Custom Element**: başlık çubuğu, kapat/küçült/tam ekran, sürükleme, boyutlandırma
-- `WindowManager`: z-index yığını, odak, konum kalıcılığı (IndexedDB), ekran sınırına yapışma
-- Sürükleme `transform: translate3d` ile (layout thrashing yok), `pointer-events` + Pointer Events API (mouse/touch/kalem tek yol)
-- Geçişler **View Transitions API** ile — native, sıfır token
-- **Kabul:** üç pencere aynı anda açık, sürükleniyor, sıralanıyor; ağ trafiği **sıfır** (DevTools ile kanıt)
+
+> **DÜZELTME (2026-08-17):** Bu madde ilk yazıldığında yerleşim kararı henüz
+> verilmemişti ve masaüstü tarzı üst üste binen pencere tarif ediyordu.
+> **§5 KARAR-1 bunu reddetti** ("masaüstü tarzı üst üste binen pencereler
+> YOK, telefon ekranına uygun değil") — aşağıki metin KARAR-1'e göre
+> düzeltildi. Sürükleme/boyutlandırma/z-index yığını **atıldı**, çakışma
+> sıfırlandı.
+
+- `<aios-window>` **Custom Element**: başlık çubuğu, kapat, geri; sürükleme/boyutlandırma **yok** (ızgarada sabit hücre, tam ekranda tek aktif görünüm)
+- `WindowManager` **çekirdeği yüzeyden ayrık** (KARAR-1): `open(id) / close(id) / focus(id) / persist()` — hangi yüzeyde (ızgara mı, gelecekte masaüstü mü) çizildiğini bilmez
+- **Izgara yüzeyi** (bugünkü telefon): sabit grid hücreleri, çakışma yok, `WindowManager.open()` çağrısı bir hücreyi **tam ekrana odaklar** — pencere değil, odaklanmış tam ekran görünüm
+- Konum/pin kalıcılığı IndexedDB'de (W6.F ile aynı depo)
+- Geçişler **View Transitions API** ile — ızgara hücresinden tam ekrana native geçiş, sıfır token
+- **Kabul:** ızgarada N widget yan yana; birine dokununca **tam ekrana odaklanıyor**, geri tuşu/kapat ızgaraya döndürüyor; ağ trafiği **sıfır** (DevTools ile kanıt); aynı `WindowManager` API'si gelecekte farklı bir yüzeyde (örn. PC istemcisi) üst üste binen pencere davranışına **çekirdek değişmeden** bağlanabilir olmalı (yalnızca yüzey katmanı değişir)
 
 ### W6.3 — Kanvas ve boş pencere enjeksiyonu
 - "Yeni boş pencere" → içi boş `<aios-window>`; içerik sonradan doldurulur

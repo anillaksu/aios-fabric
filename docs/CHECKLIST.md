@@ -114,9 +114,9 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 **Kullanıcının şartları — hiçbiri atlanmayacak:**
 
-- [ ] W6.A **Sıfır-token gezinme.** Menü açma, pencere oluşturma, widget sürükleme tamamen istemci JS. Hermes'in haberi olmayacak
-      *(not: sekme/ekran geçişi bugün de sıfır token — `app.js:208`; eksik olan pencere/sürükleme katmanı)*
-- [ ] W6.B **Boş kanvas + pencere yöneticisi.** Android benzeri masaüstü: çok pencereli, sürüklenebilir, z-index yönetimi
+- [ ] W6.A **Sıfır-token gezinme.** Menü açma, ızgara→tam ekran odaklanma tamamen istemci JS. Hermes'in haberi olmayacak
+      *(not: sekme/ekran geçişi bugün de sıfır token — `app.js:243`; eksik olan ızgara/odaklanma katmanı. **DÜZELTME (2026-08-17):** "widget sürükleme" KARAR-1'de reddedildi — masaüstü tarzı üst üste binen pencere yok, bkz. W6.B)*
+- [ ] W6.B **Boş kanvas + pencere yöneticisi.** **DÜZELTME (2026-08-17, `PLAN_W6_app-shell.md §W6.2`):** madde ilk yazıldığında "çok pencereli, sürüklenebilir, z-index yönetimi" diyordu — bu, KARAR-1'in **reddettiği** masaüstü modeliydi. Düzeltilmiş kapsam: sabit **ızgara** (Android widget gibi, çakışma yok) + dokununca **odaklı tam ekrana** açılma; `WindowManager` çekirdeği (open/close/focus/persist) yüzeyden ayrık yazılır — sürükleme/boyutlandırma/z-index yığını **yok**
 - [ ] W6.C **Boş kanvas enjeksiyonu.** Kabuk boş bir kutu açar, Hermes'e yalnızca "bu kutunun içi" için üretim yaptırılır
 - [ ] W6.D **Mikro-artefakt.** Tüm sayfa değil, yalnızca ilgili widget üretilir
 - [ ] W6.E **İzolasyon.** Üretilen widget ana tasarımı/menüleri patlatamaz
