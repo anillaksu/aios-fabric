@@ -53,17 +53,18 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 ---
 
-## W2 — A2A v1.0 protokol uyumu ⬜ SIRADAKİ
+## W2 — A2A v1.0 protokol uyumu ✅ TAMAMLANDI (commit `3d61479`)
 
-- [ ] W2.1 `/.well-known/agent-card.json` (iki tarafta); `agent.json` alias kalır
-- [ ] W2.2 Agent Card tek kaynaktan üretilsin: `version` ← `package.json`, `skills` ← capability registry, **yalnızca `risk:"safe"` olanlar dışa duyurulur**
-- [ ] W2.3 v1 alanları: `protocolVersion`, `supportedInterfaces`, `TASK_STATE_*`, `ROLE_*`
-- [ ] W2.4 `GetTask` / `ListTasks` / `CancelTask` + `pc-agent`'ta JSON-RPC task kaydı (bugün hiç kaydedilmiyor)
-- [ ] W2.5 A2A görevlerini journal'a bağla (bugün süreç belleğinde, restart'ta uçuyor)
-- [ ] W2.6 İstemci canonical yolu önce denesin (`agent-card.json` → `agent.json`)
-- [ ] **Kabul:** `agent-card.json` 200 · `GetTask` = journal kaydı · **restart sonrası** task hâlâ sorgulanabiliyor
+- [x] W2.1 `/.well-known/agent-card.json` (iki tarafta); `agent.json` alias kalır
+- [x] W2.2 Agent Card tek kaynaktan üretilsin: `version` ← `package.json`, `skills` ← capability registry, **yalnızca `risk:"safe"` olanlar dışa duyurulur**
+- [x] W2.3 v1 alanları: `protocolVersion`, `supportedInterfaces`, `TASK_STATE_*`, `ROLE_*`
+- [x] W2.4 `GetTask` / `ListTasks` / `CancelTask` + `pc-agent`'ta JSON-RPC task kaydı (**bulundu**: hiç kaydedilmiyordu → düzeltildi)
+- [x] W2.5 A2A görevlerini journal'a bağla (`a2a.task.snapshot` event'i, boot'ta replay)
+- [x] W2.6 İstemci canonical yolu önce denesin (`agent-card.json` → `agent.json`)
+- [x] **Canlı kanıt:** iki tarafta da `agent-card.json` 200 (`version:"0.1.0"`, B-1 kapandı) · `SendMessage`→`TASK_STATE_COMPLETED`/`ROLE_AGENT` · `GetTask`/`ListTasks` pc-agent'ta **artık buluyor** (eskiden bulamazdı) · sunucu yeniden başlatıldıktan **sonra** aynı `taskId` hâlâ sorgulanabiliyor · `CancelTask` tamamlanmış işi doğru reddediyor (`-32002`) · legacy `agent.json` alias hâlâ 200
+- [x] **(sırasında bulundu)** `pollPeerTask()` ve `detectSkill()`/`execSkill()` ölü kod → silindi (B-2 kapandı)
 
-## W3 — Asenkron teslim ⬜
+## W3 — Asenkron teslim ⬜ SIRADAKİ
 
 - [ ] W3.1 `wait:false` yolu: iş kabul edilir, `taskId` hemen döner
 - [ ] W3.2 Tamamlanınca `notification.send` + AKTİF sekmesinde sonuç
@@ -143,8 +144,8 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
 ## Bilinen borçlar (henüz sıraya girmedi)
 
-- [ ] B-1 `pc-agent` Agent Card sürümü `0.3.0`, `package.json` `0.1.0` — iki tarafta da çelişik (W2.2 kapatacak)
-- [ ] B-2 `a2a.ts:pollPeerTask()` ölü kod — hiçbir yerden çağrılmıyor
+- [x] B-1 `pc-agent` Agent Card sürümü `0.3.0`, `package.json` `0.1.0` — W2.2 ile kapandı, ikisi de artık `0.1.0`
+- [x] B-2 `a2a.ts:pollPeerTask()` ölü kod — W2 sırasında silindi
 - [ ] B-3 `fabric/public/js/components.css` ile `fabric/public/css/components.css` **birebir kopya** (21.428 bayt, ikisi de) — hangisinin yüklendiği `aios.html:17` → `/css/`; `js/` altındaki ölü
 - [ ] B-4 `vendor/` + `icons/` md5 doğrulama kapsamı dışında (nadiren değişir, bilinçli)
 - [ ] B-5 PC agent `SAFE_ROOT` artık kanonik depo — eski oturum klasöründeki `pc-agent` kopyası hâlâ diskte duruyor, karışıklık riski
