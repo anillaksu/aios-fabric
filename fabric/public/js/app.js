@@ -81,34 +81,57 @@ let artifacts = [];        // { id, title, spec, prompt, createdAt, pinned }
 // cizilir - YENI URETIM YOK, yalnizca ac/kapa durumu WindowManager'a tasindi.
 const wm = new WindowManager();
 
+// M-9 (2026-08-18, owner istegi): depolama yonu ters cevrildi. Fabric zaten
+// Termux'un kendi sureci - sinirsiz erisimli dosya sistemi var. Tarayicinin
+// kisitli/denetlenmesi zor deposunu (bugunku SELinux/Shizuku arastirmasi
+// bunu gosterdi) birincil yapmak gereksiz riskti. Simdi: SUNUCU birincil
+// kaynak, IndexedDB yalnizca cevrimdisi/hizli-acilis ONBELLEGI.
 async function loadArtifacts() {
+  let serverList = null;
   try {
-    artifacts = await storeGetAll();
-  } catch (_) { artifacts = []; }
+    const r = await fetch("/artifacts", { signal: AbortSignal.timeout(4000) });
+    if (r.ok) { const j = await r.json(); if (Array.isArray(j)) serverList = j; }
+  } catch (_) { /* sunucuya ulasilamadi (B-9: Android sureci oldurmus olabilir) - onbellege dus */ }
+
+  if (serverList && serverList.length) {
+    artifacts = serverList;
+    try { await storePutAll(artifacts); } catch (_) {} // onbellek sunucuyla senkron kalsin
+    return;
+  }
+
+  // Sunucu bos ya da erisilemedi - yerel onbellekten oku.
+  try { artifacts = await storeGetAll(); } catch (_) { artifacts = []; }
   if (artifacts.length === 0) {
-    // W6.F GOC (2026-08-17): IndexedDB bos ise eski localStorage'da veri
-    // kalmis olabilir - TEK SEFERLIK tasi, veri kaybi olmasin. IndexedDB
-    // gercekten bos olan yeni bir kurulumda bu no-op'tur (eski anahtar da bos).
+    // W6.F GOC (2026-08-17): IndexedDB de bosSA eski localStorage'da veri
+    // kalmis olabilir - TEK SEFERLIK tasi, veri kaybi olmasin.
     try {
       const legacy = JSON.parse(localStorage.getItem(ART_KEY) || "[]");
-      if (Array.isArray(legacy) && legacy.length) {
-        artifacts = legacy;
-        await storePutAll(artifacts);
-        localStorage.removeItem(ART_KEY);
-      }
-    } catch (_) { /* eski veri okunamadi, sifirdan basla */ }
+      if (Array.isArray(legacy) && legacy.length) artifacts = legacy;
+    } catch (_) { /* eski veri okunamadi */ }
   }
+  // Yerelde veri var ama sunucu bosSA/erisilemediyse: sunucuyu bu veriyle
+  // besle - boylece sunucu GERCEKTEN birincil kaynak OLUR, bir dahaki
+  // acilista GET bunu dondurur (serverList===null: erisilemedi, tekrar
+  // denenecek; serverList===[]: sunucu gercekten bos, buradan doldurulur).
+  if (artifacts.length > 0 && (serverList === null || serverList.length === 0)) {
+    try { await storePutAll(artifacts); } catch (_) {}
+    fetch("/artifacts", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(artifacts),
+    }).catch(() => {});
+  }
+  try { localStorage.removeItem(ART_KEY); } catch (_) {}
 }
 async function saveArtifacts() {
-  // 30 kayit sinirlamasi KALDIRILDI (W6.F) - IndexedDB kotasi bunu
-  // gerektirmiyor (localStorage'in aksine). Sabitlenenler zaten hicbir
-  // zaman silinmiyordu, simdi sabitsizler de silinmiyor.
+  // Sunucu BIRINCIL kaynak (M-9) - once sunucuya yazilir.
+  try {
+    await fetch("/artifacts", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(artifacts), signal: AbortSignal.timeout(6000),
+    });
+  } catch (_) { /* sunucuya ulasilamadi - onbellek yine de guncellenir, bir sonraki basarili acilista sunucu bu onbellekten beslenir */ }
+  // 30 kayit sinirlamasi YOK (W6.F) - IndexedDB kotasi buna gerek birakmiyor.
   try { await storePutAll(artifacts); } catch (_) { /* IndexedDB yoksa/reddedildiyse sessizce gec */ }
-  // Sunucuya da yaz: yedek + hata incelemesi icin gorunurluk
-  fetch("/artifacts", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify(artifacts),
-  }).catch(() => {});
 }
 function addArtifact(spec, prompt, contract, id) {
   const item = {
@@ -1024,14 +1047,8 @@ function handleEntry() {
 export async function boot() {
   loadTheme(); loadRecent(); await loadArtifacts();
   requestPersistence(); // B-9 ile ayni riskin veri tarafi: Android baski altinda depoyu temizleyebilir
-  // Acilista da senkronla: tarayici deposundaki mevcut artefaktlar sunucuya
-  // gecsin (yedek + inceleme). Sadece degisiklikte yazmak yetmiyordu.
-  if (artifacts.length) {
-    fetch("/artifacts", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify(artifacts),
-    }).catch(() => {});
-  }
+  // M-9: acilis senkronu artik loadArtifacts()'in kendi isi (sunucu birincil,
+  // gerekirse onbellekten besler) - burada tekrar POST etmeye gerek yok.
 
   document.querySelectorAll(".aios-tab").forEach((b) =>
     b.addEventListener("click", () => goTab(b.dataset.tab)));
