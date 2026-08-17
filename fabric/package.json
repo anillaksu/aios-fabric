@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node --experimental-strip-types src/server.ts",
-    "build": "for f in src/*.ts; do node --experimental-strip-types --check \"$f\" || exit 1; done; node --check public/js/app.js && node --check public/js/api.js && echo BUILD_OK"
+    "build": "for f in src/*.ts; do node --experimental-strip-types --check \"$f\" || exit 1; done; node --check public/js/app.js && node --check public/js/api.js && echo BUILD_OK",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
   }
 }

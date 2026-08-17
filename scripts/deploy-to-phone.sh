@@ -29,14 +29,14 @@ norm() { awk '{gsub(/^\*/,"",$2); print $1, $2}' | sort; }
 # HIC kanitlanmamisti. UI bastan yazilacaksa (W6) bu delik once kapanmali.
 # vendor/ ve icons/ ucuncu-parti/ikili varliklar: nadiren degisir, ayri
 # kuruluma birakildi (her deploy'da 1.5MB md5'lemek anlamsiz).
-REL_PATHS="fabric/src/*.ts fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json"
+REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json"
 
 # Iki tarafta AYNI dosya listesi uzerinden md5 uretir (yol farki normalize).
 phone_md5() {
-    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null' | norm
+    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts test/*.test.ts public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null' | norm
 }
 repo_md5() {
-    (cd "$REPO/fabric" && md5sum src/*.ts public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null) | norm
+    (cd "$REPO/fabric" && md5sum src/*.ts test/*.test.ts public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null) | norm
 }
 
 say "0) Telefona erisim"
@@ -59,16 +59,18 @@ if [ "${1:-}" = "--check" ]; then
 fi
 
 say "1) Yedek (telefonda)"
-$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css && cp ~/fabric/src/*.ts ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json $D/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
+$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css $D/test && cp ~/fabric/src/*.ts ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json $D/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; cp ~/fabric/test/*.test.ts $D/test/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
 
 say "2) Dagit"
 $SCP "$REPO"/fabric/src/*.ts          "$PHONE":'~/fabric/src/'        >/dev/null || fail "src kopyalanamadi"
+$SSH "$PHONE" 'mkdir -p ~/fabric/test' || fail "test dizini olusturulamadi"
+$SCP "$REPO"/fabric/test/*.test.ts    "$PHONE":'~/fabric/test/'       >/dev/null || fail "test kopyalanamadi"
 $SCP "$REPO"/fabric/public/js/*       "$PHONE":'~/fabric/public/js/'  >/dev/null || fail "js kopyalanamadi"
 $SCP "$REPO"/fabric/public/css/*      "$PHONE":'~/fabric/public/css/' >/dev/null || fail "css kopyalanamadi"
 $SCP "$REPO"/fabric/public/aios.html \
      "$REPO"/fabric/public/sw.js \
      "$REPO"/fabric/public/manifest.json "$PHONE":'~/fabric/public/'  >/dev/null || fail "kabuk dosyalari kopyalanamadi"
-echo "kopyalandi (src + js + css + aios.html/sw.js/manifest.json)"
+echo "kopyalandi (src + test + js + css + aios.html/sw.js/manifest.json)"
 
 # Depoda olmayan bir dosya telefonda kalmis olabilir (orn. silinmis olu kod).
 # Sessizce kalmasin - fark varsa soyle.
@@ -81,6 +83,16 @@ comm -23 /tmp/_p.list /tmp/_r.list | sed 's/^/  FAZLA: /' || true
 say "4) Build"
 $SSH "$PHONE" 'cd ~/fabric && npm run build 2>&1 | tail -2' | grep -q BUILD_OK || fail "BUILD basarisiz - dagitim yapildi ama sunucu yeniden BASLATILMADI"
 echo "BUILD_OK"
+
+say "4b) Sozlesme testleri (W4 kalicilastirmasi)"
+# 2026-08-17: MCP'nin protokol-hatasi/isError ayrimi ve tools/list<->tools/call
+# tutarliligi CANLI curl ile kanitlanmisti ama KALICI degildi - bir sonraki
+# degisiklik sessizce bozabilirdi. fabric/test/*.test.ts artik her dagitimda
+# CALISIR ve gecmezse dagitim BURADA durur (sunucu yeniden baslatilmaz).
+TEST_OUT=$($SSH "$PHONE" 'cd ~/fabric && npm test 2>&1')
+echo "$TEST_OUT" | tail -8
+echo "$TEST_OUT" | grep -q "ℹ fail 0" || fail "sozlesme testleri BASARISIZ - dagitim durduruldu, sunucu yeniden baslatilmadi"
+echo "testler gecti"
 
 say "5) Yeniden baslat"
 # ─── SSH ASKIDA KALMA DUZELTMESI (2026-08-17) ───
