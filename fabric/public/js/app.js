@@ -16,6 +16,7 @@ import { render, el } from "./registry.js";
 import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
+import { WindowManager } from "./windowmanager.js";
 
 const S = SC.S;
 
@@ -67,6 +68,11 @@ const $ = (s) => document.querySelector(s);
    uretilebilir. localStorage'da kalir.                                  */
 const ART_KEY = "aios.artifacts";
 let artifacts = [];        // { id, title, spec, prompt, createdAt, pinned }
+
+// W6.C: artefakt acma/kapama artik WindowManager'in lifecycle'indan geciyor
+// (register/focus/unfocus). Icerik hala mevcut artifactBlock()/render() ile
+// cizilir - YENI URETIM YOK, yalnizca ac/kapa durumu WindowManager'a tasindi.
+const wm = new WindowManager();
 
 function loadArtifacts() {
   try { artifacts = JSON.parse(localStorage.getItem(ART_KEY) || "[]"); } catch (_) { artifacts = []; }
@@ -388,15 +394,26 @@ function artifactBlock(a) {
 function openArtifact(id) {
   const a = findArtifact(id);
   if (!a) return;
-  const host = $("#screen");
-  host.innerHTML = "";
-  const head = pageHead(a.title, when(a.createdAt), () => goTab("artifacts"));
-  host.appendChild(head);
-  const wrap = el("div", "c-section");
-  const body = el("div", "body");
-  body.appendChild(artifactBlock(a));
-  wrap.appendChild(body);
-  host.appendChild(wrap);
+  wm.register({ id: a.id, title: a.title });
+  wm.focus(id);
+  const draw = () => {
+    const host = $("#screen");
+    host.innerHTML = "";
+    const head = pageHead(a.title, when(a.createdAt), () => {
+      wm.unfocus();
+      goTab("artifacts");
+    });
+    host.appendChild(head);
+    const wrap = el("div", "c-section");
+    const body = el("div", "body");
+    body.appendChild(artifactBlock(a));
+    wrap.appendChild(body);
+    host.appendChild(wrap);
+  };
+  // Izgara -> tam ekran gecisi native View Transitions ile (K6, sifir token).
+  // Desteklenmeyen tarayicida sessizce dogrudan cizer (ozellik algila, tarayici degil).
+  if (document.startViewTransition) document.startViewTransition(draw);
+  else draw();
 }
 
 function when(ts) {
