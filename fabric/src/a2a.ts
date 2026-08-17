@@ -360,6 +360,10 @@ export class A2AHub {
     }
 
     try {
+      // W3.3: bu fetch'te de timeout YOKTU - Hermes gateway takilirsa gelen
+      // A2A gorevi sonsuza dek "working" kalirdi (dispatcher.ts'teki ayni
+      // sinifta bulunan B4 gibi). Disaridaki JSON-RPC bekleme suresinden
+      // (server.ts, 170sn) kisa tutuluyor ki gercek hata donsun.
       const res = await fetch(GATEWAY_URL, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${GATEWAY_KEY}` },
@@ -367,6 +371,7 @@ export class A2AHub {
           model: "hermes-agent",
           messages: [{ role: "user", content: task.history[0].parts[0].text }],
         }),
+        signal: AbortSignal.timeout(90000),
       });
       if (!res.ok) throw new Error(`gateway ${res.status}`);
       const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -374,7 +379,10 @@ export class A2AHub {
       task.history.push({ role: "agent", parts: [{ type: "text", text: reply }] });
       this.setState(task, "completed");
     } catch (err) {
-      this.setState(task, "failed", { error: err instanceof Error ? err.message : String(err) });
+      const msg = err instanceof Error && err.name === "TimeoutError"
+        ? "Hermes gateway 90sn icinde yanit vermedi"
+        : err instanceof Error ? err.message : String(err);
+      this.setState(task, "failed", { error: msg });
     }
   }
 

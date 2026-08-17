@@ -132,6 +132,35 @@ sse.onEvent(
     },
   ),
 );
+// ─── ASENKRON TAMAMLANMA BILDIRIMI (2026-08-17, W3.2) ───
+// `wait:false` ile gonderilen bir is arka planda biter ama kimse onu
+// BEKLEMIYORDU - kullanici telefonu kilitleyip actiginda "ne oldu?" sorusuna
+// cevap yoktu, AKTİF sekmesini kendisi acip bakmasi gerekiyordu. Bu Set,
+// "biten is icin bildirim bekleniyor" taskId'lerini tutar; task.completed/
+// task.failed geldiginde bir notification.send tetiklenir ve is Set'ten cikar.
+const notifyOnComplete = new Set<string>();
+sse.onEvent((event) => {
+  if (event.type !== "task.completed" && event.type !== "task.failed") return;
+  const taskId = (event.payload as { taskId?: string } | null)?.taskId;
+  if (!taskId || !notifyOnComplete.has(taskId)) return;
+  notifyOnComplete.delete(taskId);
+  const t = dispatcher.getState().tasks[taskId];
+  if (!t) return;
+  const label = t.goal || t.type;
+  const title = t.status === "completed" ? "İş tamamlandı" : "İş başarısız";
+  const content = t.status === "failed" && t.error
+    ? `${label}: ${String(t.error).slice(0, 160)}`
+    : label;
+  // Dispatcher uzerinden gonderiliyor (dogrudan capability.execute() degil) -
+  // journal'a duser, DevTools'ta gorunur, ve notification.send zaten
+  // risk:"notify" oldugu icin W1.3'un onay kapisina takilmaz.
+  void dispatcher.dispatch({
+    type: "notification.send",
+    payload: { title, content },
+    origin: { source: "system", raw: "asenkron is tamamlandi bildirimi", by: "deterministic", envelopeId: "async-notify" },
+  } as never);
+});
+
 // Zarf kaydedicisi: her giris asamasi journal a duser (Intent DevTools bunu okur).
 const envelopes = makeEnvelopeRecorder(
   (e) => journal.append(e),
@@ -421,6 +450,10 @@ const server = createServer(async (req, res) => {
       } as Intent);
       env.taskId = r.taskId;
       envelopes.dispatched(env);
+
+      // W3.2: wait:false ile gonderilen is kimse tarafindan BEKLENMIYOR -
+      // bitince bildirim gerekir (bkz. notifyOnComplete listener'i yukarida).
+      if (body.wait === false) notifyOnComplete.add(r.taskId);
 
       // `wait` verilirse sonucu BEKLERIZ. Neden gerekli: arayuz bazi
       // eylemlerin ciktisini ANINDA gostermek zorunda (script.run ciktisi,

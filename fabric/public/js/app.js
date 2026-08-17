@@ -856,11 +856,23 @@ export async function boot(framework7) {
 
   setInterval(paintStatus, 20000);
   setInterval(refresh, 45000);
+  // W3.4/W3.5: SSE yalnizca CANLI goruntuleme - baglanti koptuysa (ekran
+  // kilidi, ag kaybı) araya giren olaylar SSE'den asla tekrar gelmez. Onceden
+  // yeniden baglanildiginda hicbir sey tetiklenmiyordu; en fazla 45sn'lik
+  // periyodik refresh() dongusune guveniliyordu. Artik reconnect (online
+  // false -> true) ANINDA /state'i tazeliyor - dogruluk kaynagi HER ZAMAN
+  // journal/state, SSE yalnizca "bir sey degisti, bak" sinyali.
+  let wasOnline = true;
   events((ev) => {
     S.activity.push(ev);
     if (S.activity.length > 120) S.activity.shift();
     if (currentTab === "activity") paint();
-  }, (online) => { S.services.fabric = online; paintStatus(); });
+  }, (online) => {
+    S.services.fabric = online;
+    paintStatus();
+    if (online && !wasOnline) refresh();
+    wasOnline = online;
+  });
 
   read("wakelock.acquire").catch(() => {});
   handleEntry();
