@@ -59,6 +59,7 @@ export interface A2ATask {
   createdAt: number;
   updatedAt: number;
   error?: string;
+  messageId?: string; // B-7: caginin kendi messageId'si - uctan-uca idempotency icin
 }
 
 export interface Peer {
@@ -154,6 +155,11 @@ const A2A_SNAPSHOT_EVENT = "a2a.task.snapshot";
 
 export class A2AHub {
   private tasks = new Map<string, A2ATask>();
+  // B-7: cagiranin messageId'sinden Fabric'in kendi taskId'sine. Ayni
+  // messageId'yle IKINCI kez SendMessage gelirse (istemci retry'i - agin
+  // ilk yanit dondugunde kesilmesi, timeout vb.) capability IKINCI KEZ
+  // CALISTIRILMAZ, var olan gorev dogrudan donulur.
+  private messageIdToTask = new Map<string, string>();
   private peers: Peer[] = loadPeers();
   private selfUrl: string;
   private journal: Journal;
@@ -180,7 +186,9 @@ export class A2AHub {
     this.onStateChange = onStateChange;
     for (const ev of journal.replayAll()) {
       if (ev.type === A2A_SNAPSHOT_EVENT) {
-        this.tasks.set((ev.payload as A2ATask).id, ev.payload as A2ATask);
+        const task = ev.payload as A2ATask;
+        this.tasks.set(task.id, task);
+        if (task.messageId) this.messageIdToTask.set(task.messageId, task.id);
       }
     }
   }
@@ -288,7 +296,20 @@ export class A2AHub {
    * (submitted). Gercek yurutme arka planda devam eder, durum degisiklikleri
    * onStateChange callback'i (server.ts SSE'ye baglar) ile yayinlanir.
    */
-  createInboundTask(text: string, contextId?: string): A2ATask {
+  createInboundTask(text: string, contextId?: string, messageId?: string): A2ATask {
+    // B-7: GERCEK uctan-uca idempotency. Cagiran ayni messageId'yle tekrar
+    // gonderirse (kendi retry'i - agin ilk yaniti kesmesi, timeout, vb.)
+    // capability IKINCI KEZ CALISTIRILMAZ - var olan gorev dogrudan donulur.
+    // Oncesinde dedup yalnizca "a2a:"+task.id'ye dayaniyordu, ama task.id
+    // HER SendMessage cagrisinda YENIDEN uretiliyordu - yani ayni mantiksal
+    // istegin ikinci kopyasi hep FARKLI bir task.id alip dedup'i atlatiyordu.
+    if (messageId) {
+      const existingId = this.messageIdToTask.get(messageId);
+      if (existingId) {
+        const existing = this.tasks.get(existingId);
+        if (existing) return existing;
+      }
+    }
     const task: A2ATask = {
       id: randomUUID(),
       contextId: contextId ?? randomUUID(),
@@ -296,8 +317,10 @@ export class A2AHub {
       history: [{ role: "user", parts: [{ type: "text", text }] }],
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      messageId,
     };
     this.tasks.set(task.id, task);
+    if (messageId) this.messageIdToTask.set(messageId, task.id);
     this.persist(task);
     void this.executeLocally(task);
     return task;

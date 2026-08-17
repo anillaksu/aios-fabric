@@ -255,7 +255,7 @@ const server = createServer(async (req, res) => {
       const body = JSON.parse((await readBody(req)) || "{}") as {
         jsonrpc?: string; id?: unknown; method?: string;
         params?: {
-          message?: { parts?: { text?: string }[]; contextId?: string };
+          message?: { parts?: { text?: string }[]; contextId?: string; messageId?: string };
           taskId?: string; id?: string;
         };
       };
@@ -310,7 +310,10 @@ const server = createServer(async (req, res) => {
 
       // Ayni yol: gorev Fabric'in A2A hub'ina girer, o da telefonun KENDI
       // Hermes gateway'ine (8642) devreder - yani karsi tarafta gercek model var.
-      const task = a2a.createInboundTask(text, body.params?.message?.contextId);
+      // B-7: JSON-RPC istegindeki messageId TASINIR - ayni cagiri ikinci kez
+      // (istemci retry'i) ayni messageId ile gelirse createInboundTask var
+      // olan gorevi doner, capability'yi TEKRAR CALISTIRMAZ.
+      const task = a2a.createInboundTask(text, body.params?.message?.contextId, body.params?.message?.messageId);
       const deadline = Date.now() + 170000;   // peer timeout'undan (180s) once bitir
       while (Date.now() < deadline) {
         const cur = a2a.getTask(task.id);
