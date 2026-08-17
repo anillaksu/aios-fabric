@@ -456,7 +456,7 @@ function artifactBlock(a) {
   acts.appendChild(mk("arrow_clockwise", "YENİLE", false, async () => {
     if (!a.prompt) { toast("Bu artefakt yeniden üretilemiyor", true); return; }
     toast("Yeniden üretiliyor…");
-    await ask(a.prompt, { silent: true });
+    await ask(a.prompt, { silent: true, narrow: true });
   }));
   acts.appendChild(mk(a.pinned ? "pin_fill" : "pin", a.pinned ? "SABİT" : "SABİTLE", a.pinned, () => {
     a.pinned = !a.pinned; saveArtifacts(); paint();
@@ -719,13 +719,17 @@ function deviceContext() {
 async function ask(q, opts = {}) {
   const text = (q || "").trim();
   if (!text) return;
-  goTab("hermes");
+  // W6.H (dar context, 2026-08-18): opts.narrow olan cagrilar (orn. artefakt
+  // YENILE) sohbet gecmisini TASIMAZ ve Hermes sekmesine ZIPLAMAZ - yalnizca
+  // bu tek istegin kendisi modele gider. fillWindow() zaten bu ilkeyi
+  // (history hic yok) tasiyordu; burada ayni ilke ask()'a da genellendi.
+  if (!opts.narrow) goTab("hermes");
   if (!opts.silent) chat.push({ role: "user", text });
   chat.push({ role: "agent", spec: { type: "task-card", title: "Hermes çalışıyor",
     source: "gpt-5.6-luna", status: "WORKING", tone: "info", state: "loading" } });
-  paintHermes();
+  if (!opts.narrow) paintHermes();
 
-  const history = chat.filter((m) => m.text).slice(-7)
+  const history = opts.narrow ? [] : chat.filter((m) => m.text).slice(-7)
     .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
 
   // OTOMATIK DEVAM (2026-08-16).
