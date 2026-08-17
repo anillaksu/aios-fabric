@@ -74,19 +74,20 @@ Son güncelleme: 2026-08-17 · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 - [x] **Canlı kanıt:** `wait:false` ile gönderilen `sensor.battery.read` (`taskId 51d7e364`) anında `{ok:true,taskId}` döndü · task tamamlanınca journal'da otomatik `notification.send` task'ı görüldü (`title:"İş tamamlandı"`, `origin:system`) · `deploy --check` → 29 dosya birebir aynı
 - [x] **(not)** W3.5'in "task kaybolmaz" kısmı bu oturumda YAZILMADI — `state.ts:markInterrupted` önceden mevcuttu; kod incelemesiyle doğrulandı, mid-flight crash simülasyonu (risk:ask olmayan yavaş bir capability yokluğu nedeniyle) zorlanmadı
 
-## W4 — MCP cihaz sunucusu ⬜ SIRADAKİ
+## W4 — MCP cihaz sunucusu ✅ TAMAMLANDI (commit `9480f6f`)
 
-- [ ] W4.1 Capability registry → `tools/list`; `/mcp` Streamable HTTP (tek endpoint, POST+GET)
-- [ ] W4.2 Fail-closed: yalnızca `risk:"safe"` + açıkça izinli olanlar dışa açılır
-- [ ] W4.3 `tools/list` ve `tools/call` **aynı** politika fonksiyonunu paylaşır (iki ayrı kontrol yazılmaz)
-- [ ] W4.4 Yetkilendirme (Bearer token + `Mcp-Session-Id`) `risk:safe` filtresinden **ayrı bir katman** — "kim bağlanabilir" ile "neyi çağırabilir" karışmaz
-- [ ] W4.5 `tools/call` `dispatcher.dispatch()` üzerinden yürütülür — sonuç journal/task lifecycle'a bağlı, capability.execute() doğrudan çağrılmaz
-- [ ] W4.6 `risk:"ask"` bir capability hem discovery'de (tools/list'te yok) hem doğrudan çağrıda (-32602) test edilir
-- [ ] W4.7 Origin header doğrulaması (DNS rebinding koruması), oturum yönetimi (`Mcp-Session-Id`), GET/DELETE davranışı spec'e uygun
-- [ ] W4.8 Hata semantiği: protokol hatası (bilinmeyen/izinsiz tool → JSON-RPC `error`, `-32602`) ile tool çalışma hatası (`result.isError:true`) ayrımı korunur
-- [ ] **Kabul:** harici bir MCP istemcisi `initialize` → `tools/list` çekip `risk:safe` bir aracı çalıştırabiliyor · `risk:ask` bir capability listede yok ve doğrudan çağrılınca `-32602` dönüyor · sonuç journal'da görünüyor
+- [x] W4.1 Capability registry → `tools/list`; `/mcp` Streamable HTTP (tek endpoint, POST+GET+DELETE; spec doğrulandı: modelcontextprotocol.io/specification/2025-03-26)
+- [x] W4.2 Fail-closed: yalnızca `risk:"safe"` + açıkça izinli olanlar dışa açılır (`MCP_DENYLIST` genişleme noktası)
+- [x] W4.3 `tools/list` ve `tools/call` **aynı** `isMcpExposed()` fonksiyonunu paylaşır
+- [x] W4.4 Yetkilendirme (Bearer token + `Mcp-Session-Id`) `risk:safe` filtresinden **ayrı katman** — fail-closed, W1.5 ile aynı desen
+- [x] W4.5 `tools/call` `dispatcher.dispatch()` üzerinden yürütülür — sonuç journal/task lifecycle'a bağlı
+- [x] W4.6 `risk:"ask"` capability hem discovery'de yok hem doğrudan çağrıda `-32602` — **canlı doğrulandı**
+- [x] W4.7 Origin doğrulaması, oturum yönetimi, GET/DELETE→405 — **canlı doğrulandı**
+- [x] W4.8 Protokol hatası (`-32602`) ile tool çalışma hatası (`isError:true`) ayrımı — spec'ten doğrulanıp uygulandı
+- [x] **Canlı kanıt (10 test):** auth'suz→401 · initialize→200+`Mcp-Session-Id` · oturumsuz `tools/list`→400 · `tools/list` tam 17 `safe` capability döndü (`script.run`/`whatsapp.send`/`a2a.delegate` yok) · `wifi.info` çağrısı gerçek veriyle `isError:false` · `script.run` çağrısı `-32602` (execution error DEĞİL, protokol hatası) · bilinmeyen tool `-32602` · journal'da `origin.source:"mcp"` · `GET /mcp`→405 · sahte `Origin` header→403
+- [x] **(kapsam kararı, bilinçli)** Tam SSE/resumability yazılmadı — spec'in izin verdiği tek-JSON-yanıt modu seçildi; gerekçe: dışa açılan tek şey `risk:safe` (tanımı gereği hızlı/salt-okuma), SSE'nin çözdüğü "uzun süren çağrıyı güvenle tamamlama" problemi burada yok
 
-## W5 — Deterministik action bus ⬜
+## W5 — Deterministik action bus ⬜ SIRADAKİ
 
 - [ ] W5.1 `llm.generate` çıktısına **sunucu tarafında** JSON şema doğrulaması
 - [ ] W5.2 Doğrulama istemciden (`renderer.js`) sunucuya taşınsın — bugün A2A ve otomasyon yolları onu atlıyor
