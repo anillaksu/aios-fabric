@@ -23,6 +23,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { isNetworkIconsEnabled } from "./appicons.ts";
 import { deriveName } from "./capabilities.ts";
+import { logErr } from "./log.ts";
 
 const CACHE = (process.env.HOME ?? "/data/data/com.termux/files/home") + "/.cache/aios-labels";
 mkdirSync(CACHE, { recursive: true });
@@ -107,14 +108,14 @@ export function labelFor(pkg: string): string {
         return v;
       }
     }
-  } catch { /* onbellek okunamadi - turetmeye dus */ }
+  } catch (err) { logErr("labelFor:cacheRead:" + pkg, err); /* onbellek okunamadi - turetmeye dus */ }
   return deriveName(pkg);
 }
 
 /** Etiketi GERCEKTEN cozulmus mu (turetilmis degil)? */
 export function hasRealLabel(pkg: string): boolean {
   if (BUILTIN[pkg] || memo.has(pkg)) return true;
-  try { return existsSync(cachePath(pkg)); } catch { return false; }
+  try { return existsSync(cachePath(pkg)); } catch (err) { logErr("hasRealLabel:" + pkg, err); return false; }
 }
 
 /** Cozulebilir ama henuz cozulmemis paketler. "Kalan" sayisi bunu kullanir -
@@ -155,7 +156,8 @@ async function fetchLabel(pkg: string): Promise<string | null> {
       .trim();
     if (name.length > 28) name = name.slice(0, 28).trim();
     return name || null;
-  } catch {
+  } catch (err) {
+    logErr("fetchLabel:" + pkg, err);
     return null;
   }
 }
@@ -176,13 +178,13 @@ export async function resolveLabels(pkgs: string[], limit = 12): Promise<{ resol
     const name = await fetchLabel(pkg);
     if (!name) {
       // Bir daha sorma - bu paket Play'de yok.
-      try { writeFileSync(missPath(pkg), "1"); } catch { /* yoksay */ }
+      try { writeFileSync(missPath(pkg), "1"); } catch (err) { logErr("resolveLabels:missWrite:" + pkg, err); }
       skipped++;
       continue;
     }
     memo.set(pkg, tidy(name));
     // Diske TAM adi yaz (bilgi kaybolmasin), gosterimde tidy() uygulanir.
-    try { writeFileSync(cachePath(pkg), name); } catch { /* yazilamadi - memo yeter */ }
+    try { writeFileSync(cachePath(pkg), name); } catch (err) { logErr("resolveLabels:cacheWrite:" + pkg, err); }
     resolved++;
   }
   return { resolved, skipped };

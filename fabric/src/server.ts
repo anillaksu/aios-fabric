@@ -19,6 +19,7 @@ import { createEnvelope, makeEnvelopeRecorder } from "./envelope.ts";
 import { UI_HTML } from "./ui.ts";
 import { handleMcpRequest, requireMcpAuth, originAllowed } from "./mcp.ts";
 import type { Intent } from "./types.ts";
+import { logErr } from "./log.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 const AIOS_HTML_PATH = PUBLIC_DIR + "aios.html";
@@ -45,6 +46,11 @@ function serveStatic(pathname: string, res: import("node:http").ServerResponse):
   try {
     data = readFileSync(full);
   } catch {
+    // BILINCLI istisna (sessiz catch denetimi, 2026-08-18): bu 404'un
+    // KENDISI - her favicon/DevTools/bot istegi buraya duser. Loglamak
+    // gercek sinyali (dosya sistemi/izin hatasi) gurultuye (rutin 404)
+    // gomerdi. Caller zaten uygun HTTP durumunu donuyor - sessiz DEGIL,
+    // yalnizca burada degil.
     return false;
   }
   const ext = rel.slice(rel.lastIndexOf("."));
@@ -77,9 +83,9 @@ function loadOrCreateA2AToken(): string {
   if (process.env.FABRIC_A2A_TOKEN) return process.env.FABRIC_A2A_TOKEN;
   try {
     if (existsSync(A2A_TOKEN_PATH)) return readFileSync(A2A_TOKEN_PATH, "utf8").trim();
-  } catch { /* devam, yeniden uret */ }
+  } catch (err) { logErr("server:a2aTokenLoad", err); /* devam, yeniden uret */ }
   const token = randomBytes(24).toString("hex");
-  try { writeFileSync(A2A_TOKEN_PATH, token, "utf8"); } catch { /* diske yazilamadi - yine de bellekte gecerli */ }
+  try { writeFileSync(A2A_TOKEN_PATH, token, "utf8"); } catch (err) { logErr("server:a2aTokenSave", err); }
   return token;
 }
 const A2A_TOKEN = loadOrCreateA2AToken();
@@ -351,7 +357,12 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/artifacts" && req.method === "GET") {
       try {
         json(res, 200, JSON.parse(readFileSync(ARTIFACTS_PATH, "utf8")));
-      } catch {
+      } catch (err) {
+        // M-9: bu artik BIRINCIL kaynak - sessiz [] donusu istemciye "hic
+        // artefakt yok" gibi gorunur. Dosya yoksa (ilk kurulum) bu dogru,
+        // ama BOZUKSA (parse hatasi) sessiz kalirsa veri kaybi gibi
+        // ALGILANIR - loglanmasi sart.
+        logErr("server:artifactsRead", err);
         json(res, 200, []);
       }
       return;
@@ -397,6 +408,28 @@ const server = createServer(async (req, res) => {
       const { on } = JSON.parse(body || "{}") as { on?: boolean };
       setDebugTrajectory(on === true);
       json(res, 200, { ok: true, on: isDebugTrajectoryEnabled() });
+      return;
+    }
+
+    // ---------- Istemci hatasi bildirimi (2026-08-18, sessiz catch denetimi) ----------
+    // Capability DEGIL. Onceden istemcideki cogu catch blogu HICBIR YERE
+    // yazmadan hatayi yutuyordu - prompt-cache'in ilk canli testinde
+    // TAM BOYLE bir sessiz hata (putCached basarisiz oldu, kimse gormedi)
+    // yuzunden "onbellek calismiyor" teshisi konsol erisimi OLMADAN
+    // yapilamadi. Artik client-log.js:logClientError() hem console.error
+    // hem burayi (journal) kullanir - konsola erisim olmasa bile
+    // gorulebilir.
+    if (url.pathname === "/client-error" && req.method === "POST") {
+      const body = await readBody(req);
+      const { context, message } = JSON.parse(body || "{}") as { context?: string; message?: string };
+      journal.append({
+        type: "client.error",
+        correlationId: randomUUID(),
+        causationId: null,
+        payload: { context: context || "bilinmeyen", message: (message || "").slice(0, 300) },
+        idempotencyKey: null,
+      });
+      json(res, 200, { ok: true });
       return;
     }
 
@@ -665,7 +698,8 @@ const server = createServer(async (req, res) => {
         let body: { jsonrpc?: string; id?: unknown; method?: string; params?: Record<string, unknown> };
         try {
           body = JSON.parse(raw || "{}");
-        } catch {
+        } catch (err) {
+          logErr("server:jsonrpcParse", err);
           json(res, 200, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "gecersiz JSON" } });
           return;
         }
@@ -726,7 +760,7 @@ const server = createServer(async (req, res) => {
           });
           sse.broadcast(ev);
           console.warn(`[read.failed] ${intent} (${ms}ms): ${String(result.error ?? "").slice(0, 200)}`);
-        } catch { /* gunluk yazilamadi - istegi bozma */ }
+        } catch (err) { logErr("server:readFailedJournal:" + intent, err); /* istegi bozma, sonucu yine de dondur */ }
       }
       json(res, 200, result);
       return;

@@ -20,6 +20,7 @@ import { WindowManager } from "./windowmanager.js";
 import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 import { cacheKey, getCached, putCached } from "./prompt-cache.js";
+import { logClientError } from "./client-log.js";
 
 const S = SC.S;
 
@@ -93,36 +94,36 @@ async function loadArtifacts() {
   try {
     const r = await fetch("/artifacts", { signal: AbortSignal.timeout(4000) });
     if (r.ok) { const j = await r.json(); if (Array.isArray(j)) serverList = j; }
-  } catch (_) { /* sunucuya ulasilamadi (B-9: Android sureci oldurmus olabilir) - onbellege dus */ }
+  } catch (err) { logClientError("loadArtifacts.serverFetch", err); } // B-9 riskiyle ayni: sunucu erisilemez olabilir, onbellege dus
 
   if (serverList && serverList.length) {
     artifacts = serverList;
-    try { await storePutAll(artifacts); } catch (_) {} // onbellek sunucuyla senkron kalsin
+    try { await storePutAll(artifacts); } catch (err) { logClientError("loadArtifacts.storePutAll(sunucu->onbellek senkron)", err); }
     return;
   }
 
   // Sunucu bos ya da erisilemedi - yerel onbellekten oku.
-  try { artifacts = await storeGetAll(); } catch (_) { artifacts = []; }
+  try { artifacts = await storeGetAll(); } catch (err) { logClientError("loadArtifacts.storeGetAll", err); artifacts = []; }
   if (artifacts.length === 0) {
     // W6.F GOC (2026-08-17): IndexedDB de bosSA eski localStorage'da veri
     // kalmis olabilir - TEK SEFERLIK tasi, veri kaybi olmasin.
     try {
       const legacy = JSON.parse(localStorage.getItem(ART_KEY) || "[]");
       if (Array.isArray(legacy) && legacy.length) artifacts = legacy;
-    } catch (_) { /* eski veri okunamadi */ }
+    } catch (err) { logClientError("loadArtifacts.legacyLocalStorage", err); }
   }
   // Yerelde veri var ama sunucu bosSA/erisilemediyse: sunucuyu bu veriyle
   // besle - boylece sunucu GERCEKTEN birincil kaynak OLUR, bir dahaki
   // acilista GET bunu dondurur (serverList===null: erisilemedi, tekrar
   // denenecek; serverList===[]: sunucu gercekten bos, buradan doldurulur).
   if (artifacts.length > 0 && (serverList === null || serverList.length === 0)) {
-    try { await storePutAll(artifacts); } catch (_) {}
+    try { await storePutAll(artifacts); } catch (err) { logClientError("loadArtifacts.storePutAll(yerel->onbellek)", err); }
     fetch("/artifacts", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(artifacts),
-    }).catch(() => {});
+    }).catch((err) => logClientError("loadArtifacts.serverSeed", err));
   }
-  try { localStorage.removeItem(ART_KEY); } catch (_) {}
+  try { localStorage.removeItem(ART_KEY); } catch (err) { logClientError("loadArtifacts.legacyCleanup", err); }
 }
 async function saveArtifacts() {
   // Sunucu BIRINCIL kaynak (M-9) - once sunucuya yazilir.
@@ -131,9 +132,9 @@ async function saveArtifacts() {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(artifacts), signal: AbortSignal.timeout(6000),
     });
-  } catch (_) { /* sunucuya ulasilamadi - onbellek yine de guncellenir, bir sonraki basarili acilista sunucu bu onbellekten beslenir */ }
+  } catch (err) { logClientError("saveArtifacts.serverPost", err); } // sunucuya ulasilamadi - onbellek yine de guncellenir, bir sonraki basarili acilista sunucu bu onbellekten beslenir
   // 30 kayit sinirlamasi YOK (W6.F) - IndexedDB kotasi buna gerek birakmiyor.
-  try { await storePutAll(artifacts); } catch (_) { /* IndexedDB yoksa/reddedildiyse sessizce gec */ }
+  try { await storePutAll(artifacts); } catch (err) { logClientError("saveArtifacts.storePutAll", err); }
 }
 function addArtifact(spec, prompt, contract, id) {
   const item = {
@@ -168,11 +169,11 @@ function setTheme(id) {
   const t = THEMES.find((x) => x.id === id);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta && t) meta.setAttribute("content", t.bg);
-  try { localStorage.setItem("aios.theme", id); } catch (_) {}
+  try { localStorage.setItem("aios.theme", id); } catch (err) { logClientError("setTheme.persist", err); }
 }
 function loadTheme() {
   let id = "phosphor";
-  try { id = localStorage.getItem("aios.theme") || "phosphor"; } catch (_) {}
+  try { id = localStorage.getItem("aios.theme") || "phosphor"; } catch (err) { logClientError("loadTheme.read", err); }
   setTheme(THEMES.some((t) => t.id === id) ? id : "phosphor");
 }
 
@@ -290,10 +291,10 @@ const toast = (text, err) => showToast(text, err);
 function rememberRecent(pkg) {
   const found = S.apps.find((a) => a.pkg === pkg) || { pkg, name: pkg };
   S.recent = [found, ...S.recent.filter((r) => r.pkg !== pkg)].slice(0, 8);
-  try { localStorage.setItem("aios.recent", JSON.stringify(S.recent)); } catch (_) {}
+  try { localStorage.setItem("aios.recent", JSON.stringify(S.recent)); } catch (err) { logClientError("rememberRecent.persist", err); }
 }
 function loadRecent() {
-  try { S.recent = JSON.parse(localStorage.getItem("aios.recent") || "[]"); } catch (_) { S.recent = []; }
+  try { S.recent = JSON.parse(localStorage.getItem("aios.recent") || "[]"); } catch (err) { logClientError("loadRecent.read", err); S.recent = []; }
 }
 
 /* ════════ NAVIGASYON ════════ */
@@ -568,7 +569,7 @@ async function fillWindow(id, text) {
     updateBadges();
     fillTarget = null;
     openArtifact(item.id);
-    fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) }).catch(() => {});
+    fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) }).catch((err) => logClientError("promptCache.hitPing(fillWindow)", err));
     return;
   }
 
@@ -763,7 +764,7 @@ async function ask(q, opts = {}) {
       chat.push({ role: "agent", artifactId: item.id });
       if (!opts.narrow) paintHermes();
       updateBadges();
-      fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: cacheKeyValue }) }).catch(() => {});
+      fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: cacheKeyValue }) }).catch((err) => logClientError("promptCache.hitPing(ask)", err));
       return;
     }
   }
@@ -1159,7 +1160,7 @@ export async function boot() {
     wasOnline = online;
   });
 
-  read("wakelock.acquire").catch(() => {});
+  read("wakelock.acquire").catch((err) => logClientError("boot.wakelock", err));
   handleEntry();
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch((err) => logClientError("boot.serviceWorkerRegister", err));
 }

@@ -13,6 +13,8 @@
    yalnizca hedef degisti).
    ═══════════════════════════════════════════════════════════════ */
 
+import { logClientError } from "./client-log.js";
+
 const DB_NAME = "aios-artifacts";
 const DB_VERSION = 1;
 const STORE = "artifacts";
@@ -68,7 +70,8 @@ export async function requestPersistence() {
   try {
     if (!navigator.storage || !navigator.storage.persist) return false;
     return await navigator.storage.persist();
-  } catch {
+  } catch (err) {
+    logClientError("artifactStore.requestPersistence", err);
     return false;
   }
 }

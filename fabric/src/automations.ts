@@ -15,6 +15,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { FabricEvent } from "./types.ts";
+import { logErr } from "./log.ts";
 
 const STORE = (process.env.HOME ?? "/data/data/com.termux/files/home") + "/fabric-automations.json";
 
@@ -39,13 +40,16 @@ function load(): AutomationRule[] {
     if (!existsSync(STORE)) return [];
     const raw = JSON.parse(readFileSync(STORE, "utf8"));
     return Array.isArray(raw) ? raw : [];
-  } catch {
+  } catch (err) {
+    logErr("automations:load", err);
     return [];
   }
 }
 
 function save(rules: AutomationRule[]) {
-  try { writeFileSync(STORE, JSON.stringify(rules, null, 2)); } catch { /* yoksay */ }
+  // Kullanicinin otomasyon kurallari - sessiz yazma hatasi demek "kullanici
+  // kural ekledi sandi ama kaybetti" demek, kucumsenecek bir sey degil.
+  try { writeFileSync(STORE, JSON.stringify(rules, null, 2)); } catch (err) { logErr("automations:save", err); }
 }
 
 let rules: AutomationRule[] = load();

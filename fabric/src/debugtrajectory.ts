@@ -13,6 +13,7 @@
 // riski - bu W1'in "onay katmanina ajan dokunmaz" ilkesinin bir uzantisi.
 
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { logErr } from "./log.ts";
 
 const HOME = process.env.HOME ?? "/data/data/com.termux/files/home";
 mkdirSync(`${HOME}/.cache`, { recursive: true });
@@ -24,5 +25,5 @@ export function setDebugTrajectory(on: boolean) {
   try {
     if (on) writeFileSync(FLAG, "1");
     else if (existsSync(FLAG)) unlinkSync(FLAG);
-  } catch { /* yoksay */ }
+  } catch (err) { logErr("setDebugTrajectory", err); }
 }

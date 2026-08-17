@@ -22,6 +22,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { REGISTRY } from "./registry.js";
+import { logClientError } from "./client-log.js";
 
 // Bugun tek model yolu var (KARAR-3, MIMARI_TEMEL.md): Hermes gateway'in
 // Codex OAuth uzerinden gittigi sabit profil. Degisirse (OmniRoute'a
@@ -94,7 +95,7 @@ export async function getCached(key) {
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
-  } catch { return null; }
+  } catch (err) { logClientError("promptCache.getCached", err); return null; }
 }
 
 /** Basarili bir uretimi anahtarla kaydeder. */
@@ -107,5 +108,5 @@ export async function putCached(key, entry) {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch { /* IndexedDB yoksa/reddedildiyse onbelleklemeden devam - kritik degil */ }
+  } catch (err) { logClientError("promptCache.putCached", err); }
 }

@@ -22,6 +22,7 @@ import { labelFor, hasRealLabel, resolveLabels, pendingLabels } from "./applabel
 import { isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import type { Capability, CapabilityResult } from "./types.ts";
 import type { A2AHub } from "./a2a.ts";
+import { logErr } from "./log.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,6 +53,11 @@ async function run(bin: string, args: string[] = [], timeoutMs = 10000): Promise
     try {
       return { ok: true, data: JSON.parse(text) };
     } catch {
+      // BILINCLI istisna (sessiz catch denetimi, 2026-08-18): bu bir hata
+      // DEGIL, format tespiti - komut ciktilarinin cogu JSON degil duz
+      // metindir, "basarisiz JSON.parse" burada NORMAL/beklenen yoldur.
+      // Loglamak her REFLEX cagrisinda gurultu uretir, gercek bir sinyal
+      // tasimaz.
       return { ok: true, data: text };
     }
   } catch (err) {
@@ -120,14 +126,14 @@ async function readLiveDeviceContext(): Promise<string> {
       if (typeof pct === "number") parts.push(`pil %${pct}${d.status === "CHARGING" ? " (sarjda)" : ""}`);
       if (typeof d.temperature === "number") parts.push(`${d.temperature}C`);
     }
-  } catch { /* atla */ }
+  } catch (err) { logErr("readLiveDeviceContext:battery", err); }
   try {
     const w = await capabilityMap.get("wifi.info")?.execute({});
     if (w?.ok && w.data && typeof w.data === "object") {
       const ssid = (w.data as { ssid?: string }).ssid;
       if (ssid) parts.push(`wifi ${String(ssid).replace(/"/g, "")}`);
     }
-  } catch { /* atla */ }
+  } catch (err) { logErr("readLiveDeviceContext:wifi", err); }
   return parts.join(", ");
 }
 
@@ -352,7 +358,7 @@ export const capabilities: Capability[] = [
       // olmali. Yuzde-kodlanmis gelirse ("Mabel%20Matiz") Spotify onu birebir
       // arar ve hicbir sey bulamaz (artefakt #1/#2 bu yuzden calmadi).
       if (/^spotify:search:/i.test(uri) && /%[0-9A-Fa-f]{2}/.test(uri)) {
-        try { uri = "spotify:search:" + decodeURIComponent(uri.slice("spotify:search:".length)); } catch { /* bozuksa oldugu gibi birak */ }
+        try { uri = "spotify:search:" + decodeURIComponent(uri.slice("spotify:search:".length)); } catch (err) { logErr("link.open:spotifyDecode", err); /* bozuksa oldugu gibi birak */ }
       }
       const pkg = str(payload?.pkg);
       const args = ["start", "-a", "android.intent.action.VIEW", "-d", uri];

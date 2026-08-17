@@ -31,13 +31,15 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { capabilityMap } from "./capabilities.ts";
 import { Dispatcher } from "./dispatcher.ts";
 import type { Intent } from "./types.ts";
+import { logErr } from "./log.ts";
 
 const PROTOCOL_VERSION = "2025-03-26";
 
 const PKG_VERSION: string = (() => {
   try {
     return JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version ?? "0.0.0";
-  } catch {
+  } catch (err) {
+    logErr("mcp:packageVersionRead", err);
     return "0.0.0";
   }
 })();
@@ -71,9 +73,11 @@ function loadOrCreateMcpToken(): string {
   if (process.env.FABRIC_MCP_TOKEN) return process.env.FABRIC_MCP_TOKEN;
   try {
     if (existsSync(MCP_TOKEN_PATH)) return readFileSync(MCP_TOKEN_PATH, "utf8").trim();
-  } catch { /* devam, yeniden uret */ }
+  } catch (err) { logErr("mcp:tokenLoad", err); /* devam, yeniden uret */ }
   const token = randomBytes(24).toString("hex");
-  try { writeFileSync(MCP_TOKEN_PATH, token, "utf8"); } catch { /* diske yazilamadi - yine de bellekte gecerli */ }
+  // Diske yazilamazsa token yalnizca bu surec omrunce gecerli - restart'ta
+  // degisir, tum istemciler yeniden yetkilendirilmeli. Sessiz kalmasin.
+  try { writeFileSync(MCP_TOKEN_PATH, token, "utf8"); } catch (err) { logErr("mcp:tokenSave", err); }
   return token;
 }
 const MCP_TOKEN = loadOrCreateMcpToken();
@@ -94,7 +98,8 @@ export function originAllowed(req: import("node:http").IncomingMessage, selfUrl:
   if (!origin) return true;
   try {
     return new URL(String(origin)).origin === new URL(selfUrl).origin;
-  } catch {
+  } catch (err) {
+    logErr("mcp:originAllowed:" + String(origin), err);
     return false;
   }
 }

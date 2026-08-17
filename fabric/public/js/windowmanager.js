@@ -11,19 +11,22 @@
    baska bir yuzey eklenirse (orn. PC istemcisi) bu dosya DEGISMEZ.
    ═══════════════════════════════════════════════════════════════ */
 
+import { logClientError } from "./client-log.js";
+
 const STORE_KEY = "aios.windows.v1";
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     return raw ? JSON.parse(raw) : { windows: [] };
-  } catch {
+  } catch (err) {
+    logClientError("windowManager.loadState", err);
     return { windows: [] };
   }
 }
 
 function saveState(state) {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* depolama dolu/kapali olabilir, sessizce yoksay */ }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (err) { logClientError("windowManager.saveState", err); }
 }
 
 export class WindowManager {

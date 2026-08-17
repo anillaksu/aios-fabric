@@ -17,6 +17,7 @@ import { capabilityMap } from "./capabilities.ts";
 import type { Journal } from "./journal.ts";
 import type { Dispatcher } from "./dispatcher.ts";
 import type { AgentCard, Intent } from "./types.ts";
+import { logErr } from "./log.ts";
 
 // W2.2: surum TEK kaynaktan - package.json. Iki taraf da (biz ve karsi peer)
 // hangi surumu konustugumuzu Agent Card'dan gorsun; elle senkron tutulan
@@ -24,7 +25,8 @@ import type { AgentCard, Intent } from "./types.ts";
 const PKG_VERSION: string = (() => {
   try {
     return JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version ?? "0.0.0";
-  } catch {
+  } catch (err) {
+    logErr("a2a:packageVersionRead", err);
     return "0.0.0";
   }
 })();
@@ -83,8 +85,8 @@ function loadPeers(): Peer[] {
     if (existsSync(PEERS_FILE)) {
       return JSON.parse(readFileSync(PEERS_FILE, "utf8"));
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    logErr("a2a:loadPeers", err);
   }
   return [];
 }
@@ -349,7 +351,8 @@ export class A2AHub {
       if (argText) {
         try {
           payload = JSON.parse(argText) as Record<string, unknown>;
-        } catch {
+        } catch (err) {
+          logErr("a2a:capabilityPayloadParse:" + name, err);
           this.setState(task, "failed", { error: `payload gecerli JSON degil: ${argText.slice(0, 80)}` });
           task.history.push({ role: "agent", parts: [{ type: "text",
             text: `HATA: payload gecerli JSON degil. Ornek: capability: volume.set | {"stream":"music","value":5}` }] });
@@ -558,8 +561,8 @@ export class A2AHub {
         if (iface?.url) return iface.url;
         if (card.url) return card.url;
         return base; // kart okundu ama RPC adresi yok - taban adrese dus
-      } catch {
-        /* bu yol calismadi - digerini dene */
+      } catch (err) {
+        logErr("a2a:resolveRpcUrl:" + base + path, err); // bu yol calismadi - digerini dene
       }
     }
     return base;

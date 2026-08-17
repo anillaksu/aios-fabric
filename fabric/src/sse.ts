@@ -3,6 +3,7 @@
 
 import type { ServerResponse } from "node:http";
 import type { FabricEvent } from "./types.ts";
+import { logErr } from "./log.ts";
 
 export class SseHub {
   private clients = new Set<ServerResponse>();
@@ -27,7 +28,10 @@ export class SseHub {
     const keepalive = setInterval(() => {
       try {
         res.write(`: ping\n\n`);
-      } catch {
+      } catch (err) {
+        // Beklenen: istemci baglantiyi kapatti. Yine de loglanir - sik
+        // tekrarlarsa gercek bir aglantida-kesilme deseni (B-9 ile ayni aile) olabilir.
+        logErr("sse:keepaliveWrite", err);
         clearInterval(keepalive);
       }
     }, 15000);
@@ -48,7 +52,8 @@ export class SseHub {
     for (const res of this.clients) {
       try {
         res.write(line);
-      } catch {
+      } catch (err) {
+        logErr("sse:broadcastWrite", err); // beklenen: istemci baglantiyi kapatti
         this.clients.delete(res);
       }
     }

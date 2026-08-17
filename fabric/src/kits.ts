@@ -28,6 +28,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { textToPdf } from "./pdf.ts";
+import { logErr } from "./log.ts";
 
 const STORE = (process.env.HOME ?? "/data/data/com.termux/files/home") + "/fabric-kits.json";
 
@@ -120,7 +121,8 @@ function loadUserKits(): Kit[] {
     if (!existsSync(STORE)) return [];
     const raw = JSON.parse(readFileSync(STORE, "utf8"));
     return Array.isArray(raw) ? raw.filter(isValidKit) : [];
-  } catch {
+  } catch (err) {
+    logErr("kits:load", err);
     return [];
   }
 }
@@ -162,7 +164,9 @@ export function addKit(input: unknown): { ok: boolean; kit?: Kit; error?: string
     return { ok: false, error: "gecersiz kit (kind/id/label ve ture uygun sablon gerekli; kod kabul edilmez)" };
   }
   userKits = [...userKits.filter((k) => !(k.kind === input.kind && k.id === input.id)), input];
-  try { writeFileSync(STORE, JSON.stringify(userKits, null, 2)); } catch { /* yoksay */ }
+  // Kullanicinin ekledigi kit - sessiz yazma hatasi "eklendi sandi ama
+  // kaybetti" demek, bellekte kalir ama restart'ta kaybolur.
+  try { writeFileSync(STORE, JSON.stringify(userKits, null, 2)); } catch (err) { logErr("kits:save(add)", err); }
   return { ok: true, kit: input };
 }
 
@@ -170,7 +174,7 @@ export function removeKit(kind: string, id: string): { ok: boolean; error?: stri
   const before = userKits.length;
   userKits = userKits.filter((k) => !(k.kind === kind && k.id === id));
   if (userKits.length === before) return { ok: false, error: "kullanici kiti bulunamadi (gomulu kitler silinemez)" };
-  try { writeFileSync(STORE, JSON.stringify(userKits, null, 2)); } catch { /* yoksay */ }
+  try { writeFileSync(STORE, JSON.stringify(userKits, null, 2)); } catch (err) { logErr("kits:save(remove)", err); }
   return { ok: true };
 }
 

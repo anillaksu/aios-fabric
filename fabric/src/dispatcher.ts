@@ -13,6 +13,7 @@ import { capabilityMap } from "./capabilities.ts";
 import { UNDO } from "./undo.ts";
 import { SseHub } from "./sse.ts";
 import { isDebugTrajectoryEnabled } from "./debugtrajectory.ts";
+import { logErr } from "./log.ts";
 import type { FabricState, Intent, FabricEvent } from "./types.ts";
 
 export class Dispatcher {
@@ -320,7 +321,7 @@ export class Dispatcher {
               idempotencyKey: null,
             });
           }
-        } catch { /* yakalama basarisiz - geri alma sunulmaz, is devam eder */ }
+        } catch (err) { logErr("dispatcher:undoCapture:" + intent.type, err); /* geri alma sunulmaz, is devam eder */ }
       } else if (attempt === 0 && UNDO[intent.type]) {
         this.apply({
           type: "task.undoable",

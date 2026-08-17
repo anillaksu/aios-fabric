@@ -2,6 +2,8 @@
    Mimari cizgi (server.ts ile ayni): OKUMALAR /read (senkron, journal'siz),
    MUTASYONLAR /intent (journal + iyimser projeksiyon + SSE reconcile).      */
 
+import { logClientError } from "./client-log.js";
+
 const API = location.origin;
 
 /* ZAMAN ASIMI (2026-08-16).
@@ -118,7 +120,7 @@ export function events(onEvent, onState) {
     es.onopen = () => onState && onState(true);
     es.onerror = () => onState && onState(false);
     es.onmessage = (e) => {
-      try { onEvent(JSON.parse(e.data)); } catch (_) {}
+      try { onEvent(JSON.parse(e.data)); } catch (err) { logClientError("api.events.onmessage", err); }
     };
   };
   connect();

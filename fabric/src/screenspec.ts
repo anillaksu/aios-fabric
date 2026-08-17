@@ -18,6 +18,7 @@
 // (bkz. docs/CHECKLIST.md W5.4).
 
 import { capabilityMap } from "./capabilities.ts";
+import { logErr } from "./log.ts";
 
 // public/js/registry.js:REGISTRY ile BIREBIR ayni liste olmali - biri
 // degisip digeri unutulursa istemci ve sunucu farkli seyi "gecerli" sayar.
@@ -143,7 +144,10 @@ export function sanitizeAiosBlock(text: string): string {
   let clean: CleanScreen | null = null;
   try {
     clean = validateScreen(JSON.parse(m[1].trim()));
-  } catch {
+  } catch (err) {
+    // Model bozuk JSON uretti - bu tamamen olasi (LLM hallucination), ama
+    // ne siklikta oldugunu bilmek kalite sinyali (prompt.ts ayarlamasi icin).
+    logErr("screenspec:sanitizeAiosBlock", err);
     clean = null;
   }
   if (!clean || !clean.sections.length) {

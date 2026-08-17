@@ -9,6 +9,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
+import { logErr } from "./log.ts";
 
 const execFileAsync = promisify(execFile);
 const BIN = "/data/data/com.termux/files/usr/bin";
@@ -66,7 +67,7 @@ export function setNetworkIcons(on: boolean) {
   try {
     if (on) writeFileSync(NET_FLAG, "1");
     else if (existsSync(NET_FLAG)) unlinkSync(NET_FLAG);
-  } catch { /* yoksay */ }
+  } catch (err) { logErr("setNetworkIcons", err); }
 }
 
 let lastNetFetch = 0;
@@ -95,7 +96,8 @@ async function fetchFromPlay(pkg: string): Promise<{ data: Buffer; type: string 
     if (buf.length < 200) return null;
     const type = img.headers.get("content-type") || "image/png";
     return { data: buf, type: type.split(";")[0].trim() };
-  } catch {
+  } catch (err) {
+    logErr("fetchFromPlay:" + pkg, err);
     return null;
   }
 }
@@ -109,7 +111,7 @@ export async function getAppIcon(pkg: string): Promise<{ data: Buffer; type: str
   if (existsSync(binPath) && existsSync(metaPath)) {
     try {
       return { data: readFileSync(binPath), type: readFileSync(metaPath, "utf8").trim() };
-    } catch { /* onbellek bozuk - yeniden cikar */ }
+    } catch (err) { logErr("getAppIcon:cacheRead:" + pkg, err); /* onbellek bozuk - yeniden cikar */ }
   }
   // Negatif sonuc da onbelleklenir: modern uygulamalarin cogu ikonu SAF VEKTOR
   // (adaptive icon XML) olarak tasiyor, APK'da hic raster yok (Claude boyle).
@@ -126,13 +128,13 @@ export async function getAppIcon(pkg: string): Promise<{ data: Buffer; type: str
     if (!found && isNetworkIconsEnabled()) found = await fetchFromPlay(pkg);
 
     if (!found) {
-      try { writeFileSync(missPath, "1"); } catch { /* yoksay */ }
+      try { writeFileSync(missPath, "1"); } catch (err) { logErr("getAppIcon:missWrite:" + pkg, err); }
       return null;
     }
     try {
       writeFileSync(binPath, found.data);
       writeFileSync(metaPath, found.type);
-    } catch { /* onbellek yazilamadi - sorun degil */ }
+    } catch (err) { logErr("getAppIcon:cacheWrite:" + pkg, err); }
     return found;
   } finally {
     release();
@@ -166,7 +168,8 @@ async function fromApk(pkg: string): Promise<{ data: Buffer; type: string } | nu
     const data = stdout as unknown as Buffer;
     if (!data || data.length < 64) return null;
     return { data, type: best.toLowerCase().endsWith(".webp") ? "image/webp" : "image/png" };
-  } catch {
+  } catch (err) {
+    logErr("fromApk:" + pkg, err);
     return null;
   }
 }
