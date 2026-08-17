@@ -857,6 +857,23 @@ function openControlCenter() {
     tg.appendChild(t);
   });
 
+  // Ham prompt/yanit kaydi - GERCEK sigortali anahtar (2026-08-18, owner
+  // istegi). Bilerek capability DEGIL, yalnizca buradan (insan dokunuşu)
+  // acilir/kapanir - model/A2A/MCP bu anahtara erisemez.
+  getJSON("/debug-trajectory").then((s) => {
+    const t = mk("exclamationmark_triangle_fill", "HAM KAYIT", !!(s && s.on), async (on) => {
+      const r = await fetch("/debug-trajectory", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ on }),
+      }).then((x) => x.json()).catch(() => null);
+      if (r && r.ok) {
+        toast(on ? "Ham prompt/yanıt journal'a yazılacak — kalıcı, dikkatli aç" : "Ham kayıt kapatıldı, redaksiyon geri döndü");
+      }
+      return !!(r && r.ok);
+    });
+    tg.appendChild(t);
+  });
+
   const themeHost = document.getElementById("cc-themes");
   THEMES.forEach((t) => {
     const d = el("div", "theme-dot");

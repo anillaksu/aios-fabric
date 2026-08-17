@@ -12,6 +12,7 @@ import { reduce } from "./state.ts";
 import { capabilityMap } from "./capabilities.ts";
 import { UNDO } from "./undo.ts";
 import { SseHub } from "./sse.ts";
+import { isDebugTrajectoryEnabled } from "./debugtrajectory.ts";
 import type { FabricState, Intent, FabricEvent } from "./types.ts";
 
 export class Dispatcher {
@@ -86,7 +87,14 @@ export class Dispatcher {
     // GIRDI REDAKSIYONU: hassas alanlar journal'a "N karakter" olarak yazilir.
     // Gercek payload YALNIZCA yurutmeye ve bellege gider - "tekrar dene" onu
     // buradan okur, yoksa redakte edilmis veriyle calistirmaya kalkardi.
-    const journaledPayload = redactFields(intent.payload, capability?.sensitiveFields);
+    //
+    // SIGORTALI ISTISNA (2026-08-18, owner istegi): debug-trajectory anahtari
+    // acikken redaksiyon ATLANIR, ham prompt/yanit/mesaj journal'a duz yazilir.
+    // Anahtar yalnizca /debug-trajectory HTTP ucundan (insan) degistirilebilir -
+    // capabilityMap'te YOK, LLM/A2A/MCP kendi karariyla acamaz.
+    const journaledPayload = isDebugTrajectoryEnabled()
+      ? intent.payload
+      : redactFields(intent.payload, capability?.sensitiveFields);
     if (capability?.sensitiveFields?.length) {
       this.livePayloads.set(taskId, intent.payload);
       if (this.livePayloads.size > 50) {
@@ -349,7 +357,8 @@ export class Dispatcher {
         // yazmak anlamina geldi - journal append-only ve budanmiyor.
         // Artik hassas sonuclar journal'a OZET olarak duser; gercek deger
         // bellekte kalir ve arayuze oradan verilir.
-        const journaled = capability.sensitiveResult ? redact(result.data) : result.data;
+        const redactResult = capability.sensitiveResult && !isDebugTrajectoryEnabled();
+        const journaled = redactResult ? redact(result.data) : result.data;
         if (capability.sensitiveResult) {
           this.liveResults.set(taskId, result.data);
           // Bellekte sinirsiz birikmesin: en eski kayitlari at.

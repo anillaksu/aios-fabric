@@ -12,6 +12,7 @@ import { SseHub } from "./sse.ts";
 import { A2AHub, toWireState, toWireRole } from "./a2a.ts";
 import { capabilities, capabilityMap, setA2AHub } from "./capabilities.ts";
 import { getAppIcon, isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
+import { isDebugTrajectoryEnabled, setDebugTrajectory } from "./debugtrajectory.ts";
 import { listRules, addRule, removeRule, toggleRule, makeAutomationListener } from "./automations.ts";
 import { allKits, kitsOf, addKit, removeKit } from "./kits.ts";
 import { createEnvelope, makeEnvelopeRecorder } from "./envelope.ts";
@@ -376,6 +377,23 @@ const server = createServer(async (req, res) => {
       const { network } = JSON.parse(body || "{}") as { network?: boolean };
       setNetworkIcons(network === true);
       json(res, 200, { ok: true, network: isNetworkIconsEnabled() });
+      return;
+    }
+
+    // ---------- Ham prompt/yanit kaydi ac-kapa (2026-08-18, owner istegi) ----------
+    // KASITLI OLARAK bir capability DEGIL - yalnizca bu HTTP ucundan (insan
+    // arayuzu, Control Center) degistirilebilir. LLM/A2A/MCP bu anahtara HIC
+    // erisemez - gercek kullanici mesajlarini diske yazan bir ayari model
+    // kendi karariyla acamaz (bkz. debugtrajectory.ts).
+    if (url.pathname === "/debug-trajectory" && req.method === "GET") {
+      json(res, 200, { on: isDebugTrajectoryEnabled() });
+      return;
+    }
+    if (url.pathname === "/debug-trajectory" && req.method === "POST") {
+      const body = await readBody(req);
+      const { on } = JSON.parse(body || "{}") as { on?: boolean };
+      setDebugTrajectory(on === true);
+      json(res, 200, { ok: true, on: isDebugTrajectoryEnabled() });
       return;
     }
 
