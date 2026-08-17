@@ -17,6 +17,7 @@ import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
+import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
 
 const S = SC.S;
 
@@ -57,6 +58,7 @@ let currentTab = "home";
 let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
 let capabilityNames = [];
+let capVersion = null; // artifact-contract.js:capabilitySetVersion() - boot()'ta hesaplanir
 // Artefakt sozlesmesi icin: yalnizca REFLEX/AGENT capability leri "is yapar"
 // sayilir. THOUGHT (llm.generate) ve ui.* gezinme eylemleri haric.
 let ACTIONABLE = new Set();
@@ -91,11 +93,17 @@ function saveArtifacts() {
     body: JSON.stringify(artifacts),
   }).catch(() => {});
 }
-function addArtifact(spec, prompt) {
+function addArtifact(spec, prompt, contract) {
   const item = {
     id: "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     title: spec.title || "Artefakt", spec, prompt: prompt || "",
     createdAt: Date.now(), pinned: false,
+    // M-5 sozlesme alanlari (2026-08-17): admitArtifact()'in urettigi kapi
+    // gecmis kayit. approvalScope henuz yok - Katman B/KARAR-2 onay akisi
+    // W6.4'te kurulunca eklenecek, bugun uretilen hepsi risk:safe render.
+    capabilities: (contract && contract.capabilities) || [],
+    version: (contract && contract.version) || null,
+    provenance: (contract && contract.provenance) || "hermes",
   };
   artifacts.unshift(item);
   saveArtifacts();
@@ -601,24 +609,34 @@ async function ask(q, opts = {}) {
       const short = specs.length ? reply.split(/\n\n/)[0].slice(0, 220) : reply;
       chat.push({ role: "agent", text: short });
     }
+    // M-7 sozlesme kapisi: icerik (ScreenSpec) zaten validateScreen'den
+    // gecti (W5), ama ARTEFAKT KAYDI (hangi capability'leri kullaniyor,
+    // hangi capability surumune karsi uretildi) burada ayrica dogrulanir.
+    // Basarisiz olan addArtifact()'e HIC ULASMAZ - ephemeral kalir, hicbir
+    // yere yazilmaz (M-8'in en ucuz hali: dogrulanmadan kalicilasmaz).
+    const contractRejected = [];
     specs.forEach((s) => {
-      const item = addArtifact(s, text);
+      const admit = admitArtifact(s, { knownCapabilities: capabilityNames, versionStamp: capVersion });
+      if (!admit.ok) { contractRejected.push((s.title || "Artefakt") + " — " + admit.reason); return; }
+      const item = addArtifact(s, text, admit.contract);
       // Mini-app olarak istendiyse kalici kil (opts.pin).
       if (opts.pin) { item.pinned = true; saveArtifacts(); }
       chat.push({ role: "agent", artifactId: item.id });
     });
-    if (opts.pin && specs.length) toast("Mini uygulama sabitlendi");
+    const admittedCount = specs.length - contractRejected.length;
+    if (opts.pin && admittedCount) toast("Mini uygulama sabitlendi");
     // Reddedilen sema sessizce kaybolmaz - kullanici NEDEN gormedigini bilsin.
-    if (rejected && rejected.length) {
+    const allRejected = [...(rejected || []), ...contractRejected];
+    if (allRejected.length) {
       chat.push({ role: "agent", spec: {
         type: "error-state", icon: "hand_raised", title: "Artefakt reddedildi",
-        detail: rejected.join(", ") + " — içinde çalıştırılabilir bir iş yok. "
-              + "Artefakt en az bir gerçek cihaz eylemine bağlanmalı.",
+        detail: allRejected.join(", ") + " — içinde çalıştırılabilir bir iş yok ya da bilinmeyen bir "
+              + "capability'ye başvuruyor. Artefakt yalnızca bilinen, gerçek cihaz eylemlerine bağlanabilir.",
         actionLabel: "İŞ EKLEYEREK TEKRAR ÜRET",
         action: { type: "ui.ask", payload: { q: text + " (kartta gerçekten çalışan butonlar olsun)", silent: true } },
       } });
     }
-    if (!reply && !specs.length && !(rejected && rejected.length)) chat.push({ role: "agent", text: "(boş yanıt)" });
+    if (!reply && !admittedCount && !allRejected.length) chat.push({ role: "agent", text: "(boş yanıt)" });
   } else {
     // Hata artik TEKRAR DENENEBILIR. Onceden sadece olu bir metin kutusu
     // cikiyordu; kullanicinin tek caresi elle yeniden yazmakti.
@@ -885,6 +903,7 @@ export async function boot() {
   capabilityNames = caps.map((c) => c.name);
   ACTIONABLE = new Set(caps.filter((c) => c.class === "REFLEX" || c.class === "AGENT").map((c) => c.name));
   setAllowedActions([...capabilityNames, ...UI_META_ACTIONS]);
+  capVersion = await capabilitySetVersion(capabilityNames);
   S.services.llm = capabilityNames.includes("llm.generate");
   S.services.gateway = true;
   S.peers = (await getJSON("/a2a/peers")) || [];
