@@ -78,12 +78,34 @@ $SCP "$REPO"/fabric/public/aios.html \
 echo "kopyalandi (src + test + package.json + js + css + aios.html/sw.js/manifest.json)"
 
 # Depoda olmayan bir dosya telefonda kalmis olabilir (orn. silinmis olu kod).
-# Sessizce kalmasin - fark varsa soyle.
-say "3) Telefonda fazladan dosya var mi"
-$SSH "$PHONE" 'ls ~/fabric/src/*.ts' | xargs -n1 basename | sort > /tmp/_p.list
-(cd "$REPO/fabric/src" && ls *.ts) | sort > /tmp/_r.list
-comm -23 /tmp/_p.list /tmp/_r.list | sed 's/^/  FAZLA: /' || true
-[ -s /tmp/_p.list ] && echo "(bos = temiz)"
+# B-8 (2026-08-17 bulundu, 2026-08-18 duzeltildi): onceden yalnizca src/*.ts
+# kontrol edilir ve YALNIZCA UYARILIRDI, silinmezdi - Framework7 bundle'lari
+# (vendor/ kapsam disi oldugu icin sessizce) ve js/components.css (md5
+# dogrulamasini PATLATARAK) boyle telefonda ölü kaldi. Artik src/ + js/ + css/
+# uzerinde kontrol edilir VE gercekten silinir (rsync --delete benzeri) -
+# yalnizca bu betigin ZATEN yonettigi dizinlerde (vendor/icons'a DOKUNULMAZ).
+say "3) Telefonda fazladan dosya var mi (src/js/css) - varsa SILINIR"
+clean_extra() {
+    local remote_dir="$1" local_dir="$2" pattern="$3"
+    $SSH "$PHONE" "ls $remote_dir/$pattern 2>/dev/null" | xargs -n1 basename 2>/dev/null | sort > /tmp/_p.list
+    (cd "$local_dir" && ls $pattern 2>/dev/null) | sort > /tmp/_r.list
+    local extra
+    extra=$(comm -23 /tmp/_p.list /tmp/_r.list)
+    if [ -n "$extra" ]; then
+        echo "$extra" | sed 's/^/  SILINIYOR: /'
+        while IFS= read -r f; do
+            # DIKKAT: remote_dir '~' ile basliyor - tek tirnak icine alinirsa
+            # uzak shell tilde'yi GENISLETMEZ, rm sessizce hicbir sey silmez
+            # (exit 0 ama etkisiz - bu hata canli testte YAKALANDI). Tirnaksiz
+            # birakilir, uzak shell kendi tilde genislemesini yapar.
+            [ -n "$f" ] && $SSH "$PHONE" "rm -f $remote_dir/$f"
+        done <<< "$extra"
+    fi
+}
+clean_extra '~/fabric/src' "$REPO/fabric/src" '*.ts'
+clean_extra '~/fabric/public/js' "$REPO/fabric/public/js" '*'
+clean_extra '~/fabric/public/css' "$REPO/fabric/public/css" '*'
+echo "(temiz - fazla dosya kalmadi)"
 
 say "4) Build"
 $SSH "$PHONE" 'cd ~/fabric && npm run build 2>&1 | tail -2' | grep -q BUILD_OK || fail "BUILD basarisiz - dagitim yapildi ama sunucu yeniden BASLATILMADI"
