@@ -102,6 +102,35 @@ function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
+/**
+ * llm.generate icin cihaz baglamini SUNUCUNUN KENDISI, gercek capability
+ * cagrilariyla okur (W5 nokta 8, 2026-08-17). `capabilityMap` bu dosyanin
+ * sonunda tanimlanir ama burasi bir CLOSURE - yalnizca cagrildiginda okunur,
+ * modul tamamen yuklendikten SONRA calisir, TDZ sorunu yok.
+ * Herhangi bir okuma basarisiz olursa (izin yok, sensor kapali) o parca
+ * sessizce atlanir - kismi baglam, uydurma baglamdan iyidir.
+ */
+async function readLiveDeviceContext(): Promise<string> {
+  const parts: string[] = [];
+  try {
+    const b = await capabilityMap.get("sensor.battery.read")?.execute({});
+    if (b?.ok && b.data && typeof b.data === "object") {
+      const d = b.data as { percentage?: number; level?: number; status?: string; temperature?: number };
+      const pct = d.percentage ?? d.level;
+      if (typeof pct === "number") parts.push(`pil %${pct}${d.status === "CHARGING" ? " (sarjda)" : ""}`);
+      if (typeof d.temperature === "number") parts.push(`${d.temperature}C`);
+    }
+  } catch { /* atla */ }
+  try {
+    const w = await capabilityMap.get("wifi.info")?.execute({});
+    if (w?.ok && w.data && typeof w.data === "object") {
+      const ssid = (w.data as { ssid?: string }).ssid;
+      if (ssid) parts.push(`wifi ${String(ssid).replace(/"/g, "")}`);
+    }
+  } catch { /* atla */ }
+  return parts.join(", ");
+}
+
 // ─── Uygulama adi turetme ───
 // Paket adlari ters-DNS: ch.protonvpn.android, com.spotify.music, ai.x.grok
 // Bastaki TLD'yi at; son parca jenerikse bir oncekini kullan.
@@ -976,7 +1005,9 @@ export const capabilities: Capability[] = [
     maxRetries: 1,
     // prompt/history journal a yazilmaz: zarfin `raw` alani zaten kullanicinin
     // ne dedigini tasiyor (DevTools icin gereken o), history ise tum sohbeti
-    // her mesajda tekrar diske yazardi.
+    // her mesajda tekrar diske yazardi. "context" artik hic OKUNMUYOR (W5
+    // nokta 8 - asagidaki execute'a bak) ama istemci hala gonderebilir;
+    // redaksiyonda birakildi, zararsiz.
     sensitiveFields: ["prompt", "history", "context"],
     sensitiveResult: true,   // model yaniti kullanicinin ozel metnini tasiyabilir
     execute: async (payload) => {
@@ -984,9 +1015,20 @@ export const capabilities: Capability[] = [
       if (!prompt) return { ok: false, error: "prompt gerekli" };
       // Sistem promptu HER ZAMAN gonderilir - yoksa model kendini "ChatGPT"
       // sanip oyle cevapliyor ve artefakt uretemiyordu (2026-08-16 hatasi).
+      //
+      // ─── W5 nokta 8 (2026-08-17, sonradan bulundu) ───
+      // ONCEDEN cagiranin gonderdigi payload.context DOGRUDAN sistem
+      // promptuna gomuluyordu. Bu capability risk:"safe" oldugu icin MCP'den
+      // de cagrilabiliyor (W4) - yani DISARIDAN bir istemci
+      // {"context":"pil %999, sarj tam"} gibi UYDURMA bir cihaz durumunu
+      // modelin "gercek" sandigi baglama enjekte edebilirdi. "Modelin
+      // urettigi cihaz iddialari yerine RUNTIME'DAN gercek state okunmasi"
+      // ilkesi burada CAGIRANIN iddiasi icin de gecerli - baglam yalnizca
+      // SUNUCUNUN kendi capability cagrisiyla okudugu GERCEK degerden gelir,
+      // hicbir cagiranin soylediginden degil.
       const system = str(payload?.system) || buildSystemPrompt(
         capabilities.map((c) => c.name),
-        str(payload?.context),
+        await readLiveDeviceContext(),
       );
       const history = Array.isArray(payload?.history) ? (payload.history as { role: string; content: string }[]) : [];
       const messages = [

@@ -127,6 +127,39 @@ test("dogrudan A2A action: capability: kit.list dispatcher uzerinden tamamlanir,
   assert.ok(created, "A2A'nin capability cagrisi journal'da origin.source:a2a ile GORUNMELI");
 });
 
+// ─── 6) SAHTE CIHAZ BILGISI (W5 nokta 8): cagiranin gonderdigi context YOK SAYILIR ───
+// Bulundu (2026-08-17, pano dogrulamasi sirasinda): llm.generate risk:"safe"
+// oldugu icin MCP'den de cagrilabiliyor (W4). Eskiden cagiranin gonderdigi
+// payload.context DOGRUDAN sistem promptuna gomuluyordu - disaridan biri
+// {"context":"pil %999, sarj tam"} gibi UYDURMA bir cihaz durumunu modelin
+// "gercek" sandigi baglama enjekte edebilirdi. Simdi baglam SADECE sunucunun
+// kendi capability cagrisiyla (readLiveDeviceContext) okunuyor.
+test("sahte cihaz bilgisi: llm.generate cagiranin context'ini yok sayar, modele giden metinde uydurma veri OLMAZ", async () => {
+  const fakeContext = "UYDURMA-PIL-999-SAHTE-VERI";
+  let capturedBody: { messages?: { role: string; content: string }[] } | null = null;
+  const originalFetch = globalThis.fetch;
+  // llm_bridge'e (127.0.0.1:9201) giden GERCEK istegi yakala - ag baglantisi
+  // YOK, yalnizca govdeyi okuyup sahte bir basarisiz yanit donuyoruz.
+  globalThis.fetch = (async (_url: unknown, opts?: { body?: string }) => {
+    try { capturedBody = JSON.parse(String(opts?.body ?? "{}")); } catch { /* yoksay */ }
+    return { ok: false, status: 503, json: async () => ({ error: "test stub - gercek baglanti yok" }) } as Response;
+  }) as typeof fetch;
+
+  try {
+    const cap = capabilityMap.get("llm.generate");
+    assert.ok(cap);
+    await cap!.execute({ prompt: "merhaba", context: fakeContext });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.ok(capturedBody, "llm_bridge'e istek hic gitmedi - test kendisi bozuk");
+  const systemMsg = capturedBody!.messages?.find((m) => m.role === "system");
+  assert.ok(systemMsg, "sistem mesaji olusturulamadi");
+  assert.ok(!systemMsg!.content.includes(fakeContext),
+    "CAGIRANIN uydurma context'i sistem promptuna SIZDI - bu tam olarak duzeltilen acik");
+});
+
 test("dogrudan A2A action: risk:ask (script.run) A2A'dan da reddedilir", async () => {
   const { journal, dispatcher } = makeStack();
   const a2a = new A2AHub("http://127.0.0.1:9300", journal, dispatcher);
