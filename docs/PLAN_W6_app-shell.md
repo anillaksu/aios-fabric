@@ -31,7 +31,7 @@ sınandı; sonuç sayfası: **Mimari Tier Denetimi** artefaktı (Test 1–4 tara
 |---|---|---|
 | S · Shadow DOM izolasyon | **Düzeltildi** | JS izolasyonu sağlamıyor — §1 |
 | S · Web Workers + RPC | **Kabul, yükseltildi** | Doğru sınır **ve** `terminate()` ile kaçak widget çözümü — §1b |
-| S · DeepSeek/GPT-4o | **Ertelendi** | Model seçimi mimariye gömülmemeli; yerel `llm_bridge` zaten var, harici API veriyi dışarı taşır |
+| S · DeepSeek/GPT-4o | **Reddedildi (gerekçe düzeltildi)** | ~~"yerel llm_bridge zaten var"~~ **YANLIŞTI** — `llm_bridge.py` zaten Codex OAuth ile owner'ın ChatGPT hesabına gidiyor, hiç yerel değil. Doğru gerekçe: owner'ın kendi kontrolündeki **OmniRoute** (Tailscale, ayrı proje) hazır olunca oraya geçilecek — bkz. KARAR-3 |
 | A · PostMessage bus | **Kabul, eksikle** | Kanal başına yetki modeli tasarlanmadan "secure" değil |
 | A · IndexedDB + hash | **Kabul, yeni katkı** | Planda yoktu → W6.5b |
 | B · Web Components | **Kabul** | W6.J ile aynı |
@@ -340,20 +340,75 @@ anlamsızlaştı, geri kalanı olduğu gibi kabul edildi:
 
 ---
 
-## 5. Açık karar (W6 başlarken sorulacak)
+## 5. Kararlar — ÜÇÜ DE ÇÖZÜLDÜ (2026-08-17)
 
-- **Katman B'nin varsayılan durumu:** serbest kod üretimi baştan açık mı, yoksa `risk:"ask"` gibi açık onayla mı çalışsın? Sizin "bir anda tüm yetki açılmayacak" kararınızla tutarlı olan ikincisi — ama üretim akışını yavaşlatır. W6.3'e gelindiğinde karar verilecek.
+Kod yazımından önce cevaplanması gereken üç karar netleşti. Sıralama, seçenekler ve
+gerekçe kalıcı kayıt olarak burada duruyor; güncel özet `docs/CHECKLIST.md`'de.
 
-## 6. Açık karar — pano mu, masaüstü mü?
+### KARAR-1 — Yerleşim modeli: Hibrit
 
-Tier list `Gridstack.js / Muuri` öneriyor. Bunlar **ızgara** kütüphaneleri: bileşenleri hücrelere oturturlar, çakışmayı engellerler, otomatik yeniden dizerler. Sizin tarif ettiğiniz şey ise **pencere**: serbest konum, üst üste binme, z-index, "Android gibi". Bunlar farklı ürünler ve ikisi aynı anda olmaz:
+Tier list `Gridstack.js / Muuri` öneriyordu — **ızgara** kütüphaneleri, hücrelere
+oturtur, çakışmayı engeller. Sizin orijinal tarifiniz ise **pencere**: serbest
+konum, üst üste binme, z-index, "Android gibi". Karşılaştırma:
 
-| | Pano (Gridstack) | Masaüstü (kendi WindowManager) |
-|---|---|---|
-| Yerleşim | ızgaraya oturur, çakışma yok | serbest, üst üste binebilir |
-| Kod | ~50 KB dış bağımlılık | ~250 satır kendi kodumuz |
-| Uygun olduğu iş | sürekli görünen göstergeler | açılıp kapanan mini uygulamalar |
-| Bağımlılık ölçütü | F7'yi 1.5 MB diye atarken yeni paket eklemek tutarsız olur | sıfır bağımlılık |
+| | Pano (Gridstack) | Masaüstü (kendi WindowManager) | **Hibrit (seçilen)** |
+|---|---|---|---|
+| Yerleşim | ızgaraya oturur, çakışma yok | serbest, üst üste binebilir | ana ekran ızgara, açılan widget tam ekran |
+| Kod | ~50 KB dış bağımlılık | ~250 satır kendi kodumuz | ~250 satır, overlap mantığı yok (daha basit) |
+| Telefon uyumu | iyi | küçük ekranda üst üste pencere az anlamlı | **Android'in kendi widget modeliyle birebir** |
+
+**Seçilen: Hibrit.** Ana ekran Android widget'ı gibi sabit bir ızgara (çakışma
+yok); bir widget'a dokununca **odaklı tam ekrana** açılır — masaüstü tarzı üst
+üste binen pencereler YOK, telefon ekranı buna uygun değil. `WindowManager`
+mantığı (aç/kapat/odakla/kalıcılık) **yüzeyden ayrık** yazılır — surface-specific
+sunum detaylarından (ekran boyutu sınıfı, dokunma-vs-fare) bağımsız bir çekirdek.
+Bu ekstra iş değil, sadece doğru modül sınırı: gelecekte başka bir yüzey (PC
+istemcisi gibi) eklenirse bu karar TEK BAŞINA değişebilir, WindowManager'ın
+çekirdeği yeniden yazılmaz.
+
+### KARAR-2 — Katman B izni: tek-seferlik onay + kapsam-değişince-yeniden-sor
+
+İlk çerçevem ikiliydi: `ask` (her üretimde onay) vs `notify` (onaysız). Owner
+daha iyi bir üçüncü model önerdi — mobil uygulama izin modeliyle aynı mantık:
+
+```
+NEW FREE-FORM ARTIFACT
+    ↓ validate
+    ↓ risk = ask
+    ↓ USER APPROVAL
+    ↓ persist artifact + approval scope
+    ↓ future reuse → NO NEW ASK
+
+(widget yeni bir capability isterse → ASK tekrar)
+```
+
+Aynı doğrulanmış artefakt tekrar açıldığında **0 token, 0 tekrar-onay** — W6'nın
+sıfır-token hedefiyle birebir uyumlu. Onay maliyeti yalnızca **gerçek yeni risk**
+ortaya çıktığında (capability kapsamı genişlediğinde) ödenir. Bu, onay kaydının
+W6.L'nin önbellek girdisiyle (`{structureHash, structure, parameters}`) birlikte
+saklanacağı anlamına gelir — `approvalScope: string[]` alanı eklenecek.
+
+### KARAR-3 — Model seçimi: değişiklik yok, mevcut yol kullanılır
+
+**Burada kendi hatamı düzeltiyorum (K8 ilkesi kendi iddialarıma da uygulanır).**
+Bu belgenin önceki sürümünde ve `docs/STANDARTLAR.md`'de birkaç kez *"yerel
+llm_bridge zaten var, harici API veriyi dışarı taşır"* dedim. **Bu yanlıştı.**
+`docs/RESUME.md:744-761`'e göre `llm_bridge.py` zaten
+`--provider openai-codex -m gpt-5.6-luna` ile **Codex OAuth üzerinden owner'ın
+ChatGPT/OpenAI hesabına** gidiyor — hiçbir zaman yerel/çevrimdışı olmadı.
+
+Owner'ın gerçek durumu: bu hesabı hem mobilde hem PC'de zaten Hermes üzerinden
+kullanıyor. İleride aynı Tailscale ağında kendi barındırdığı **OmniRoute**
+(`aether://project/omniroute`, "Free-First AI Gateway Router" — AETHER'da kayıtlı
+gerçek bir proje) üzerinden model servis edecek.
+
+**Karar:** Katman B için şimdi **yeni bir model entegrasyonu yapılmaz**. Mevcut
+Hermes gateway (zaten çalışan hesap) Katman B'nin kod üretimi için de kullanılır.
+OmniRoute hazır olduğunda yönlendirme oraya taşınır — bu **ayrı bir proje, ayrı
+bir zaman çizelgesi**, W6'yı beklemesi gerekmiyor. Tier list'in rastgele
+üçüncü-taraf DeepSeek-Coder/GPT-4o önerisi hâlâ reddedilir — ama doğru gerekçeyle:
+"yerel/ücretsiz olduğu için" değil, **"owner'ın kendi kontrolündeki router projesi
+zaten yolda olduğu için."**
 
 "Widget'larla uygulama üzerinde gezme, uygulama içi pencereler" ifadeniz **masaüstünü** işaret ediyor; W6.2 buna göre yazıldı. Pano isteniyorsa W6.2 baştan değişir — bu yüzden kod yazımından önce netleşmeli.
 
