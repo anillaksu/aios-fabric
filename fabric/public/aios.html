@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="tr" data-theme="phosphor">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070B10">
+<meta name="mobile-web-app-capable" content="yes">
+<title>AI-OS</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+
+<!-- Framework7 DEGISTIRILMEZ; kendi degiskenleri tokens.css'te ezilir. -->
+<link rel="stylesheet" href="/vendor/framework7-bundle.min.css">
+<link rel="stylesheet" href="/vendor/framework7-icons.css">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/themes.css">
+<link rel="stylesheet" href="/css/components.css">
+<style>
+  /* ══ SHELL ══
+     Kural: 1 ekran = 1 ana amac, 1 ekran = 1 ana GIRIS yuzeyi.
+     Ust bar artik input DEGIL (sadece durum + Control Center).
+     Tek giris: alttaki composer. Mic composer'in ICINDE, ayri FAB YOK. */
+  html { height: 100%; }
+  body { margin: 0; overflow: hidden; }
+  /* 100vh Android'de klavye acilinca yanlis hesaplaniyor -> 100dvh */
+  #shell { display: flex; flex-direction: column; height: 100dvh; }
+
+  #screen {
+    flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  #screen::-webkit-scrollbar { display: none; }
+
+  /* ── COMPOSER: tek giris yuzeyi ── */
+  #composer {
+    flex: 0 0 auto; display: flex; align-items: flex-end; gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--s1); border-top: 1px solid var(--line);
+  }
+  #composer .cbtn {
+    flex: 0 0 auto; width: 42px; height: 42px; border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--s2); border: 1px solid var(--line-mid); color: var(--fg-dim);
+    cursor: pointer; transition: background var(--t-fast) var(--ease),
+                                 color var(--t-fast) var(--ease),
+                                 transform var(--t-fast) var(--ease);
+  }
+  #composer .cbtn:active { transform: scale(.92); }
+  #composer .cbtn.primary { background: var(--primary); border-color: var(--primary); color: var(--fg-invert); }
+  #composer .cbtn.rec { background: var(--error); border-color: var(--error); color: #fff; animation: crec 1.1s infinite; }
+  @keyframes crec { 50% { opacity: .55; } }
+  #composer .cbtn i { font-size: 20px; }
+  #input {
+    flex: 1 1 auto; min-width: 0; box-sizing: border-box;
+    background: var(--s2); border: 1px solid var(--line-mid); border-radius: var(--r-md);
+    color: var(--fg); font-family: var(--font-ui); font-size: var(--fs-md);
+    padding: 10px 12px; outline: none; resize: none;
+    min-height: 42px; max-height: 110px; line-height: 1.35;
+  }
+  #input:focus { border-color: var(--primary); }
+
+  /* ── TABBAR ── */
+  #tabbar {
+    flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, 1fr);
+    background: var(--s1); border-top: 1px solid var(--line);
+    height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .aios-tab {
+    background: none; border: none; color: var(--fg-mute); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; position: relative; transition: color var(--t-base) var(--ease);
+  }
+  .aios-tab i { font-size: 20px; transition: transform var(--t-base) var(--ease); }
+  .aios-tab span { font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--ls-micro); }
+  .aios-tab.on { color: var(--primary); }
+  .aios-tab.on i { transform: translateY(-1px); }
+  .aios-tab.on::before { content: ""; position: absolute; top: 0; left: 20%; right: 20%; height: 2px; background: var(--primary); }
+  .aios-tab .badge {
+    position: absolute; top: 6px; right: 22%; min-width: 15px; height: 15px;
+    border-radius: var(--r-pill); background: var(--info); color: var(--fg-invert);
+    font-family: var(--font-mono); font-size: 9px; display: none;
+    align-items: center; justify-content: center; padding: 0 4px;
+  }
+  .aios-tab .badge.on { display: flex; }
+
+  /* Klavye acikken tabbar gizlenir - composer ekranin dibinde kalir */
+  body.kb #tabbar { display: none; }
+  body.kb #composer { padding-bottom: var(--sp-2); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="shell">
+
+    <!-- micro status: INPUT DEGIL, sadece durum + Control Center -->
+    <div class="aios-status" id="statusbar">
+      <span id="st-clock">--:--</span>
+      <span id="st-fabric">○ FABRIC</span>
+      <span class="spacer"></span>
+      <span id="st-bat">BAT —</span>
+      <button id="cc-open" class="st-btn" aria-label="Control Center"><i class="icon f7-icons">slider_horizontal_3</i></button>
+    </div>
+
+    <div id="screen"></div>
+
+    <!-- TEK giris yuzeyi: mic ICERIDE, ayri FAB yok -->
+    <div id="composer">
+      <button class="cbtn" id="mic" aria-label="Sesli komut"><i class="icon f7-icons">mic_fill</i></button>
+      <textarea id="input" rows="1" placeholder="Ne yapmak istiyorsun?"></textarea>
+      <button class="cbtn primary" id="send" aria-label="Gönder"><i class="icon f7-icons">arrow_up</i></button>
+    </div>
+
+    <div id="tabbar">
+      <button class="aios-tab on" data-tab="home"><i class="icon f7-icons">house_fill</i><span>HOME</span></button>
+      <button class="aios-tab" data-tab="komut"><i class="icon f7-icons">search</i><span>KOMUT</span></button>
+      <button class="aios-tab" data-tab="artifacts"><i class="icon f7-icons">square_stack_3d_up_fill</i><span>ARTEFAKT</span><span class="badge" id="b-art"></span></button>
+      <button class="aios-tab" data-tab="activity"><i class="icon f7-icons">list_bullet</i><span>AKTİF</span><span class="badge" id="b-act"></span></button>
+      <button class="aios-tab" data-tab="hermes"><i class="icon f7-icons">sparkles</i><span>HERMES</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/framework7-bundle.min.js"></script>
+<script type="module">
+  import { boot } from "/js/app.js";
+  const app = new Framework7({ el: "#app", theme: "md", darkMode: true, name: "AI-OS" });
+
+  /* Klavye tepkisi: Android'de klavye acilinca layout viewport degismiyor,
+     visualViewport degisiyor. Bunu izleyip shell yuksekligini kisiyoruz ki
+     composer klavyenin USTUNDE kalsin, icerik de ezilmesin. */
+  const vv = window.visualViewport;
+  if (vv) {
+    const sync = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.body.classList.toggle("kb", kb > 120);
+      document.getElementById("shell").style.height = (vv.height + vv.offsetTop) + "px";
+    };
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    sync();
+  }
+
+  boot(app);
+</script>
+</body>
+</html>

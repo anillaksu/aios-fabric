@@ -4,3 +4,13 @@
 *.js text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+
+# Ikili varliklar: satir sonu donusumu bunlari BOZAR (ikon/font). `binary`
+# = `-text -diff`. `text=auto` cogu zaman dogru tahmin eder ama tahmine
+# birakilmayacak kadar kritik - bozuk bir woff2 sessizce yuklenmez.
+*.png binary
+*.woff binary
+*.woff2 binary

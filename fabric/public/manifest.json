@@ -1,0 +1,61 @@
+{
+  "name": "AI-OS",
+  "short_name": "AI-OS",
+  "description": "Telefon uzerinde calisan AI isletim kabugu - cihaz kontrolu, launcher, ajanlar ve Hermes",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070B10",
+  "theme_color": "#070B10",
+  "lang": "tr",
+  "categories": ["productivity", "utilities"],
+
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "Hermes'e sor",
+      "short_name": "Hermes",
+      "description": "Dogrudan sohbete gec",
+      "url": "/?tab=hermes",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Sesli komut",
+      "short_name": "Ses",
+      "description": "Mikrofonu aninda ac",
+      "url": "/?tab=hermes&voice=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Uygulamalar",
+      "short_name": "Uygulama",
+      "description": "Launcher",
+      "url": "/?tab=apps",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Aktivite",
+      "short_name": "Aktivite",
+      "description": "Calisan gorevler ve olaylar",
+      "url": "/?tab=activity",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

@@ -1,0 +1,81 @@
+/* ═══════════════════════════════════════════════════════════════
+   AI-OS · TEMALAR
+   ───────────────────────────────────────────────────────────────
+   Anayasa BOZULMAZ: yapi, olcu, tipografi, hareket ayni kalir.
+   Degisen SADECE renk katmani (zemin + vurgu). Boylece "farkli renk ve
+   tasarimlar" gelir ama tasarim dili tek kalir.
+   Uygulama: <html data-theme="amber"> — app.js localStorage'da tutar.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── PHOSPHOR (varsayilan) · fosfor yesili terminal ── */
+:root[data-theme="phosphor"] {
+  --bg:#070B10; --s1:#0E1620; --s2:#152232; --s3:#1B2C3D;
+  --line:#1E2E3C; --line-mid:#273B4D; --line-hi:#35516A;
+  --primary:#4ADE80; --primary-d:#22C55E; --primary-a:rgba(74,222,128,.13);
+  --info:#38BDF8; --info-a:rgba(56,189,248,.13);
+  --fg:#DCEEE3; --fg-dim:#8FA9B8; --fg-mute:#5B7787; --fg-invert:#060B10;
+}
+
+/* ── AMBER · eski CRT / turuncu fosfor ── */
+:root[data-theme="amber"] {
+  --bg:#0C0906; --s1:#181109; --s2:#241A0F; --s3:#302315;
+  --line:#332514; --line-mid:#46331C; --line-hi:#6B4E2A;
+  --primary:#FBBF24; --primary-d:#D99A0B; --primary-a:rgba(251,191,36,.13);
+  --info:#F59E0B; --info-a:rgba(245,158,11,.13);
+  --warn:#FB923C; --warn-a:rgba(251,146,60,.13);
+  --fg:#F5E6C8; --fg-dim:#BFA47A; --fg-mute:#8A7350; --fg-invert:#0C0906;
+  --f7-theme-color:#FBBF24; --f7-theme-color-rgb:251,191,36;
+}
+
+/* ── ICE · soguk mavi, klinik ── */
+:root[data-theme="ice"] {
+  --bg:#060A12; --s1:#0D1524; --s2:#142136; --s3:#1B2C47;
+  --line:#1D2C45; --line-mid:#27395A; --line-hi:#3A5480;
+  --primary:#38BDF8; --primary-d:#0EA5E9; --primary-a:rgba(56,189,248,.13);
+  --info:#818CF8; --info-a:rgba(129,140,248,.13);
+  --fg:#DBEAFE; --fg-dim:#93B4D8; --fg-mute:#5E7FA6; --fg-invert:#060A12;
+  --f7-theme-color:#38BDF8; --f7-theme-color-rgb:56,189,248;
+}
+
+/* ── SYNTH · mor/pembe retro-futurist ── */
+:root[data-theme="synth"] {
+  --bg:#0A0714; --s1:#150F26; --s2:#1F1637; --s3:#2A1E4A;
+  --line:#2A1F45; --line-mid:#3A2C5E; --line-hi:#584186;
+  --primary:#C084FC; --primary-d:#A855F7; --primary-a:rgba(192,132,252,.14);
+  --info:#F472B6; --info-a:rgba(244,114,182,.14);
+  --fg:#EDE4FF; --fg-dim:#B4A2D6; --fg-mute:#7E6BA6; --fg-invert:#0A0714;
+  --f7-theme-color:#C084FC; --f7-theme-color-rgb:192,132,252;
+}
+
+/* ── PAPER · acik tema (gunduz/gunes altinda) ── */
+:root[data-theme="paper"] {
+  --bg:#F4F6F5; --s1:#FFFFFF; --s2:#EAEEEC; --s3:#DDE3E0;
+  --line:#D5DCD9; --line-mid:#BCC6C2; --line-hi:#8FA39C;
+  --primary:#15803D; --primary-d:#166534; --primary-a:rgba(21,128,61,.10);
+  --info:#0369A1; --info-a:rgba(3,105,161,.10);
+  --warn:#B45309; --warn-a:rgba(180,83,9,.10);
+  --error:#B91C1C; --error-a:rgba(185,28,28,.10);
+  --fg:#14201B; --fg-dim:#41544C; --fg-mute:#6B7E76; --fg-invert:#FFFFFF;
+  --shadow:0 1px 3px rgba(0,0,0,.10);
+  --f7-theme-color:#15803D; --f7-theme-color-rgb:21,128,61;
+  --f7-page-bg-color:#F4F6F5; --f7-bars-bg-color:#FFFFFF;
+  --f7-text-color:#14201B; --f7-bars-text-color:#14201B;
+}
+
+/* Tema secici (Control Center icinde) */
+.theme-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-2); }
+.theme-dot {
+  height: 44px; border-radius: var(--r-md); cursor: pointer;
+  border: 2px solid var(--line); position: relative; overflow: hidden;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-base) var(--ease);
+}
+.theme-dot:active { transform: scale(.93); }
+.theme-dot[data-active="1"] { border-color: var(--fg); }
+.theme-dot i {
+  position: absolute; inset: auto 0 0 0; height: 40%; display: block;
+}
+.theme-dot span {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px;
+  color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}

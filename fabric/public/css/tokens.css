@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════════════════════
+   AI-OS · TERMINAL MATERIAL · Design Tokens
+   ───────────────────────────────────────────────────────────────
+   ANAYASA: Retro bir ISLEV degil, bir KARAKTERdir.
+   Davranis modern Android; his retro-futurist/taktik terminal.
+   Retro gorunum su dordu ile gelir: cizgi, renk, tipografi,
+   micro-label + durum gostergesi. ASCII corbasi ile DEGIL.
+
+   Buradaki degerler TEK gercek kaynaktir. Component'ler asla
+   ham renk/olcu yazmaz, sadece bu degiskenleri kullanir.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Zemin katmanlari ── */
+  --bg:        #070B10;   /* komur siyahi - ana zemin */
+  --s1:        #0E1620;   /* surface 1 - kartlar */
+  --s2:        #152232;   /* surface 2 - yukseltilmis/aktif */
+  --s3:        #1B2C3D;   /* surface 3 - basili durum */
+
+  /* ── Cizgiler: normal 1px, secili 2px ── */
+  --line:      #1E2E3C;
+  --line-mid:  #273B4D;
+  --line-hi:   #35516A;
+
+  /* ── Anlamsal renkler ── */
+  --primary:   #4ADE80;   /* fosfor yesili - ana eylem, ONLINE */
+  --primary-d: #22C55E;
+  --primary-a: rgba(74, 222, 128, .13);   /* alpha zemin */
+  --info:      #38BDF8;   /* cyan - bilgi, baglanti */
+  --info-a:    rgba(56, 189, 248, .13);
+  --warn:      #FBBF24;   /* amber - dikkat, bekleyen */
+  --warn-a:    rgba(251, 191, 36, .13);
+  --error:     #F87171;   /* kirmizi - hata, yikici */
+  --error-a:   rgba(248, 113, 113, .13);
+  --idle:      #64809180; /* notr/pasif */
+
+  /* ── Metin ── */
+  --fg:        #DCEEE3;   /* birincil */
+  --fg-dim:    #8FA9B8;   /* ikincil */
+  --fg-mute:   #5B7787;   /* ucuncul / micro-label */
+  --fg-invert: #060B10;   /* primary zemin uzerinde */
+
+  /* ── Tipografi ──
+     KRITIK: her sey monospace DEGIL. Hermes'in 3 paragraf cevabini
+     monospace okumak eziyet. Monospace SADECE sistem metadata icin:
+     AGENT / ONLINE / BAT 84% / TASK #4821 / MCP / A2A            */
+  --font-ui:   system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Roboto Mono", "DejaVu Sans Mono", monospace;
+
+  --fs-micro:  10px;   /* micro-label, mono, uppercase */
+  --fs-xs:     11px;
+  --fs-sm:     12.5px;
+  --fs-md:     14px;   /* govde */
+  --fs-lg:     16px;
+  --fs-xl:     19px;   /* metrik degeri */
+  --fs-2xl:    24px;
+
+  --lh-tight:  1.2;
+  --lh-body:   1.55;
+  --ls-micro:  1.4px;  /* micro-label harf araligi */
+  --ls-title:  .4px;
+
+  /* ── Kose: 8-12px, asiri yuvarlak DEGIL ── */
+  --r-sm:  8px;
+  --r-md:  10px;
+  --r-lg:  12px;
+  --r-pill: 999px;      /* sadece chip/badge */
+
+  /* ── Bosluk ── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+
+  /* ── Golge: minimum ── */
+  --shadow: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-up: 0 -4px 18px rgba(0,0,0,.45);
+
+  /* ── Hareket: hizli, mekanik, 120-220ms ── */
+  --t-fast: 120ms;
+  --t-base: 160ms;
+  --t-slow: 220ms;
+  --ease:   cubic-bezier(.2, .8, .3, 1);
+
+  /* ── Shell olculeri ── */
+  --h-status: 30px;
+  --h-command: 52px;
+  --h-tabbar: 60px;
+}
+
+/* Framework7'yi kendi paletimize baglariz - F7'nin kendi degiskenlerini
+   EZMEK, F7 kodunu degistirmekten cok daha guvenli (yukseltmelerde bozulmaz). */
+:root {
+  --f7-theme-color: var(--primary);
+  --f7-theme-color-rgb: 74, 222, 128;
+  --f7-theme-color-shade: var(--primary-d);
+  --f7-theme-color-tint: #86EFAC;
+  --f7-page-bg-color: var(--bg);
+  --f7-bars-bg-color: var(--s1);
+  --f7-bars-text-color: var(--fg);
+  --f7-text-color: var(--fg);
+  --f7-list-bg-color: var(--s1);
+  --f7-block-strong-bg-color: var(--s1);
+  --f7-font-family: var(--font-ui);
+  --f7-bars-border-color: var(--line);
+  --f7-list-border-color: var(--line);
+  --f7-toolbar-bg-color: var(--s1);
+  --f7-sheet-bg-color: var(--s1);
+  --f7-dialog-bg-color: var(--s2);
+  --f7-searchbar-bg-color: var(--s1);
+  --f7-searchbar-input-bg-color: var(--s2);
+  --f7-searchbar-input-text-color: var(--fg);
+}
