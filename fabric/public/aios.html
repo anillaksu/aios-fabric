@@ -135,7 +135,13 @@
     };
     vv.addEventListener("resize", sync);
     vv.addEventListener("scroll", sync);
-    sync();
+    // B-10 (2026-08-17): soguk PWA acilisinda innerHeight ile visualViewport
+    // gecici olarak uyusmuyor (Android sistem cubuklari henuz yerlesmeden) -
+    // ilk cagri yanlislikla kb>120 hesaplayip #tabbar'i gizleyebiliyordu.
+    // Cift rAF ile iki cizim karesi beklenir, degerler oturduktan sonra
+    // hesaplanir. Klavye ac/kapat'in duzeltmesi de ayni sebepten: gercek
+    // bir resize olayi, degerler zaten oturmus halde tetikleniyor.
+    requestAnimationFrame(() => requestAnimationFrame(sync));
   }
 
   boot();
