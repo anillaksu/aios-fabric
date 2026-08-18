@@ -594,6 +594,14 @@ function paintApplications() {
   const wrap = el("div", "c-section");
   const body = el("div", "body");
   const entries = orderedApplications(applications);
+  const reference = el("button", "c-btn", "KAYDIRILABİLİR SES PANELİ");
+  reference.dataset.variant = "ghost";
+  reference.title = "Native range + dispatcher referansı";
+  reference.addEventListener("click", async () => {
+    const result = await ctx.dispatch({ type: "ui.referenceSoundPanel" });
+    if (!result.ok) toast(result.error || "Ses paneli açılamadı", true);
+  });
+  body.appendChild(reference);
   if (!entries.length) {
     body.appendChild(render({ type: "empty-state", icon: "square_grid_2x2", title: "Henüz uygulama yok",
       detail: "Bir artefaktta ANA EKRANA EKLE seçeneğini kullan." }, ctx));

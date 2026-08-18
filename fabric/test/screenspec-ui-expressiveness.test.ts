@@ -28,21 +28,29 @@ test("ScreenSpec 2.0: server/client range-scroll-stack contractini ayni kabul ed
 
 test("range: sinirlar, pozitif step ve capability binding gecersizse node reddedilir", () => {
   const invalid = (patch: Record<string, unknown>) => {
-    const clean = validateServer({ ...screen, sections: [{ type: "section", children: [{ ...range, ...patch }] }] });
-    return clean!.sections[0].children;
+    const candidate = { ...screen, sections: [{ type: "section", children: [{ ...range, ...patch }] }] };
+    const server = validateServer(candidate);
+    const client = validateClient(candidate);
+    assert.deepEqual(client!.sections[0].children, [], "client de ayni node'u reddeder");
+    return server!.sections[0].children;
   };
   assert.deepEqual(invalid({ min: 10, max: 0 }), []);
   assert.deepEqual(invalid({ value: 20 }), []);
   assert.deepEqual(invalid({ step: 0 }), []);
   assert.deepEqual(invalid({ valueKey: "not-valid-key!" }), []);
   assert.deepEqual(invalid({ action: { type: "ui.goto" } }), []);
+  assert.deepEqual(invalid({ action: { type: "unknown.action" } }), []);
 });
 
 test("stack ve scroll-region sinirli alanlari disinda deger kabul etmez", () => {
   const badScroll = validateServer({ id: "x", title: "x", sections: [{ type: "scroll-region", maxHeight: 20 }] });
   const badStack = validateServer({ id: "x", title: "x", sections: [{ type: "stack", gap: 9 }] });
+  const badScrollClient = validateClient({ id: "x", title: "x", sections: [{ type: "scroll-region", maxHeight: 20 }] });
+  const badStackClient = validateClient({ id: "x", title: "x", sections: [{ type: "stack", gap: 9 }] });
   assert.deepEqual(badScroll!.sections, []);
   assert.deepEqual(badStack!.sections, []);
+  assert.deepEqual(badScrollClient!.sections, []);
+  assert.deepEqual(badStackClient!.sections, []);
 });
 
 test("meetsUiRequirements dogal dil degil, yalniz belirtilen yapisal gereksinimleri kontrol eder", () => {
