@@ -7,11 +7,16 @@ bir önceki ajanın anlatımına GÜVENME, aşağıdaki kaynakları kendin doğr
 2. `docs/MIMARI_TEMEL.md` — mimari ilkeler, kanıt skalası, otorite zinciri
 3. `docs/STANDARTLAR.md` — hangi açık standarda dayanıyoruz
 4. en son `docs/OTURUM_*.md` — o günün ham kronolojisi
-5. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
+5. `docs/ARASTIRMA_ARSIVI.md` — kanıtlı oluşumların yeniden kullanım indeksi
+6. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
 
 Bu dosya bir **özet/index**'tir, birincil kaynak değil. Çelişki bulursan
 "§ Bilinen belge kaymaları" bölümüne ekle, üstteki dosyaları elle düzeltme
 zorunluluğun yok (ama düzeltirsen burada da güncelle).
+
+`ARASTIRMA_ARSIVI.md` de bir durum kaynağı değildir: owner kararı, commit/test
+ve cihaz canlı kanıtını başka bağlamda bulunabilir kılan bir indeksdir. Bir
+kartın kanıt seviyesi checklist/commit ile çelişirse kaynak kanıt kazanır.
 
 ---
 
