@@ -736,26 +736,25 @@ export async function journalScreen(filter) {
    Servisler + A2A peer'lar tek yerde. "Neden calismiyor?" sorusunun
    cevabinin arandigi ilk ekran bu olmali.                                */
 export async function connectionsScreen() {
-  const peers = (await getJSON("/a2a/peers")) || [];
-  const svc = [
-    { name: "Fabric", port: 9300, on: true, detail: "TypeScript omurga · bu arayüz" },
-    { name: "llm_bridge", port: 9201, on: !!S.services.llm, detail: "Codex OAuth → gpt-5.6-luna" },
-    { name: "Hermes gateway", port: 8642, on: !!S.services.gateway, detail: "A2A / agent döngüsü" },
-  ];
+  const [peers, runtime] = await Promise.all([getJSON("/a2a/peers"), getJSON("/runtime-status")]);
+  const svc = (runtime && runtime.services) || [];
 
   const sections = [{
     type: "section", title: "SERVİSLER",
-    children: [{ type: "list", children: svc.map((s) => ({
+    children: svc.length ? [{ type: "list", children: svc.map((s) => ({
       type: "list-row",
-      icon: s.on ? "checkmark_circle" : "xmark_circle",
-      tone: s.on ? undefined : "error",
-      title: s.name, subtitle: s.detail, trailing: ":" + s.port,
-    })) }],
+      icon: s.status === "online" ? "checkmark_circle" : "xmark_circle",
+      tone: s.status === "online" ? undefined : "error",
+      title: s.label, subtitle: s.detail,
+      trailing: s.status === "online" ? "ONLINE" : "DOWN",
+    })) }] : [{ type: "error-state", icon: "wifi_exclamationmark", title: "Servis durumu okunamadı",
+      detail: "AIOS runtime durumunu şu an doğrulayamadı.", actionLabel: "TEKRAR DENE",
+      action: { type: "ui.goto", payload: { screen: "connections" } } }],
   }];
 
   sections.push({
     type: "section", title: "A2A PEER · " + peers.length,
-    children: peers.length ? [{ type: "list", children: peers.map((p) => ({
+    children: peers && peers.length ? [{ type: "list", children: peers.map((p) => ({
       type: "list-row", icon: "antenna_radiowaves_left_right",
       title: p.name || "peer", subtitle: p.description || "", trailing: p.url,
     })) }] : [{ type: "empty-state", icon: "antenna_radiowaves_left_right",
@@ -772,6 +771,51 @@ export async function connectionsScreen() {
   });
 
   return { id: "connections", title: "Bağlantılar", sections };
+}
+
+/* ══════════════ YÖNETİM MERKEZİ ══════════════
+   Yeni bir state store ya da yönetim protokolü değil: mevcut gerçek ekranlara,
+   approval deposuna, journal'a ve runtime ölçümüne tek giriş yüzeyi. */
+export async function managementScreen(artifacts = [], applications = []) {
+  const [runtime, approvals] = await Promise.all([getJSON("/runtime-status"), getJSON("/approvals")]);
+  const services = (runtime && runtime.services) || [];
+  const online = services.filter((service) => service.status === "online").length;
+  const active = S.tasks.filter((task) => ["running", "optimistic", "pending"].includes(task.status)).length;
+  const granted = Object.values(approvals || {}).filter((record) => record && record.status === "granted").length;
+
+  const sections = [{
+    type: "section", title: "YÖNETİM ÖZETİ", layout: "grid-2",
+    children: [
+      { type: "metric", label: "SERVİS", value: services.length ? `${online}/${services.length}` : "—", tone: services.length && online === services.length ? "ok" : "warn" },
+      { type: "metric", label: "AKTİF İŞ", value: active, tone: active ? "info" : "idle" },
+      { type: "metric", label: "ONAYLI", value: granted, tone: granted ? "warn" : "idle" },
+      { type: "metric", label: "UYGULAMA", value: applications.length, tone: applications.length ? "ok" : "idle" },
+    ],
+  }];
+
+  sections.push({
+    type: "section", title: "CANLI RUNTIME",
+    children: services.length ? [{ type: "list", children: services.map((service) => ({
+      type: "list-row", icon: service.status === "online" ? "checkmark_circle" : "xmark_circle",
+      tone: service.status === "online" ? undefined : "error", title: service.label,
+      subtitle: service.detail, trailing: service.status === "online" ? "ONLINE" : "DOWN",
+    })) }] : [{ type: "error-state", icon: "wifi_exclamationmark", title: "Runtime ölçümü alınamadı",
+      detail: "Servis sağlığı varsayılmaz; yeniden deneyebilirsin.", actionLabel: "YENİLE",
+      action: { type: "ui.goto", payload: { screen: "management" } } }],
+  });
+
+  sections.push({
+    type: "section", title: "YÖNET", children: [{ type: "list", children: [
+      { type: "list-row", icon: "list_bullet", title: "Görevler ve hatalar", subtitle: active ? `${active} aktif iş` : "Journal ve yeniden deneme", action: { type: "ui.goto", payload: { tab: "activity" } } },
+      { type: "list-row", icon: "lock_fill", title: "İzinler", subtitle: `${granted} geçerli insan onayı`, action: { type: "ui.control" } },
+      { type: "list-row", icon: "antenna_radiowaves_left_right", title: "Bağlantılar ve A2A", subtitle: "Servis ayrıntıları ve peer'lar", action: { type: "ui.goto", payload: { screen: "connections" } } },
+      { type: "list-row", icon: "gear_alt_fill", title: "Sistem ayarları", subtitle: "Tema, Shizuku, wake-lock", action: { type: "ui.goto", payload: { screen: "settings" } } },
+      { type: "list-row", icon: "square_stack_3d_up", title: "Capabilities", subtitle: "Risk sınıfları ve kullanılabilir yetenekler", action: { type: "ui.goto", payload: { screen: "capabilities" } } },
+      { type: "list-row", icon: "square_stack_3d_up_fill", title: "Artefakt Galerisi", subtitle: `${artifacts.length} kalıcı artefakt`, action: { type: "ui.goto", payload: { tab: "artifacts" } } },
+    ] }],
+  });
+
+  return { id: "management", title: "Yönetim Merkezi", subtitle: "AIOS'un gerçek çalışma ve kontrol yüzeyi", sections };
 }
 
 /* ══════════════ SETTINGS ══════════════ */

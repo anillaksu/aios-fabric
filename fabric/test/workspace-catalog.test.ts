@@ -16,6 +16,7 @@ test("Phone Workspace katalogu kisa Turkce aramayi deterministik metadata ile bu
   assert.deepEqual(searchWorkspaceEntries("pil").map((entry) => entry.id), ["device-status"]);
   assert.equal(searchWorkspaceEntries("ag")[0].id, "network-status");
   assert.equal(searchWorkspaceEntries("ses")[0].id, "sound-panel");
+  assert.equal(searchWorkspaceEntries("yonetim")[0].id, "management");
   assert.equal(searchWorkspaceEntries("cihaz durum merkezi yap").length, 0, "LLM benzeri serbest yorum yapılmaz");
 });
 

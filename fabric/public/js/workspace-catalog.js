@@ -73,6 +73,12 @@ export const WORKSPACE_ENTRIES = [
     searchTerms: ["aios", "izin", "onay", "approval", "yetki"],
     action: { type: "ui.control" },
   },
+  {
+    id: "management", category: "AIOS", icon: "gear_alt_fill",
+    title: "Yönetim Merkezi", subtitle: "Servisler, görevler, izinler ve sistem yönetimi",
+    searchTerms: ["aios", "yönetim", "yonetim", "admin", "servis", "hata", "journal", "izin", "bakım"],
+    action: { type: "ui.goto", payload: { screen: "management" } },
+  },
 ];
 
 /** Doğal dil yorumu değil; Türkçe karakterleri de kapsayan kesin metadata eşlemesi. */

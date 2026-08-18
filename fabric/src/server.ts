@@ -21,6 +21,7 @@ import { handleMcpRequest, requireMcpAuth, originAllowed } from "./mcp.ts";
 import { isReadExposed } from "./read-policy.ts";
 import type { Intent } from "./types.ts";
 import { logErr } from "./log.ts";
+import { readRuntimeStatus } from "./runtime-status.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 const AIOS_HTML_PATH = PUBLIC_DIR + "aios.html";
@@ -838,6 +839,14 @@ const server = createServer(async (req, res) => {
     // ---------- state / events (UI'nin projection okudugu yer) ----------
     if (url.pathname === "/state" && req.method === "GET") {
       json(res, 200, dispatcher.getState());
+      return;
+    }
+
+    // Yerel servislerin anlik, salt-okunur saglik projeksiyonu. Bu route
+    // capability execution yapmaz; PWA'nin "online" varsayimi uretmeden
+    // operatora gercek HTTP/process kanitini gostermesi icindir.
+    if (url.pathname === "/runtime-status" && req.method === "GET") {
+      json(res, 200, await readRuntimeStatus());
       return;
     }
 

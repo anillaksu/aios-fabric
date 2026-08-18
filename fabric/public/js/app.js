@@ -528,6 +528,7 @@ async function paint() {
   if (secondary === "capabilities") return mountSecondary(host, validateScreen(await SC.capabilitiesScreen()));
   if (secondary === "journal")     return mountSecondary(host, validateScreen(await SC.journalScreen(secondaryArg)));
   if (secondary === "connections") return mountSecondary(host, validateScreen(await SC.connectionsScreen()));
+  if (secondary === "management") return mountSecondary(host, validateScreen(await SC.managementScreen(artifacts, orderedApplications(applications))));
   if (secondary === "settings")    return mountSecondary(host, validateScreen(await SC.settingsScreen()));
   if (secondary === "miniapps")    return paintApplications();
   if (secondary === "automations") return mountSecondary(host, validateScreen(await SC.automationsScreen()));
@@ -1330,14 +1331,13 @@ function openControlCenter() {
     themeHost.appendChild(d);
   });
 
+  // Burada capability varligini "online" diye gostermek yanlisti. Canli
+  // servis olcumu yalniz /runtime-status kullanan Yonetim Merkezi'ndedir.
   document.getElementById("cc-services").appendChild(render({
     type: "list",
-    children: [
-      { type: "list-row", title: "Fabric", chip: { label: S.services.fabric ? "ONLINE" : "DOWN", tone: S.services.fabric ? "ok" : "error" } },
-      { type: "list-row", title: "Hermes", chip: { label: S.services.llm ? "READY" : "DOWN", tone: S.services.llm ? "ok" : "error" } },
-      { type: "list-row", title: "Gateway", chip: { label: S.services.gateway ? "ONLINE" : "DOWN", tone: S.services.gateway ? "ok" : "error" } },
-      { type: "list-row", title: "Tailscale", chip: { label: "CONNECTED", tone: "info" } },
-    ],
+    children: [{ type: "list-row", icon: "gauge", title: "Canlı servis durumu",
+      subtitle: "HTTP/process ölçümü ile Yönetim Merkezi'nde gösterilir",
+      action: { type: "ui.goto", payload: { screen: "management" } } }],
   }, ctx));
 
   const go = (s) => { sheet.close(); goSecondary(s); };
@@ -1454,10 +1454,12 @@ function handleEntry() {
   const shared = [u.searchParams.get("title"), u.searchParams.get("text"), u.searchParams.get("url")]
     .filter(Boolean).join("\n");
   const tab = u.searchParams.get("tab");
+  const screen = u.searchParams.get("screen");
   const voice = u.searchParams.get("voice");
-  if (shared || tab || voice) history.replaceState({}, "", "/");
+  if (shared || tab || screen || voice) history.replaceState({}, "", "/");
   if (shared) { setTimeout(() => ask(shared), 400); return; }
   if (tab) goTab(tab === "apps" ? "komut" : tab);
+  if (screen) goSecondary(screen);
   if (voice) setTimeout(toggleVoice, 500);
 }
 
