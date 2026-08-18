@@ -243,6 +243,10 @@ export const capabilities: Capability[] = [
     name: "app.list",
     class: "REFLEX",
     risk: "safe",
+    // Yalnız paket/etiket envanteri döner; cihazda değişiklik yapmaz.
+    // Komut ekranının açılış kataloğu bu capability'yi /read facade üzerinden
+    // yükler; explicit damga yoksa politika bilinçli olarak 403 döndürür.
+    readOnly: true,
     maxRetries: 1,
     execute: async () => {
       // `pm list packages -3` duz Termux'tan calisiyor (test edildi)

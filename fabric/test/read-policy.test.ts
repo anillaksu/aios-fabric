@@ -10,7 +10,8 @@ import { isReadExposed, readExposedNames } from "../src/read-policy.ts";
 test("/read yalniz explicit readOnly ve risk:safe capability'leri acar", () => {
   assert.equal(isReadExposed("sensor.battery.read"), true);
   assert.equal(isReadExposed("wifi.info"), true);
-  assert.deepEqual(readExposedNames().sort(), ["sensor.battery.read", "wifi.info"]);
+  assert.equal(isReadExposed("app.list"), true);
+  assert.deepEqual(readExposedNames().sort(), ["app.list", "sensor.battery.read", "wifi.info"]);
 
   // safe olsa bile yan etkili capability /read'e acilamaz.
   assert.equal(capabilityMap.get("torch.set")?.risk, "safe");
