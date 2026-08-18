@@ -26,6 +26,7 @@ import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
 import { hasMeaningfulData } from "./dispatch-utils.js";
+import { normalizeNavigation, toHistoryState, isSameNavigation } from "./navigation-state.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -72,6 +73,8 @@ function createSheet(html) {
 let currentTab = "home";
 let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
+let artifactOpenId = null;
+let navigationIndex = 0;
 let capabilityNames = [];
 let capabilitiesWithRisk = []; // [{name,risk}] - W6.L cacheKey() icin (yalnizca ad degil, risk seviyesi de)
 let capVersion = null; // artifact-contract.js:capabilitySetVersion() - boot()'ta hesaplanir
@@ -251,7 +254,7 @@ const ctx = {
       else if (payload && payload.screen) goSecondary(payload.screen, payload.filter);
       return { ok: true };
     }
-    if (type === "ui.back")      { goSecondary(null); return { ok: true }; }
+    if (type === "ui.back")      { goBack(); return { ok: true }; }
     if (type === "ui.appsheet")  { openAppSheet(payload); return { ok: true }; }
     if (type === "ui.control")   { openControlCenter(); return { ok: true }; }
     // silent: soruyu sohbete TEKRAR yazma - "TEKRAR DENE" butonu icin gerekli,
@@ -399,18 +402,45 @@ function loadRecent() {
   try { S.recent = JSON.parse(localStorage.getItem("aios.recent") || "[]"); } catch (err) { logClientError("loadRecent.read", err); S.recent = []; }
 }
 
-/* ════════ NAVIGASYON ════════ */
+/* ════════ NAVIGASYON ════════
+   Tab bir hedef secimidir, geri yiginina yeni adim eklemez. Secondary ekran
+   ve odakli artifact ise geri donulebilir ayni-belge history adimidir.
+   Dialog/sheet burada yer almaz: native dialog kendi cancel/close semantigini
+   korur, browser geri tusu ile sayfa navigation'i karismaz. */
+function navigationSnapshot() {
+  return { tab: currentTab, screen: secondary, arg: secondaryArg, artifactId: artifactOpenId, index: navigationIndex };
+}
+function applyNavigation(next, historyMode = null) {
+  const nav = normalizeNavigation(next);
+  if (fillTarget && fillTarget.id !== nav.artifactId) { wm.remove(fillTarget.id); fillTarget = null; }
+  if (artifactOpenId && artifactOpenId !== nav.artifactId) wm.unfocus();
+  currentTab = nav.tab; secondary = nav.screen; secondaryArg = nav.arg;
+  artifactOpenId = nav.artifactId; navigationIndex = nav.index;
+  if (historyMode === "push") history.pushState(toHistoryState(nav), "");
+  if (historyMode === "replace") history.replaceState(toHistoryState(nav), "");
+  document.querySelectorAll(".aios-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === currentTab));
+  syncComposer();
+  paint();
+}
 function goTab(tab) {
   // Bos pencere doldurulmadan sekme degistirilirse iptal say - kalici
   // hicbir sey yazilmadi (M-8: dogrulanmadan kalicilasmaz), WindowManager
   // kaydi da temizlenir ki orphan kalmasin.
-  if (fillTarget) { wm.remove(fillTarget.id); fillTarget = null; }
-  currentTab = tab; secondary = null; secondaryArg = null;
-  document.querySelectorAll(".aios-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
-  syncComposer();
-  paint();
+  applyNavigation({ tab, index: navigationIndex }, "replace");
 }
-function goSecondary(screen, arg = null) { secondary = screen; secondaryArg = arg; paint(); }
+function goSecondary(screen, arg = null) {
+  // Eski Control Center "device" hedefi ayrı bir ekran değil, aynı kalıcı
+  // referans artifact'tır. Böylece geri tuşu hayalet secondary ekrana değil,
+  // geldiği AIOS yüzeyine döner.
+  if (screen === "device") { openReferenceArtifact(DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, "Cihaz Durum Merkezi"); return; }
+  const next = { tab: currentTab, screen, arg, index: navigationIndex + 1 };
+  applyNavigation(next, isSameNavigation(navigationSnapshot(), next) ? "replace" : "push");
+}
+function goBack() {
+  if (navigationIndex > 0) { history.back(); return; }
+  if (artifactOpenId) wm.unfocus();
+  if (secondary || artifactOpenId || currentTab !== "home") applyNavigation({ tab: "home", index: 0 }, "replace");
+}
 
 function syncComposer() {
   const inp = $("#input");
@@ -434,24 +464,29 @@ function updateBadges() {
 /* ════════ CIZIM ════════ */
 async function paint() {
   const host = $("#screen");
-  if (secondary === "discover") return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications), secondaryArg)), ctx);
-  if (secondary === "androidApps") return mount(host, validateScreen(SC.androidAppsScreen()), ctx);
-  if (secondary === "tools") return mount(host, validateScreen(SC.toolsScreen()), ctx);
-  if (secondary === "device")   return ctx.dispatch({ type: "ui.referenceDeviceStatus" });
-  if (secondary === "agents")   return mount(host, validateScreen(SC.agentsScreen()), ctx);
-  if (secondary === "capabilities") return mount(host, validateScreen(await SC.capabilitiesScreen()), ctx);
-  if (secondary === "journal")     return mount(host, validateScreen(await SC.journalScreen(secondaryArg)), ctx);
-  if (secondary === "connections") return mount(host, validateScreen(await SC.connectionsScreen()), ctx);
-  if (secondary === "settings")    return mount(host, validateScreen(await SC.settingsScreen()), ctx);
+  if (artifactOpenId) return openArtifact(artifactOpenId, null);
+  if (secondary === "discover") return mountSecondary(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications), secondaryArg)));
+  if (secondary === "androidApps") return mountSecondary(host, validateScreen(SC.androidAppsScreen()));
+  if (secondary === "tools") return mountSecondary(host, validateScreen(SC.toolsScreen()));
+  if (secondary === "agents")   return mountSecondary(host, validateScreen(SC.agentsScreen()));
+  if (secondary === "capabilities") return mountSecondary(host, validateScreen(await SC.capabilitiesScreen()));
+  if (secondary === "journal")     return mountSecondary(host, validateScreen(await SC.journalScreen(secondaryArg)));
+  if (secondary === "connections") return mountSecondary(host, validateScreen(await SC.connectionsScreen()));
+  if (secondary === "settings")    return mountSecondary(host, validateScreen(await SC.settingsScreen()));
   if (secondary === "miniapps")    return paintApplications();
-  if (secondary === "automations") return mount(host, validateScreen(await SC.automationsScreen()), ctx);
-  if (secondary === "history")     return mount(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)), ctx);
+  if (secondary === "automations") return mountSecondary(host, validateScreen(await SC.automationsScreen()));
+  if (secondary === "history")     return mountSecondary(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)));
 
   if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "komut")     return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "activity")  return mount(host, validateScreen(SC.activityScreen()), ctx);
   if (currentTab === "artifacts") return paintArtifacts();
   if (currentTab === "hermes")    return paintHermes();
+}
+
+function mountSecondary(host, screen) {
+  mount(host, screen, ctx);
+  host.prepend(pageHead(screen.title, screen.subtitle, goBack));
 }
 
 /* ════════ ARTEFAKT GALERISI ════════ */
@@ -597,7 +632,7 @@ function artifactBlock(a) {
 function paintApplications() {
   const host = $("#screen");
   host.innerHTML = "";
-  host.appendChild(pageHead("Uygulamalar", applications.length + " GİRİŞ", () => goTab("home")));
+  host.appendChild(pageHead("Uygulamalar", applications.length + " GİRİŞ", goBack));
   const wrap = el("div", "c-section");
   const body = el("div", "body");
   const entries = orderedApplications(applications);
@@ -660,9 +695,14 @@ function paintApplications() {
   host.appendChild(wrap);
 }
 
-function openArtifact(id) {
+function openArtifact(id, historyMode = "push") {
   const a = findArtifact(id);
   if (!a) return;
+  if (historyMode) {
+    const next = { tab: currentTab, artifactId: id, index: navigationIndex + 1 };
+    applyNavigation(next, isSameNavigation(navigationSnapshot(), next) ? "replace" : historyMode);
+    return;
+  }
   wm.register({ id: a.id, title: a.title });
   wm.focus(id);
   const draw = (spec = a.spec) => {
@@ -670,7 +710,7 @@ function openArtifact(id) {
     host.innerHTML = "";
     const head = pageHead(a.title, when(a.createdAt), () => {
       wm.unfocus();
-      goTab("artifacts");
+      goBack();
     });
     host.appendChild(head);
     const wrap = el("div", "c-section");
@@ -1361,6 +1401,11 @@ export async function boot() {
 
   document.querySelectorAll(".aios-tab").forEach((b) =>
     b.addEventListener("click", () => goTab(b.dataset.tab)));
+  window.addEventListener("popstate", (event) => {
+    // Browser/Android geri hareketi yalnız bizim isimli state'imizi uygular;
+    // başka origin ya da bozuk state fail-closed olarak HOME'a iner.
+    applyNavigation(normalizeNavigation(event.state), null);
+  });
   $("#cc-open").addEventListener("click", (e) => { e.stopPropagation(); openControlCenter(); });
   $("#mic").addEventListener("click", (e) => { e.preventDefault(); toggleVoice(); });
   $("#send").addEventListener("click", (e) => { e.preventDefault(); submit(); });

@@ -63,7 +63,7 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); }
   letter-spacing: var(--ls-micro); text-transform: uppercase; color: var(--fg-mute);
 }
 .page-head .back {
-  width: 30px; height: 30px; margin-right: var(--sp-1); border-radius: var(--r-sm);
+  width: 42px; height: 42px; margin-right: var(--sp-1); border-radius: var(--r-sm);
   background: var(--s2); border: 1px solid var(--line); color: var(--fg);
   display: flex; align-items: center; justify-content: center; cursor: pointer; flex: 0 0 auto;
 }
