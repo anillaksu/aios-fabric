@@ -39,11 +39,19 @@ ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
 CANONICAL_BASE = 4824cf3
 B13_READ_COMMIT = 2388002
 B13_A2A_COMMIT = 10670f1
+B13_DOC_COMMIT = 5784344
+W6G_TEST_VERIFIED_COMMIT = 3b28451
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
 hizalaması aynı değişiklik kümesi değildir. Canlı kanıt ayrıntıları aşağıdaki
 B-13 kaydında, test karşılıkları ilgili commitlerde yer alır.
+
+`W6G_TEST_VERIFIED_COMMIT` yalnız implementation+test kanıtıdır; telefon UI
+kabulü yoktur ve **FACT değildir**. Bu handoff dosyasını içeren commit kendi
+hash'ini içeriğine doğru yazamaz; geçerli `CANONICAL_HEAD` her devralmada
+`git rev-parse HEAD` ile okunur ve bu dosyadaki önceki zincir ankrajlarıyla
+karşılaştırılır.
 
 ---
 
