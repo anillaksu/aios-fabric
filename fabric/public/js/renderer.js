@@ -43,7 +43,7 @@ export function validateSpec(spec, depth = 0) {
   const SCALARS = [
     "title", "subtitle", "name", "value", "unit", "meta", "label", "text", "body",
     "icon", "tone", "state", "status", "source", "role", "detail", "trailing",
-    "pkg", "actionLabel", "variant", "layout", "executor", "elapsed", "height",
+    "pkg", "actionLabel", "variant", "layout", "executor", "elapsed", "height", "valueKey",
   ];
   SCALARS.forEach((k) => {
     if (spec[k] != null && (typeof spec[k] === "string" || typeof spec[k] === "number")) clean[k] = spec[k];
@@ -51,7 +51,7 @@ export function validateSpec(spec, depth = 0) {
   ["on", "online", "toggles", "pulse", "mono", "undo"].forEach((k) => {
     if (typeof spec[k] === "boolean") clean[k] = spec[k];
   });
-  ["progress", "rows"].forEach((k) => {
+  ["progress", "rows", "min", "max", "step", "maxHeight", "gap"].forEach((k) => {
     if (typeof spec[k] === "number") clean[k] = spec[k];
   });
 
@@ -62,7 +62,26 @@ export function validateSpec(spec, depth = 0) {
     if (a.payload && typeof a.payload === "object" && !Array.isArray(a.payload)) out.payload = a.payload;
     return out;
   };
+  if (spec.type === "stack") {
+    if (spec.direction != null && spec.direction !== "row" && spec.direction !== "column") return null;
+    if (spec.gap != null && (!Number.isFinite(spec.gap) || spec.gap < 0 || spec.gap > 8)) return null;
+    if (spec.align != null && !["start", "center", "end", "stretch"].includes(spec.align)) return null;
+    clean.direction = spec.direction === "row" ? "row" : "column";
+    clean.gap = spec.gap == null ? 2 : spec.gap;
+    clean.align = spec.align || "stretch";
+  }
+  if (spec.type === "scroll-region") {
+    if (!Number.isFinite(spec.maxHeight) || spec.maxHeight < 80 || spec.maxHeight > 960) return null;
+    clean.maxHeight = spec.maxHeight;
+  }
+  if (spec.type === "range") {
+    if (![spec.min, spec.max, spec.value, spec.step].every(Number.isFinite) || spec.min > spec.max || spec.value < spec.min || spec.value > spec.max || spec.step <= 0 || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(spec.valueKey || "")) return null;
+    const a = cleanAction(spec.action);
+    if (!a || String(a.type).startsWith("ui.")) return null;
+    clean.min = spec.min; clean.max = spec.max; clean.value = spec.value; clean.step = spec.step; clean.valueKey = spec.valueKey; clean.action = a;
+  }
   ["action", "tap", "longPress", "details"].forEach((k) => {
+    if (spec.type === "range" && k === "action") return;
     const a = cleanAction(spec[k]);
     if (a) clean[k] = a;
   });

@@ -17,7 +17,9 @@ import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
-import { capabilitySetVersion } from "./artifact-contract.js";
+import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
+import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS } from "./reference-artifacts.js";
+import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, updateApplicationEntry } from "./application-model.js";
 import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
@@ -257,6 +259,22 @@ const ctx = {
     if (type === "ui.ask")       { ask(payload && payload.q, { silent: !!(payload && payload.silent) }); return { ok: true }; }
     if (type === "ui.artifact")  { openArtifact(payload && payload.id); return { ok: true }; }
     if (type === "ui.application") { openArtifact(payload && payload.artifactId); return { ok: true }; }
+    if (type === "ui.referenceSoundPanel") {
+      const existing = findArtifact(SCROLLABLE_SOUND_PANEL.id);
+      if (existing) { openArtifact(existing.id); return { ok: true }; }
+      if (!meetsUiRequirements(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS)) {
+        return { ok: false, error: "referans ses paneli contract gereksinimlerini karşılamıyor" };
+      }
+      const contract = admitArtifact(SCROLLABLE_SOUND_PANEL, {
+        knownCapabilities: capabilityNames,
+        versionStamp: await capabilitySetVersion(capabilityNames),
+        provenance: "reference",
+      });
+      if (!contract.ok) return { ok: false, error: contract.reason };
+      const artifact = addArtifact(SCROLLABLE_SOUND_PANEL, "Kaydırılabilir Ses Paneli", contract.contract, SCROLLABLE_SOUND_PANEL.id);
+      openArtifact(artifact.id);
+      return { ok: true };
+    }
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
     if (type === "cap.test")     { return testCapability(payload && payload.name); }
     // MINI-APP URETIMI: normal bir istekten tek farki, sonucun otomatik

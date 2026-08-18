@@ -27,7 +27,7 @@ export const ALLOWED_TYPES = new Set([
   "section", "tile", "info-card", "action-card", "task-card", "agent-card",
   "app-tile", "list", "list-row", "status-chip", "metric", "progress",
   "action-receipt", "button", "button-row", "skeleton", "empty-state",
-  "error-state", "text",
+  "error-state", "text", "stack", "scroll-region", "range",
 ]);
 
 // UI'nin kendi ic gezinme eylemleri (capability degil, capabilityMap'te yok)
@@ -37,6 +37,7 @@ export const UI_META_ACTIONS = new Set([
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
   "ui.compose", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
   "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
+  "ui.referenceSoundPanel",
 ]);
 
 function actionAllowed(type: string): boolean {
@@ -59,6 +60,14 @@ const SCALAR_KEYS = [
 const BOOL_KEYS = ["on", "online", "toggles", "pulse", "mono", "undo"];
 const NUM_KEYS = ["progress", "rows"];
 
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function validValueKey(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value);
+}
+
 function cleanAction(a: unknown): { type: string; payload?: Record<string, unknown> } | undefined {
   if (!a || typeof a !== "object" || typeof (a as RawNode).type !== "string") return undefined;
   const type = (a as RawNode).type as string;
@@ -77,6 +86,27 @@ export function validateSpecNode(spec: unknown, depth = 0): CleanNode | null {
   const raw = spec as RawNode;
   if (typeof raw.type !== "string" || !ALLOWED_TYPES.has(raw.type)) return null;
 
+  // ScreenSpec 2.0'in ilk davranissal dilimi: serbest CSS/JS degil, native
+  // HTML control'lerinin sinirli declarative karsiligi. Gecersiz control
+  // kismen "iyilestirilmez"; node fail-closed elenir.
+  if (raw.type === "stack") {
+    if (raw.direction != null && raw.direction !== "row" && raw.direction !== "column") return null;
+    if (raw.gap != null && (!finiteNumber(raw.gap) || raw.gap < 0 || raw.gap > 8)) return null;
+    if (raw.align != null && !["start", "center", "end", "stretch"].includes(String(raw.align))) return null;
+  }
+  if (raw.type === "scroll-region") {
+    if (!finiteNumber(raw.maxHeight) || raw.maxHeight < 80 || raw.maxHeight > 960) return null;
+  }
+  if (raw.type === "range") {
+    if (!finiteNumber(raw.min) || !finiteNumber(raw.max) || !finiteNumber(raw.value) || !finiteNumber(raw.step)) return null;
+    if (raw.min > raw.max || raw.value < raw.min || raw.value > raw.max || raw.step <= 0) return null;
+    if (!validValueKey(raw.valueKey)) return null;
+    const action = cleanAction(raw.action);
+    // Range'in degisen degeri UI meta-action'a degil, mevcut capability
+    // action'inin payload'ina gider. Policy yine dispatcher'dadir.
+    if (!action || !capabilityMap.has(action.type)) return null;
+  }
+
   const clean: CleanNode = { type: raw.type };
   for (const k of SCALAR_KEYS) {
     const v = raw[k];
@@ -84,6 +114,17 @@ export function validateSpecNode(spec: unknown, depth = 0): CleanNode | null {
   }
   for (const k of BOOL_KEYS) if (typeof raw[k] === "boolean") clean[k] = raw[k];
   for (const k of NUM_KEYS) if (typeof raw[k] === "number") clean[k] = raw[k];
+
+  if (raw.type === "stack") {
+    clean.direction = raw.direction === "row" ? "row" : "column";
+    clean.gap = raw.gap ?? 2;
+    clean.align = raw.align ?? "stretch";
+  }
+  if (raw.type === "scroll-region") clean.maxHeight = raw.maxHeight;
+  if (raw.type === "range") {
+    clean.min = raw.min; clean.max = raw.max; clean.value = raw.value; clean.step = raw.step;
+    clean.valueKey = raw.valueKey;
+  }
 
   for (const k of ["action", "tap", "longPress", "details"]) {
     const a = cleanAction(raw[k]);

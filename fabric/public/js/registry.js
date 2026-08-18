@@ -77,6 +77,76 @@ function Section(spec, ctx) {
   return n;
 }
 
+/** Stack — sinirli flex layout; serbest stil/olcu dili DEGILDIR. */
+function Stack(spec, ctx) {
+  const n = el("div", "c-stack");
+  n.dataset.direction = spec.direction || "column";
+  n.dataset.align = spec.align || "stretch";
+  n.dataset.gap = String(spec.gap == null ? 2 : spec.gap);
+  (spec.children || []).forEach((c) => {
+    const child = render(c, ctx);
+    if (child) n.appendChild(child);
+  });
+  return n;
+}
+
+/** ScrollRegion — native CSS overflow; screen'in genel scroll'unu degistirmez. */
+function ScrollRegion(spec, ctx) {
+  const n = el("div", "c-scroll-region");
+  n.style.maxHeight = `${spec.maxHeight}px`;
+  n.setAttribute("role", "region");
+  if (spec.title) n.setAttribute("aria-label", spec.title);
+  (spec.children || []).forEach((c) => {
+    const child = render(c, ctx);
+    if (child) n.appendChild(child);
+  });
+  return n;
+}
+
+/** Range — native draggable control; input yalniz local state'i gunceller,
+ * change ise tek dispatcher action'i uretir. */
+function Range(spec, ctx) {
+  const n = el("div", "c-range");
+  const id = `range-${crypto.randomUUID()}`;
+  const head = el("div", "head");
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = spec.label || spec.title || "Değer";
+  const output = document.createElement("output");
+  output.htmlFor = id;
+  output.textContent = String(spec.value);
+  head.append(label, output);
+  const input = document.createElement("input");
+  input.id = id;
+  input.type = "range";
+  input.min = String(spec.min);
+  input.max = String(spec.max);
+  input.step = String(spec.step);
+  input.value = String(spec.value);
+  input.addEventListener("input", () => {
+    output.textContent = input.value;
+    n.dataset.value = input.value;
+  });
+  input.addEventListener("change", async () => {
+    const payload = { ...(spec.action.payload || {}), [spec.valueKey]: input.valueAsNumber };
+    input.disabled = true;
+    applyState(n, "loading");
+    try {
+      const res = await ctx.dispatch({ ...spec.action, payload });
+      applyState(n, res && res.ok === false ? "error" : "success");
+    } catch (err) {
+      console.error("[fabric:range:dispatch]", err);
+      applyState(n, "error");
+    } finally {
+      input.disabled = false;
+      setTimeout(() => applyState(n, "idle"), 1400);
+    }
+  });
+  n.append(head, input);
+  n.dataset.value = input.value;
+  return n;
+}
+
 /** Tile — state + ana action (Home Assistant Tile Card modeli) */
 function Tile(spec, ctx) {
   const n = el("div", "c-card c-tile");
@@ -449,6 +519,9 @@ export const REGISTRY = {
   "empty-state": EmptyState,
   "error-state": ErrorState,
   text: Text,
+  stack: Stack,
+  "scroll-region": ScrollRegion,
+  range: Range,
 };
 
 /** Tek bir spec dugumunu DOM'a cevirir. Bilinmeyen tip -> ErrorState (sessiz kaybolmaz). */

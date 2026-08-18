@@ -92,6 +92,30 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); }
 .c-section > .body.grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
 .c-section > .body.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); }
 
+/* ── SCREEN SPEC 2.0: sinirli native layout/control ───────── */
+.c-stack { display: flex; min-width: 0; }
+.c-stack[data-direction="column"] { flex-direction: column; }
+.c-stack[data-direction="row"] { flex-direction: row; flex-wrap: wrap; }
+.c-stack[data-align="start"] { align-items: flex-start; }
+.c-stack[data-align="center"] { align-items: center; }
+.c-stack[data-align="end"] { align-items: flex-end; }
+.c-stack[data-align="stretch"] { align-items: stretch; }
+.c-stack[data-gap="0"] { gap: 0; }
+.c-stack[data-gap="1"] { gap: var(--sp-1); }
+.c-stack[data-gap="2"] { gap: var(--sp-2); }
+.c-stack[data-gap="3"] { gap: var(--sp-3); }
+.c-stack[data-gap="4"] { gap: var(--sp-4); }
+.c-stack[data-gap="5"] { gap: var(--sp-5); }
+.c-stack[data-gap="6"], .c-stack[data-gap="7"], .c-stack[data-gap="8"] { gap: var(--sp-6); }
+.c-scroll-region { overflow: auto; overscroll-behavior: contain; padding-right: var(--sp-1); }
+.c-range { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-3); }
+.c-range .head { display: flex; justify-content: space-between; gap: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--ls-micro); text-transform: uppercase; color: var(--fg-dim); }
+.c-range output { color: var(--primary); font-size: var(--fs-sm); }
+.c-range input[type="range"] { display: block; width: 100%; min-height: 44px; margin: var(--sp-1) 0 0; accent-color: var(--primary); touch-action: pan-x; }
+.c-range[data-state="loading"] { border-color: var(--warn); }
+.c-range[data-state="success"] { border-color: var(--primary); }
+.c-range[data-state="error"] { border-color: var(--error); }
+
 /* ── CARD tabani (Tile/Info/Action/Task/Agent ortak) ───────── */
 .c-card {
   background: var(--s1); border: 1px solid var(--line);

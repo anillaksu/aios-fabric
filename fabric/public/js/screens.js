@@ -812,6 +812,9 @@ export function miniAppsScreen(artifacts = []) {
         { type: "list-row", icon: "music_note", title: "Müzik kumandası",
           subtitle: "Çal, duraklat, sonraki",
           action: { type: "ui.miniapp", payload: { what: "Bana bir müzik kumandası mini uygulaması yap: çal/duraklat, sonraki, önceki ve ses ayarı butonları olsun" } } },
+        { type: "list-row", icon: "slider_horizontal_3", title: "Kaydırılabilir Ses Paneli",
+          subtitle: "Referans · native range + dispatcher",
+          action: { type: "ui.referenceSoundPanel" } },
       ] },
       { type: "button-row", children: [{
         type: "button", label: "KENDİM TARİF EDEYİM", variant: "primary",

@@ -183,6 +183,12 @@ sadece asagidaki bilesenleri kullan. Bilinmeyen alan/bilesen sessizce atilir.
 - {"type":"progress","value":40}
 - {"type":"text","text":"aciklama"}
 - {"type":"empty-state","title":"...","detail":"..."}
+- {"type":"stack","direction":"row|column","gap":0|1|2|3|4|5|6|7|8,"align":"start|center|end|stretch","children":[...]}
+- {"type":"scroll-region","title":"...","maxHeight":80..960,"children":[...]}
+- {"type":"range","label":"SES","min":0,"max":15,"value":7,"step":1,
+   "valueKey":"value","action":{"type":"volume.set","payload":{"stream":"music"}}}
+  Range yerelde parmakla aninda guncellenir; cihaz action'i YALNIZCA parmak birakilinca
+  (change) bir kez gider. valueKey sadece action payload'indaki degisen sayi alanidir.
 
 ### Eylemler (butonlarin yaptigi is)
 "action" alani SADECE yukaridaki capability listesindeki bir tip olabilir:
