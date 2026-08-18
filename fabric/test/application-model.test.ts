@@ -7,6 +7,8 @@ import {
   createApplicationEntry,
   nextApplicationPosition,
   orderedApplications,
+  recentApplications,
+  recordApplicationOpen,
   updateApplicationEntry,
 } from "../public/js/application-model.js";
 
@@ -45,4 +47,16 @@ test("launcher adi ve ikonu artifact'i degistirmeden entry uzerinde duzenlenir",
   assert.equal(result.changed, true);
   assert.deepEqual(result.entries[0], { id: "app1", artifactId: "a1", title: "Ev pili", icon: "battery_75", position: 0 });
   assert.equal(entries[0].title, "Pil", "orijinal kayit mutasyona ugramaz");
+});
+
+test("son kullanilanlar yalniz launcher entry uzerinde deterministik tutulur", () => {
+  const entries = [
+    { id: "app1", artifactId: "a1", title: "Pil", position: 0 },
+    { id: "app2", artifactId: "a2", title: "Ses", position: 1, lastOpenedAt: 40 },
+  ];
+  const result = recordApplicationOpen(entries, "app1", 60);
+  assert.equal(result.changed, true);
+  assert.equal(entries[0].lastOpenedAt, undefined, "orijinal entry mutasyona ugramaz");
+  assert.deepEqual(recentApplications(result.entries).map((entry) => entry.id), ["app1", "app2"]);
+  assert.equal("lastOpenedAt" in { id: "a1", spec: {} }, false, "artifact metadata'si degismez");
 });

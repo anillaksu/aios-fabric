@@ -9,6 +9,7 @@
 
 import { read, getJSON } from "./api.js";
 import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWorkspaceEntries } from "./workspace-catalog.js";
+import { recentApplications } from "./application-model.js";
 
 /* ── paylasilan durum (shell tarafindan tazelenir) ── */
 export const S = {
@@ -62,6 +63,17 @@ export function homeScreen(artifacts = [], applications = []) {
     })),
   });
 
+  const recentWorkspaceApps = recentApplications(applications, 4);
+  if (recentWorkspaceApps.length) {
+    sections.push({
+      type: "section", title: "SON KULLANILAN UYGULAMALAR", layout: "grid-4",
+      children: recentWorkspaceApps.map((app) => ({
+        type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } },
+      })),
+    });
+  }
+
   // NOW - calisan isler (yoksa bos birakma, oneriye cevir)
   const running = S.tasks.filter((t) => ["running", "optimistic", "pending"].includes(t.status));
   if (running.length) {
@@ -96,7 +108,7 @@ export function homeScreen(artifacts = [], applications = []) {
       type: "section", title: "UYGULAMALAR", trailing: String(applications.length), layout: "grid-4",
       children: applications.map((app) => ({
         type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
-        action: { type: "ui.application", payload: { artifactId: app.artifactId } },
+        action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } },
       })),
     });
   }
@@ -179,7 +191,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
     if (category === "AIOS" && applications.length) {
       sections.push({ type: "section", title: "UYGULAMALARIM · " + applications.length, layout: "grid-4",
         children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
-          action: { type: "ui.application", payload: { artifactId: app.artifactId } } })) });
+          action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })) });
     }
     return { id: "discover:" + category, title: category, sections };
   }
@@ -196,7 +208,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
       sections.push({
         type: "section", title: "UYGULAMALARIM", layout: "grid-4",
         children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
-          action: { type: "ui.application", payload: { artifactId: app.artifactId } } })),
+          action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })),
       });
     }
     sections.push({ type: "section", title: "TELEFON UYGULAMALARI · " + S.apps.length,
@@ -215,7 +227,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
   if (catalog.length) sections.push({ type: "section", title: "AIOS İŞLEVLERİ", children: catalog.map(card) });
   if (matchingApplications.length) sections.push({ type: "section", title: "UYGULAMALARIM", layout: "grid-4",
     children: matchingApplications.map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
-      action: { type: "ui.application", payload: { artifactId: app.artifactId } } })) });
+      action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })) });
   if (matchingArtifacts.length) sections.push({ type: "section", title: "ARTEFAKTLAR", children: [{ type: "list", children: matchingArtifacts.slice(0, 8).map((artifact) => ({
     type: "list-row", icon: "square_stack_3d_up", title: artifact.title || "Artefakt", subtitle: artifact.prompt ? artifact.prompt.slice(0, 72) : "",
     action: { type: "ui.artifact", payload: { id: artifact.id } },

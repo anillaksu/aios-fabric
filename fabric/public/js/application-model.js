@@ -37,6 +37,25 @@ export function orderedApplications(entries) {
   ));
 }
 
+/** Launcher entry'nin kendi kullanim izi; artifact'e veya execution'a yazilmaz. */
+export function recordApplicationOpen(entries, id, now = Date.now()) {
+  if (!Number.isFinite(now)) throw new TypeError("acilis zamani gecersiz");
+  let changed = false;
+  const next = entries.map((entry) => {
+    if (entry?.id !== id) return entry;
+    changed = true;
+    return { ...entry, lastOpenedAt: now };
+  });
+  return { changed, entries: next };
+}
+
+export function recentApplications(entries, limit = 4) {
+  return entries
+    .filter((entry) => Number.isFinite(entry?.lastOpenedAt) && entry.lastOpenedAt > 0)
+    .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
+    .slice(0, Math.max(0, limit));
+}
+
 export function updateApplicationEntry(entries, id, { title, icon }) {
   let changed = false;
   const next = entries.map((entry) => {

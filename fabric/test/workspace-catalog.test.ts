@@ -30,3 +30,11 @@ test("HOME ve KESFET ayni kategori metadata'sini kullanir; nesneler birbirine do
   assert.equal(device.sections[0].children[0].action.type, "ui.referenceDeviceStatus");
   assert.equal(entriesForCategory("Uygulamalar")[0].action.payload.screen, "androidApps");
 });
+
+test("HOME son kullanilan ApplicationEntry'yi artifact'ten ayri launcher kimligiyle gosterir", () => {
+  const apps = [{ id: "app1", artifactId: "artifact1", title: "Cihaz Durum Merkezi", icon: "gauge", position: 0, lastOpenedAt: 100 }];
+  const home = homeScreen([], apps);
+  const recent = home.sections.find((section) => section.title === "SON KULLANILAN UYGULAMALAR");
+  assert.equal(recent.children[0].action.type, "ui.application");
+  assert.deepEqual(recent.children[0].action.payload, { applicationId: "app1", artifactId: "artifact1" });
+});

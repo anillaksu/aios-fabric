@@ -21,7 +21,7 @@ import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
 import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume, DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_ID, DEVICE_STATUS_PANEL_REQUIREMENTS, deviceStatusWithLiveData } from "./reference-artifacts.js";
 import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
-import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, updateApplicationEntry } from "./application-model.js";
+import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, recordApplicationOpen, updateApplicationEntry } from "./application-model.js";
 import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
@@ -202,6 +202,13 @@ function editApplication(entry) {
   saveApplications();
   return true;
 }
+function openApplication(applicationId, artifactId) {
+  if (applicationId) {
+    const result = recordApplicationOpen(applications, applicationId);
+    if (result.changed) { applications = result.entries; saveApplications(); }
+  }
+  openArtifact(artifactId);
+}
 function addArtifact(spec, prompt, contract, id) {
   const item = {
     id: id || ("a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
@@ -262,7 +269,7 @@ const ctx = {
     // yoksa ayni kullanici mesaji iki kez gorunuyor.
     if (type === "ui.ask")       { ask(payload && payload.q, { silent: !!(payload && payload.silent) }); return { ok: true }; }
     if (type === "ui.artifact")  { openArtifact(payload && payload.id); return { ok: true }; }
-    if (type === "ui.application") { openArtifact(payload && payload.artifactId); return { ok: true }; }
+    if (type === "ui.application") { openApplication(payload && payload.applicationId, payload && payload.artifactId); return { ok: true }; }
     if (type === "ui.referenceSoundPanel") return openReferenceArtifact(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, "Kaydırılabilir Ses Paneli");
     if (type === "ui.referenceDeviceStatus") return openReferenceArtifact(DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, "Cihaz Durum Merkezi");
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
@@ -678,7 +685,7 @@ function paintApplications() {
       const artifact = findArtifact(entry.artifactId);
       grow.appendChild(el("div", "c-sub", artifact ? "Artefaktı aç" : "Bağlı artefakt bulunamadı"));
       row.appendChild(grow);
-      row.addEventListener("click", () => { if (artifact) openArtifact(entry.artifactId); else toast("Bağlı artefakt bulunamadı", true); });
+      row.addEventListener("click", () => { if (artifact) openApplication(entry.id, entry.artifactId); else toast("Bağlı artefakt bulunamadı", true); });
       const remove = el("button", "c-btn", "KALDIR");
       remove.dataset.variant = "ghost";
       remove.addEventListener("click", (event) => { event.stopPropagation(); removeApplication(entry.id); paintApplications(); toast("Ana ekran girişi kaldırıldı"); });
