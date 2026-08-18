@@ -22,6 +22,7 @@ import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from
 import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
+import { hasMeaningfulData } from "./dispatch-utils.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -267,6 +268,25 @@ const ctx = {
       chat.push({ role: "agent", text: out.slice(0, 1500), mono: true });
       if (currentTab === "hermes") paint();
       else toast(res.ok ? "Betik çalıştı — HERMES'te" : "Betik hatası", !res.ok);
+    } else if (res.ok && hasMeaningfulData(res.data)) {
+      // B-12 (2026-08-18'de bulundu): veri donduren REFLEX capability'ler
+      // (konum, uygulama listesi, wifi bilgisi, ses seviyesi vb.) script.run
+      // DISINDA hicbir yerde gorunmuyordu - dispatch basariyla tamamlaniyor
+      // ama sonuc hicbir zaman ekrana cikmiyordu (owner canli testte
+      // yakaladi: "Konum Bilgisi bir sey vermedi", "Uygulama Listesi ise
+      // yaramadi" - ikisi de sunucuda GERCEKTEN basarili olmustu, journal
+      // kanitladi). script.run'in KENDI deseni (action-receipt + mono metin,
+      // HERMES'e dusme) burada AYNEN genellendi - yeni bir gosterim bicimi
+      // icat edilmedi (K10).
+      const out = typeof res.data === "string" ? res.data : JSON.stringify(res.data, null, 1);
+      chat.push({ role: "agent", spec: {
+        type: "action-receipt", state: "success",
+        steps: [{ name: type, ms }],
+        executor: "device/local",
+      } });
+      chat.push({ role: "agent", text: out.slice(0, 1500), mono: true });
+      if (currentTab === "hermes") paint();
+      else toast("Sonuç — HERMES'te", false);
     }
 
     lastReceipt = {
