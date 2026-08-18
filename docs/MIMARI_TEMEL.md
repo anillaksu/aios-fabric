@@ -511,3 +511,27 @@ da yazılır.
 7. **Korpus kendi tetikleyicisini ateşleyebilirdi** (§11) — hariç tutma kuralı eklendi.
 8. **Taksonomiler paralel sözlük riski taşıyor** (§7) — kodda karşılığı olan
    kavram yeniden adlandırılmaz.
+
+---
+
+## 16. Phone Workspace — görünür, deterministik çalışma yüzeyi
+
+**FACT (2026-08-18; kod `6b97613`, canlı kanıt ve test `CHECKLIST.md`).**
+AIOS'un günlük kullanım yüzeyi, Hermes sohbetinin yerine geçen tek bir model
+arayüzü değildir. HOME ve KEŞFET, istemci-yerel deterministik katalogdan
+çalışır; kategori, kısa Türkçe arama ve açma akışında token/LLM gerekmez.
+Katalog yalnız keşif metadata'sıdır; yeni RPC, authorization modeli veya
+capability biçimi değildir.
+
+`Artifact` yeniden kullanılabilir deklaratif iş birimidir; `ApplicationEntry`
+kalıcı launcher kimliğidir; sistem ekranı ve Android uygulaması başka
+nesnelerdir. Bunlar katalogda aynı görünür keşif yüzeyinde bulunabilir, fakat
+birbirine dönüştürülmez.
+
+`reference-device-status-v1`, bu yüzeyin ilk gerçek cihaz referansıdır.
+Açılıştaki okuma eylemleri UI meta action → envelope →
+`dispatcher.dispatch()` üzerinden `sensor.battery.read`, `wifi.info` ve
+`app.list`e gider. ScreenSpec yalnız doğrulanmış cevap alanlarını gösterir;
+gerçek kaynak olmayan model/servis-health/medya metadata'sı uydurulmaz.
+`/read` bu akışın yerine geçmez: yalnız açık `risk:"safe" + readOnly:true`
+read facade'ıdır; `app.list` bu dar sete `d5644f6` ile eklendi.

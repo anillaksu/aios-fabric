@@ -45,6 +45,8 @@ W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT = 5905039
 W6_UI_EXPRESSIVENESS_FACT_CHAIN = 5873af2 -> 82a5f6b -> 5905039
 W6_MEDIA_VOLUME_STATE_FACT_CODE_COMMIT = 82d694b
 W6_MEDIA_CONTROL_FACT_CODE_COMMIT = eaf2a64
+B13_READ_APP_LIST_COMMIT = d5644f6
+W6_PHONE_WORKSPACE_FACT_CODE_COMMIT = 6b97613
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -200,6 +202,32 @@ W6.G'nin durumunu değiştirmez.
 isteğini verir. Medya için çalan uygulama, parça, sanatçı ve playback state
 bugün capability kaynağı olmadan TARGET'tır; veri uydurulmaz. W6.N/O/P/V/Z
 otomatik başlatılmaz.
+
+### Phone Workspace kanıt ankrajı (2026-08-18)
+
+**FACT:** `6b97613` HOME'u çalışma alanı, eski KOMUT sekmesini KEŞFET yüzeyi
+olarak bağlar; ikisi aynı deterministik istemci kataloğunu kullanır. Katalog
+kategorileri Cihaz, Medya, Ağ, Uygulamalar, Sistem, AIOS ve Araçlar'dır.
+Kısa Türkçe arama başlık/tag üzerinden çalışır; LLM, yeni protokol ya da yeni
+yetkilendirme katmanı yoktur. `d5644f6`, canlıda 63 uygulama döndüren
+`app.list`i mevcut `/read` izinli setine `risk:"safe" + readOnly:true`
+olarak ekledi.
+
+Kalıcı `reference-device-status-v1`, gerçek batarya/Wi-Fi/uygulama-listesi
+verisini `/read` yerine mevcut UI → envelope → dispatcher yolundan okur.
+Canlı journal task'ları: battery `8e091ec8-61f8-4967-adb1-ae4811a9c82c`,
+Wi-Fi `0c298b19-bd00-4b7d-a828-8587eab6b5ea`, `app.list`
+`cfc95b7-f23ab-4845-bcf4-d0727af3734c` (63/52). Owner telefonda HOME,
+KEŞFET, kısa arama, gerçek Cihaz Durum Merkezi verisi ve yeniden açılışı
+doğruladı. Yerel `npm test` 81/81, syntax ve diff-check geçti. Referans
+kaydında contract nesnesi değil ayrı `capabilities`/`version`/`provenance`
+alanları saklanır; canlı kayıtta `provenance:"reference"` vardır.
+
+**CURRENT DECISION POINT (güncel):** Phone Workspace'in sonraki bağımsız
+görünür dilimi premium navigation/back/history'dir: önce mevcut tab,
+secondary screen, artifact ve sheet akışlarının ortak geri/historik davranışı
+koddan denetlenip minimum yeterli ürün yüzeyi uygulanır. W6.N/O/P/V/Z, Layer
+B, pub/sub, generic state store, yeni router/protokol otomatik açılmaz.
 
 ---
 
