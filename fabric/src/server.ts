@@ -74,7 +74,7 @@ const APPLICATIONS_PATH = `${HOME}/fabric-applications.json`;
 // cihazda - PC'de - calistirirken).
 const SELF_URL = process.env.FABRIC_SELF_URL ?? `http://100.75.177.88:${PORT}`;
 
-// ??? A2A GELEN ISTEK KIMLIK DOGRULAMASI (2026-08-17, W1.5) ???
+// ─── A2A GELEN ISTEK KIMLIK DOGRULAMASI (2026-08-17, W1.5) ───
 // Tailscale agi kimlik dogrulamasi DEGIL - "tailnet'te olan herkes" ile
 // "guvendigimiz belirli bir peer" arasindaki tek fark bu token. Env
 // verilmemisse HER baslangicta yeni bir token URETILIR ve diske yazilir
@@ -120,7 +120,7 @@ const dispatcher = new Dispatcher(journal, bootState, sse);
 // kural basina cooldown + zincir derinligi kesici).
 sse.onEvent(
   makeAutomationListener(
-    // origin GECIRILIYOR: otomasyonun tetikledigi is AKT?F sekmesinde
+    // origin GECIRILIYOR: otomasyonun tetikledigi is AKTİF sekmesinde
     // "otomasyon kurali tetikledi" diye gorunsun. Denetimde bu eksikti,
     // kural tetikli isler kaynaksiz ("sistem ici") cikiyordu.
     //
@@ -142,10 +142,10 @@ sse.onEvent(
     },
   ),
 );
-// ??? ASENKRON TAMAMLANMA BILDIRIMI (2026-08-17, W3.2) ???
+// ─── ASENKRON TAMAMLANMA BILDIRIMI (2026-08-17, W3.2) ───
 // `wait:false` ile gonderilen bir is arka planda biter ama kimse onu
 // BEKLEMIYORDU - kullanici telefonu kilitleyip actiginda "ne oldu?" sorusuna
-// cevap yoktu, AKT?F sekmesini kendisi acip bakmasi gerekiyordu. Bu Set,
+// cevap yoktu, AKTİF sekmesini kendisi acip bakmasi gerekiyordu. Bu Set,
 // "biten is icin bildirim bekleniyor" taskId'lerini tutar; task.completed/
 // task.failed geldiginde bir notification.send tetiklenir ve is Set'ten cikar.
 const notifyOnComplete = new Set<string>();
@@ -157,7 +157,7 @@ sse.onEvent((event) => {
   const t = dispatcher.getState().tasks[taskId];
   if (!t) return;
   const label = t.goal || t.type;
-  const title = t.status === "completed" ? "?? tamamland?" : "?? ba?ar?s?z";
+  const title = t.status === "completed" ? "İş tamamlandı" : "İş başarısız";
   const content = t.status === "failed" && t.error
     ? `${label}: ${String(t.error).slice(0, 160)}`
     : label;
@@ -209,7 +209,7 @@ function redactFieldsForJournal(
     const v = out[f];
     out[f] = typeof v === "string" ? v.length + " karakter"
            : Array.isArray(v) ? v.length + " kayit"
-           : v == null ? v : "";
+           : v == null ? v : "…";
   }
   return out;
 }
@@ -384,7 +384,7 @@ const server = createServer(async (req, res) => {
 
     // ---------- Application launcher senkronu (W6.G) ----------
     // ApplicationEntry artifact'in kopyasi DEGIL: yalnizca kalici launcher
-    // identity'si. Ayr� dosya, mevcut /artifacts dizi s�zle�mesini bozmaz.
+    // identity'si. Ayrı dosya, mevcut /artifacts dizi sözleşmesini bozmaz.
     if (url.pathname === "/applications" && req.method === "GET") {
       try {
         json(res, 200, JSON.parse(readFileSync(APPLICATIONS_PATH, "utf8")));
@@ -406,6 +406,7 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+
     // ---------- Ikon ayari: ag uzerinden ikon cekme ac/kapa ----------
     // Kullanici bilgilendirilmis onayla actigi icin var; istedigi an kapatabilir.
     if (url.pathname === "/appicon-settings" && req.method === "GET") {
@@ -560,7 +561,7 @@ const server = createServer(async (req, res) => {
       // eylemlerin ciktisini ANINDA gostermek zorunda (script.run ciktisi,
       // pil yuzdesi...). Bu olmadan UI'nin /read'i dogrudan cagirmasi
       // gerekirdi ve o yol dispatcher'i ATLADIGI icin gorev hic olusmuyor,
-      // is AKT?F sekmesinde ve DevTools'ta gorunmuyordu.
+      // is AKTİF sekmesinde ve DevTools'ta gorunmuyordu.
       if (body.wait !== false) {
         const deadline = Date.now() + Math.min(Number(body.timeoutMs ?? 30000), 120000);
         while (Date.now() < deadline) {
@@ -812,7 +813,7 @@ const server = createServer(async (req, res) => {
       // GOZLEM BOSLUGU DUZELTMESI (2026-08-16): okumalar bilerek journal'a
       // yazilmiyor (durum degistirmiyorlar), ama BASARISIZ okumalar durum
       // degeri tasir - kullanicinin gordugu hatalar hicbir yere kaydedilmiyordu.
-      // Artik hatalar journal'a duser ve AKT?F sekmesinde gorunur.
+      // Artik hatalar journal'a duser ve AKTİF sekmesinde gorunur.
       if (!result.ok) {
         try {
           const ev = journal.append({
@@ -915,7 +916,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // ---------- A2A: baska bir peer'a delege et (bu Fabric'in DI? cikisi) ----------
+    // ---------- A2A: baska bir peer'a delege et (bu Fabric'in DIŞ cikisi) ----------
     if (url.pathname === "/a2a/delegate" && req.method === "POST") {
       // Eski debug ucu dogrudan delegateToPeer cagiriyordu. B-13 sonrasi
       // ayni insan onayi kuralini tum execution girisleriyle paylasir:
