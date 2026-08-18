@@ -44,6 +44,7 @@ W6G_TEST_VERIFIED_COMMIT = 3b28451
 W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT = 5905039
 W6_UI_EXPRESSIVENESS_FACT_CHAIN = 5873af2 -> 82a5f6b -> 5905039
 W6_MEDIA_VOLUME_STATE_FACT_CODE_COMMIT = 82d694b
+W6_MEDIA_CONTROL_FACT_CODE_COMMIT = eaf2a64
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -149,8 +150,14 @@ W6.G'nin durumunu değiştirmez.
   state kalıcılığı değişmez. Eksik/bozuk cevap empty state'tir. Telefon K5'te
   slider bırakışları 49→91→150→68→150 olarak tek tek `volume.set` task'larına
   dönüştü; yeniden açılış `volume.read` ile önce 68/150, sonra 150/150 okudu.
-  Test 77/77, telefon BUILD_OK ve 61 dosya md5 eşitliği geçti. `media.control`
-  Shizuku kapalıyken fail-closed kaldığından playback metadata/state FACT değildir.
+  Test 77/77, telefon BUILD_OK ve 61 dosya md5 eşitliği geçti.
+- **W6 medya kontrolü (2026-08-18) FACT:** `eaf2a64`, referansın play/pause
+  düğmesini `media.control({action:"toggle"})` ile hizaladı ve deterministic
+  admission'a `capability:media.control` ekledi. Shizuku canlıda `alive:true`
+  iken owner referans yüzeyinde toggle/next/prev'ü gerçek medya üzerinde
+  doğruladı; journal üç ayrı completed görevi kaydetti (`375353dc…`,
+  `9819d06d…`, `2a85add1…`). Bu yalnız kontrol FACT'idir; playback veya
+  metadata okunmadığından UI durumu uydurmaz.
 - Testler: `npm test` → **75/75** yeşil (telefon dağıtımında). Telefon build → **BUILD_OK**.
 - Telefon-depo senkronu: `deploy-to-phone.sh --check` ile düzenli doğrulanıyor, son kontrol birebir.
 

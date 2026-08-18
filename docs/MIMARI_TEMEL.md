@@ -186,6 +186,14 @@ native renderer zinciri korunurken execution yine dispatcher/policy'dedir.
 Bu kanıt medya metadata'sı, playback state/position, kalıcı widget state veya
 pub/sub için genelleme yetkisi vermez.
 
+**Medya kontrolü (FACT, 2026-08-18):** Aynı referansın play/pause düğmesi
+mevcut `media.control({action:"toggle"})` capability'sine bağlıdır; previous
+ve next düğmeleri sırasıyla `prev`/`next` payload'ını kullanır. Bunlar UI →
+envelope → `dispatcher.dispatch()` → Shizuku-backed capability zincirinden
+geçer. Shizuku kapalıyken açıklayıcı fail-closed hata, açıkken gerçek cihaz
+kontrolü döner. Bu action sonucu playback state okuması değildir; UI
+"çalıyor/duraklatıldı" diye varsaymaz.
+
 Bunun değeri şudur: **AIOS iki yapının birleşip birleşemeyeceğini LLM'e sormadan
 karara bağlayabilir.** Bugün böyle bir soru sorulmuyor çünkü birleşim yok; ama
 W6'nın widget/galeri katmanı geldiğinde soru kaçınılmaz olarak ortaya çıkacak.
