@@ -535,3 +535,20 @@ Açılıştaki okuma eylemleri UI meta action → envelope →
 gerçek kaynak olmayan model/servis-health/medya metadata'sı uydurulmaz.
 `/read` bu akışın yerine geçmez: yalnız açık `risk:"safe" + readOnly:true`
 read facade'ıdır; `app.list` bu dar sete `d5644f6` ile eklendi.
+
+---
+
+## 17. Phone Workspace navigation sınırı
+
+**FACT (2026-08-18; kod `c66e5da`, canlı kabul `CHECKLIST.md`).**
+AIOS aynı-belge browser history'sini yalnız görünür çalışma yüzeyi için
+kullanır: secondary ekran ve odaklı artifact geri dönülebilir adımdır; tab
+seçimi history adımı değildir. Böylece kategori → artifact → geri önce önceki
+AIOS bağlamına döner; HOME/KEŞFET/ARTEFAKT/AKTİF/HERMES tabları sahte bir
+geri yığını oluşturmaz.
+
+Bu ortak state, yeni router/protokol değildir. Sınırlandırılmış saf veri
+normalizasyonudur; bozuk/başka origin state'i HOME'a iner. Native `<dialog>`
+sheet/confirmation kapatma davranışı browser navigation'dan ayrı kalır.
+Artifact'tan çıkarken WindowManager focus'u da temizlenir; lifecycle ve
+navigation iki farklı sorumluluk olarak korunur.

@@ -47,6 +47,7 @@ W6_MEDIA_VOLUME_STATE_FACT_CODE_COMMIT = 82d694b
 W6_MEDIA_CONTROL_FACT_CODE_COMMIT = eaf2a64
 B13_READ_APP_LIST_COMMIT = d5644f6
 W6_PHONE_WORKSPACE_FACT_CODE_COMMIT = 6b97613
+W6_PHONE_WORKSPACE_NAVIGATION_FACT_CODE_COMMIT = c66e5da
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -224,10 +225,13 @@ kaydında contract nesnesi değil ayrı `capabilities`/`version`/`provenance`
 alanları saklanır; canlı kayıtta `provenance:"reference"` vardır.
 
 **CURRENT DECISION POINT (güncel):** Phone Workspace'in sonraki bağımsız
-görünür dilimi premium navigation/back/history'dir: önce mevcut tab,
-secondary screen, artifact ve sheet akışlarının ortak geri/historik davranışı
-koddan denetlenip minimum yeterli ürün yüzeyi uygulanır. W6.N/O/P/V/Z, Layer
-B, pub/sub, generic state store, yeni router/protokol otomatik açılmaz.
+görünür dilimi premium motion/view-transition ve reduced-motion denetimidir.
+`c66e5da` ile ortak back/history kapandı: tab değişimi history adımı değildir;
+secondary/artifact açılışı aynı-belge geri adımıdır; native sheet/dialog
+ayrıdır. Telefon BUILD_OK, 83/83 test ve 65 dosya md5 eşitliği geçti; owner
+kategori → artifact → geri, tab ve Android/browser geri jestini canlı doğruladı.
+W6.N/O/P/V/Z, Layer B, pub/sub, generic state store, yeni router/protokol
+otomatik açılmaz.
 
 ---
 
