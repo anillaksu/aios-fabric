@@ -191,6 +191,9 @@ Son güncelleme: 2026-08-18 (B-13 Approval Contract kapandı) · Kanonik depo: `
       · Mevcut PHS/AMB/ICE/SYN/PPR temaları korunarak component niyet tokenları (`surface`, `text`, `border`, `success`, `focus`) merkezi hale getirildi. Yeni ekranlar ham renk/ayrı gray üretmez. `--touch-target`, `--control-h`, `--page-pad`, `--section-gap` ortak ölçülerdir.
       · Klavye erişimi için görünür, tema-duyarlı `:focus-visible` halkası; composer eylemlerinde 44px dokunma alanı eklendi. Yeni component paketi veya tema motoru yoktur.
       · **Test + canlı kabul:** `design-tokens.test.ts` ile `npm test` 86/86; telefon BUILD_OK, 86/86 ve 68 dosya md5 eşitliği geçti. Owner telefon yüzeylerinde tema tutarlılığı, dokunma alanı, focus halkası, okunurluk ve küçük ekran taşmasını doğruladı.
+- [x] **W6 Phone Workspace HOME recent ApplicationEntry.** ✅ **FACT (2026-08-18; kod `9c337a1`).**
+      · ApplicationEntry açılışında yalnız entry üzerinde `lastOpenedAt` tutulur; artifact spec'i, artifact metadata'sı, capability veya execution state'i değişmez. HOME, ÇALIŞMA ALANI'nın altında en fazla dört `SON KULLANILAN UYGULAMALAR` girişini son açılış zamanına göre gösterir.
+      · **Test + canlı kabul:** ApplicationEntry model ve HOME ScreenSpec contract testleriyle `npm test` 88/88; telefon BUILD_OK, 88/88 ve 68 dosya md5 eşitliği geçti. Owner iki ApplicationEntry açıp HOME'a döndü; doğru artifact'in açıldığı ve en son açılanın üstte göründüğü doğrulandı.
 - [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
 - [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
 - [ ] W6.O **Widget kalıcı verisi.** Widget başına alan mı, paylaşılan depo mu; paylaşımlıysa yetkiyi kim verir

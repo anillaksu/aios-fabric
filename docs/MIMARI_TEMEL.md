@@ -579,3 +579,14 @@ PHS/AMB/ICE/SYN/PPR arasında aynı anlamdaki UI farklı rastgele renkler üretm
 `--touch-target`, `--control-h`, `--page-pad` ve `--section-gap` ortak
 etkileşim/yerleşim ölçüleridir. Keyboard focus görünür ve tema-duyarlıdır;
 bu kural görsel kalite ile erişilebilirliği aynı component sözleşmesinde tutar.
+
+---
+
+## 20. HOME recent ApplicationEntry sınırı
+
+**FACT (2026-08-18; kod `9c337a1`, canlı kabul `CHECKLIST.md`).** HOME'un
+son kullanılan AIOS uygulamaları, artifact listesi veya Android paket geçmişi
+değildir: yalnız kalıcı `ApplicationEntry` launcher kimliğinin
+`lastOpenedAt` alanından türetilir. Bu küçük, entry-yerel metadata günlük
+Phone Workspace keşfi için gereklidir; artifact spec'i ve capability yürütme
+modeline yayılmaz.

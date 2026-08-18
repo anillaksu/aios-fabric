@@ -225,10 +225,10 @@ kaydında contract nesnesi değil ayrı `capabilities`/`version`/`provenance`
 alanları saklanır; canlı kayıtta `provenance:"reference"` vardır.
 
 **CURRENT DECISION POINT (güncel):** Phone Workspace'in sonraki bağımsız
-görünür dilimi HOME bilgi hiyerarşisi ve veri-state denetimidir. `06f3128`
-semantic renk/ölçü tokenları, görünür focus ve 44px composer touch target'ını
-ekledi; telefon BUILD_OK, 86/86 test ve 68 dosya md5 eşitliği geçti. Owner
-tema tutarlılığı, okunurluk, focus ve küçük ekran yüzeyini canlı doğruladı.
+görünür dilimi HOME/KEŞFET veri-state ve component feedback denetimidir.
+`9c337a1`, ApplicationEntry'ye sınırlı `lastOpenedAt` ekleyip HOME'da son
+kullanılan uygulamaları gösterir; telefon BUILD_OK, 88/88 test ve 68 dosya
+md5 eşitliği geçti, owner gerçek iki entry ile sıralama/açılışı doğruladı.
 W6.N/O/P/V/Z, Layer B, pub/sub, generic state store, yeni router/protokol
 otomatik açılmaz.
 
