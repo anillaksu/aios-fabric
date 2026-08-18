@@ -232,8 +232,8 @@ export class A2AHub {
         "Xiaomi 13 Lite / Android 15 uzerinde calisan AI-OS. Arkasinda GERCEK bir model var " +
         "(Hermes gateway -> gpt-5.6-luna): serbest metin gonderebilirsin, dusunur ve yanitlar. " +
         "Ayrica cihaz capability'leri var - `skills` listesi ONAYSIZ calisanlari (risk:safe) " +
-        "gosterir; digerleri (script.run, whatsapp.send, a2a.delegate...) onay gerektirir ve " +
-        "bu kanaldan dogrudan calistirilamaz.",
+        "gosterir; digerleri (script.run, whatsapp.send, a2a.delegate...) gecerli insan onayi " +
+        "olmadan calismaz.",
       url: this.selfUrl,
       version: PKG_VERSION,
       protocolVersion: "1.0",
@@ -367,23 +367,17 @@ export class A2AHub {
         this.setState(task, "failed", { error: `bilinmeyen capability: ${name}` });
         return;
       }
-      // ─── RISK KAPISI (2026-08-17, W1.9'da bulundu; W5.B'de duzeltildi) ───
+      // ─── TEK EXECUTION KAPISI (2026-08-17, W1.9'da bulundu; W5.B'de duzeltildi) ───
       // Bu yol ONCEDEN cap.execute()'u DOGRUDAN cagiriyordu - dispatcher.
       // dispatch()'i (ve W1.3'teki risk kapisini) TAMAMEN atliyordu. W1.9'da
       // buraya yalnizca AYNI kontrolun bir KOPYASI eklenmisti (asagidaki
       // erken-cikis) - calisiyordu ama UI/MCP'den FARKLI bir yoldan. W5'te
       // ("A2A ve otomasyonun action yolunu atlamamasi icin TEK bus") tam
       // dispatcher.dispatch()'e tasindi - W4'te MCP tools/call icin kurulan
-      // AYNI desen. Erken kontrol KASITLI KALDI: dispatcher zaten reddedecek
-      // olsa da, burada hemen donmek gereksiz bir task.created/optimistic
-      // olay cifti yazmayi (ve A2A gorevini "submitted" gibi gostermeyi) onler.
-      const risk = cap.risk ?? "ask";
-      if (risk === "ask") {
-        task.history.push({ role: "agent", parts: [{ type: "text",
-          text: `HATA: "${name}" onay gerektirir (risk: ask) - A2A uzerinden dogrudan calistirilamaz.` }] });
-        this.setState(task, "failed", { error: `"${name}" onay gerektirir (risk: ask)` });
-        return;
-      }
+      // AYNI desen. B-13 sonrasi burada ikinci bir risk karari YOKTUR:
+      // gecerli insan onayi varsa execution'a dispatcher karar verir; yoksa
+      // dispatcher task.failed + denetim iziyle fail-closed reddeder. A2A
+      // approval.granted uretemez, cunku o capability registry'de yoktur.
       try {
         // W5.7 (idempotency, bilinen sinir): key task.id'ye dayanir - bu
         // A2AHub SURECI ICINDE bir cagriyi iki kez calistirmayi engeller,
