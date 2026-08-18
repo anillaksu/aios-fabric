@@ -17,10 +17,18 @@ import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
-import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
+import { capabilitySetVersion } from "./artifact-contract.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 import { cacheKey, getCached, putCached } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
+import { ParseClient } from "./parse-client.js";
+
+// W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
+// admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
+// kacak/asili bir parse ana thread'i (dolayisiyla UI'yi) kilitlemez. Worker
+// yalnizca compute/transform yapar, capability.execute() CAGIRAMAZ (bkz.
+// parse-worker.js basindaki not, docs/CHECKLIST.md W6.K).
+const parseClient = new ParseClient(() => new Worker(new URL("./parse-worker.js", import.meta.url), { type: "module" }));
 
 const S = SC.S;
 
@@ -582,22 +590,27 @@ async function fillWindow(id, text) {
     renderWindowError("hand_raised", "Üretim başarısız", (r.error || "bilinmeyen hata") + " — tekrar yazmayı deneyebilirsin.");
     return;
   }
-  const { specs, rejected } = extractArtifacts(r.data.text);
-  if (!specs.length) {
+  let parsed;
+  try {
+    parsed = await parseClient.parse(r.data.text, { actionableTypes: ACTIONABLE, knownCapabilities: capabilityNames, versionStamp: capVersion });
+  } catch (err) {
+    logClientError("parseClient.parse(fillWindow)", err);
+    renderWindowError("hand_raised", "Ayıklama başarısız", "İşlem zaman aşımına uğradı ya da çöktü — tekrar yazmayı deneyebilirsin.");
+    return;
+  }
+  if (!fillTarget || fillTarget.id !== id) return; // kullanici bekleme sirasinda baska yere gitti
+  if (!parsed.admitted.length) {
+    const rejected = [...parsed.rejected, ...parsed.contractRejected];
     renderWindowError("hand_raised", "Artefakt üretilemedi",
       (rejected.length ? rejected.join(", ") + " — içinde çalıştırılabilir bir iş yok." : "Boş yanıt.") + " Tekrar yazmayı deneyebilirsin.");
     return;
   }
-  const admit = admitArtifact(specs[0], { knownCapabilities: capabilityNames, versionStamp: capVersion });
-  if (!admit.ok) {
-    renderWindowError("hand_raised", "Artefakt reddedildi", admit.reason + " — tekrar yazmayı deneyebilirsin.");
-    return;
-  }
-  const item = addArtifact(specs[0], text, admit.contract, id);
+  const { spec, contract } = parsed.admitted[0];
+  const item = addArtifact(spec, text, contract, id);
   updateBadges();
   fillTarget = null;
   openArtifact(item.id);
-  putCached(key, { spec: specs[0], contract: admit.contract, title: specs[0].title || "Artefakt" });
+  putCached(key, { spec, contract, title: spec.title || "Artefakt" });
 }
 
 function when(ts) {
@@ -666,62 +679,11 @@ function paintHermes() {
   host.scrollTop = host.scrollHeight;
 }
 
-/* ARTEFAKT SOZLESMESI (2026-08-16, kullanici karari):
-   "Uretilen her sema EN AZ BIR REFLEX/AGENT capability'sine baglanmak
-   zorunda; salt-bilgi kartlari reddedilsin."
-
-   Gerekcesi: artefakt bu sistemde bir SONUC degil, bir GIRIS YUZEYI.
-   Icinde dokunulabilir hicbir is olmayan kart, sohbet metnini kutu icinde
-   tekrar etmekten baska bir sey yapmiyor - kullaniciya yeni bir sey
-   vermeden artefakt sayaci sisiriyor. (30 artefaktin bir kismi tam
-   olarak boyleydi.)
-
-   THOUGHT (llm.generate) ve ui.* eylemleri SAYILMAZ: birincisi yine
-   modele geri donmek, ikincisi sadece gezinme. Sayilan sey cihazda
-   GERCEKTEN bir sey yapan REFLEX/AGENT capability'leridir. */
-function actionableCount(node, depth = 0) {
-  // ─── FAIL-OPEN (2026-08-17 denetiminde bulundu) ───
-  // ACTIONABLE listesi acilista /capabilities'ten doldurulur. O istek bir kez
-  // basarisiz olursa (ag hiccup, sunucu yeni kalkiyor) liste BOS kalir ve bu
-  // fonksiyon HER seye 0 doner -> kullanicinin urettigi HER artefakt "iş yok"
-  // diye reddedilir. Sozlesmeyi degerlendiremiyorsak ihlal var diyemeyiz:
-  // bilgi eksikken kapiyi kapatmak, yanlis pozitifin en pahali turu.
-  if (ACTIONABLE.size === 0) return 1;
-  if (!node || typeof node !== "object" || depth > 8) return 0;
-  let n = 0;
-  for (const key of ["action", "tap", "longPress"]) {
-    const a = node[key];
-    if (a && typeof a.type === "string" && ACTIONABLE.has(a.type)) n++;
-  }
-  if (Array.isArray(node.actions)) {
-    node.actions.forEach((a) => { if (a && a.action && ACTIONABLE.has(a.action.type)) n++; });
-  }
-  for (const v of Object.values(node)) {
-    if (Array.isArray(v)) v.forEach((c) => { n += actionableCount(c, depth + 1); });
-    else if (v && typeof v === "object") n += actionableCount(v, depth + 1);
-  }
-  return n;
-}
-
-/** ```aios bloklarini ayikla - LLM HTML degil ScreenSpec uretir */
-function extractArtifacts(raw) {
-  const specs = [];
-  const rejected = [];
-  const re = /```aios\s*([\s\S]*?)```/g;
-  let m;
-  while ((m = re.exec(raw)) !== null) {
-    try {
-      const clean = validateScreen(JSON.parse(m[1].trim()));
-      if (!clean || !clean.sections.length) continue;
-      if (actionableCount(clean) === 0) {
-        rejected.push(clean.title || "Artefakt");
-        continue;
-      }
-      specs.push(clean);
-    } catch (e) { /* bozuk JSON -> atla */ }
-  }
-  return { text: raw.replace(re, "").trim(), specs, rejected };
-}
+// ARTEFAKT SOZLESMESI (2026-08-16, kullanici karari: "Uretilen her sema EN AZ
+// BIR REFLEX/AGENT capability'sine baglanmak zorunda; salt-bilgi kartlari
+// reddedilsin") + ayiklama/dogrulama mantigi W6.K (2026-08-18) ile
+// public/js/artifact-parse.js'e (saf compute) tasindi - parse-worker.js
+// bunu izole bir Worker icinde kosturur (bkz. parseClient, dosya basi).
 
 function deviceContext() {
   const b = S.battery, w = S.wifi;
@@ -803,32 +765,49 @@ async function ask(q, opts = {}) {
   chat.pop();
 
   if (full) {
-    const { text: reply, specs, rejected } = extractArtifacts(full);
+    // W6.K: ayiklama + M-7 sozlesme kapisi (admitArtifact) artik izole bir
+    // Worker'da kosuyor - bkz. parseClient tanimi (dosya basi) ve
+    // parse-worker.js. Ana thread yalnizca sonucu DOM'a yazar/dispatcher'a
+    // baglar, hicbir parse/dogrulama islemini kendi icinde yapmaz.
+    let parsed;
+    try {
+      parsed = await parseClient.parse(full, { actionableTypes: ACTIONABLE, knownCapabilities: capabilityNames, versionStamp: capVersion });
+    } catch (err) {
+      logClientError("parseClient.parse(ask)", err);
+      chat.push({ role: "agent", spec: {
+        type: "error-state", icon: "hand_raised", title: "Ayıklama başarısız",
+        detail: "İşlem zaman aşımına uğradı ya da çöktü — tekrar yazmayı deneyebilirsin.",
+        actionLabel: "TEKRAR DENE",
+        action: { type: "ui.ask", payload: { q: text, silent: true } },
+      } });
+      if (lastReceipt) { chat.push({ role: "agent", spec: lastReceipt }); lastReceipt = null; }
+      paintHermes();
+      updateBadges();
+      return;
+    }
+    const { text: reply, admitted, rejected, contractRejected } = parsed;
+    const specsLength = admitted.length + contractRejected.length;
     // 1 sonuc = 1 birincil artefakt: artefakt varsa metin KISA tutulur
     if (reply) {
-      const short = specs.length ? reply.split(/\n\n/)[0].slice(0, 220) : reply;
+      const short = specsLength ? reply.split(/\n\n/)[0].slice(0, 220) : reply;
       chat.push({ role: "agent", text: short });
     }
     // M-7 sozlesme kapisi: icerik (ScreenSpec) zaten validateScreen'den
     // gecti (W5), ama ARTEFAKT KAYDI (hangi capability'leri kullaniyor,
-    // hangi capability surumune karsi uretildi) burada ayrica dogrulanir.
-    // Basarisiz olan addArtifact()'e HIC ULASMAZ - ephemeral kalir, hicbir
-    // yere yazilmaz (M-8'in en ucuz hali: dogrulanmadan kalicilasmaz).
-    const contractRejected = [];
-    specs.forEach((s) => {
-      const admit = admitArtifact(s, { knownCapabilities: capabilityNames, versionStamp: capVersion });
-      if (!admit.ok) { contractRejected.push((s.title || "Artefakt") + " — " + admit.reason); return; }
-      const item = addArtifact(s, text, admit.contract);
+    // hangi capability surumune karsi uretildi) worker icinde ayrica
+    // dogrulandi. Basarisiz olan addArtifact()'e HIC ULASMAZ - ephemeral
+    // kalir, hicbir yere yazilmaz (M-8'in en ucuz hali).
+    admitted.forEach(({ spec: s, contract }) => {
+      const item = addArtifact(s, text, contract);
       // Mini-app olarak istendiyse kalici kil (opts.pin).
       if (opts.pin) { item.pinned = true; saveArtifacts(); }
       chat.push({ role: "agent", artifactId: item.id });
       // W6.L: yalnizca gecmis-siz, TEK spec'lik cagrilarda onbellege yazilir -
       // birden fazla spec varsa hangisinin bu anahtara karsilik geldigi
       // belirsiz olurdu (bilincli sinir).
-      if (cacheable && specs.length === 1) putCached(cacheKeyValue, { spec: s, contract: admit.contract, title: s.title || "Artefakt" });
+      if (cacheable && specsLength === 1) putCached(cacheKeyValue, { spec: s, contract, title: s.title || "Artefakt" });
     });
-    const admittedCount = specs.length - contractRejected.length;
-    if (opts.pin && admittedCount) toast("Mini uygulama sabitlendi");
+    if (opts.pin && admitted.length) toast("Mini uygulama sabitlendi");
     // Reddedilen sema sessizce kaybolmaz - kullanici NEDEN gormedigini bilsin.
     const allRejected = [...(rejected || []), ...contractRejected];
     if (allRejected.length) {
@@ -840,7 +819,7 @@ async function ask(q, opts = {}) {
         action: { type: "ui.ask", payload: { q: text + " (kartta gerçekten çalışan butonlar olsun)", silent: true } },
       } });
     }
-    if (!reply && !admittedCount && !allRejected.length) chat.push({ role: "agent", text: "(boş yanıt)" });
+    if (!reply && !admitted.length && !allRejected.length) chat.push({ role: "agent", text: "(boş yanıt)" });
   } else {
     // Hata artik TEKRAR DENENEBILIR. Onceden sadece olu bir metin kutusu
     // cikiyordu; kullanicinin tek caresi elle yeniden yazmakti.
