@@ -13,6 +13,7 @@ import { capabilityMap } from "./capabilities.ts";
 import { UNDO } from "./undo.ts";
 import { SseHub } from "./sse.ts";
 import { isDebugTrajectoryEnabled } from "./debugtrajectory.ts";
+import { isApproved } from "./approval.ts";
 import { logErr } from "./log.ts";
 import type { FabricState, Intent, FabricEvent } from "./types.ts";
 
@@ -112,21 +113,24 @@ export class Dispatcher {
       idempotencyKey: intent.idempotencyKey ?? null,
     });
 
-    // ─── RISK KAPISI (2026-08-17, W1.3) ───
+    // ─── RISK KAPISI (2026-08-17 W1.3, 2026-08-18 B-13 ile onay kaydina baglandi) ───
     // Belirtilmemis risk de "ask" sayilir - kanitlanmadikca en kisitli.
-    // Bugun (AETHER onay kuyrusu baglanana kadar) "ask" calisma zamaninda
-    // KOSULSUZ reddedilir; sessizce izin verilmez, ama denenen is task.created
+    // "ask" capability, gecerli (suresi dolmamis) bir approval.granted kaydi
+    // OLMADAN calismaz; sessizce izin verilmez, ama denenen is task.created
     // ile gorunur kalir (denetim izi kaybolmaz). UI/otomasyon/retry/undo hepsi
-    // BURADAN gectigi icin kapi tek yerden ve merkezi.
+    // BURADAN gectigi icin kapi tek yerden ve merkezi. Onay yalnizca
+    // grantApproval() ile (insan-tetikli HTTP ucu, bkz. server.ts) verilebilir -
+    // bu metod capabilityMap'te YOK, MCP tools/call ve A2A capability yolu
+    // dispatch() disina cikamaz, dolayisiyla approval'i asla kendileri veremez.
     const risk = capability?.risk ?? "ask";
-    if (risk === "ask") {
+    if (risk === "ask" && !isApproved(this.state, intent.type, Date.now())) {
       this.apply({
         type: "task.failed",
         correlationId,
         causationId: null,
         payload: {
           taskId,
-          error: `"${intent.type}" onay gerektirir (risk: ask) - onay kuyrugu henuz baglanmadi, is calistirilmadi`,
+          error: `"${intent.type}" onay gerektirir (risk: ask) - onay verilmedi, is calistirilmadi`,
         },
         idempotencyKey: null,
       });
@@ -149,6 +153,43 @@ export class Dispatcher {
     }
 
     return { taskId, class: cls, deduped: false };
+  }
+
+  /**
+   * B-13: bir capability'ye insan onayi verir/reddeder/geri alir. BILINCLI
+   * OLARAK capabilityMap'te bir karsiligi yok - MCP tools/call, A2A "capability:"
+   * yolu ve otomasyonlar SADECE dispatch()'ten gecebilir, bu metodlara hicbir
+   * sekilde erisemez. Cagiran taraf (server.ts) insan-tetikli bir HTTP
+   * ucundan cagirmakla yukumlu - bu dosya bunu ZORLAYAMAZ, sadece MUMKUN KILMAZ.
+   */
+  grantApproval(capability: string, expiresAt?: number): void {
+    this.apply({
+      type: "approval.granted",
+      correlationId: randomUUID(),
+      causationId: null,
+      payload: { capability, expiresAt },
+      idempotencyKey: null,
+    });
+  }
+
+  denyApproval(capability: string): void {
+    this.apply({
+      type: "approval.denied",
+      correlationId: randomUUID(),
+      causationId: null,
+      payload: { capability },
+      idempotencyKey: null,
+    });
+  }
+
+  revokeApproval(capability: string): void {
+    this.apply({
+      type: "approval.revoked",
+      correlationId: randomUUID(),
+      causationId: null,
+      payload: { capability },
+      idempotencyKey: null,
+    });
   }
 
   /** Calisan/bekleyen bir gorevi iptal eder. Bkz. `cancelled` alanindaki sinir notu. */

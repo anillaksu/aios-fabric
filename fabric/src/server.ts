@@ -671,6 +671,42 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ---------- B-13: onay yasam dongusu (yalnizca insan tetikler - bkz. dispatcher.ts) ----------
+    if (url.pathname === "/approvals" && req.method === "GET") {
+      json(res, 200, dispatcher.getState().approvals);
+      return;
+    }
+    if (url.pathname === "/approvals/grant" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}") as { capability?: string; expiresAt?: number };
+      if (!body.capability || !capabilityMap.has(body.capability)) {
+        json(res, 400, { ok: false, error: "bilinmeyen capability" });
+        return;
+      }
+      dispatcher.grantApproval(body.capability, body.expiresAt);
+      json(res, 200, { ok: true });
+      return;
+    }
+    if (url.pathname === "/approvals/deny" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}") as { capability?: string };
+      if (!body.capability || !capabilityMap.has(body.capability)) {
+        json(res, 400, { ok: false, error: "bilinmeyen capability" });
+        return;
+      }
+      dispatcher.denyApproval(body.capability);
+      json(res, 200, { ok: true });
+      return;
+    }
+    if (url.pathname === "/approvals/revoke" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}") as { capability?: string };
+      if (!body.capability || !capabilityMap.has(body.capability)) {
+        json(res, 400, { ok: false, error: "bilinmeyen capability" });
+        return;
+      }
+      dispatcher.revokeApproval(body.capability);
+      json(res, 200, { ok: true });
+      return;
+    }
+
     // ---------- MCP: Streamable HTTP (W4, 2026-08-17) ----------
     // Spec: modelcontextprotocol.io/specification/2025-03-26/basic/transports
     // Kapsam karari icin fabric/src/mcp.ts'teki basliktaki notu oku - tam

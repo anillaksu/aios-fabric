@@ -13,6 +13,7 @@ export function initialState(): FabricState {
     apps: {},
     sensors: {},
     recentEvents: [],
+    approvals: {},
   };
 }
 
@@ -150,6 +151,43 @@ export function reduce(state: FabricState, event: FabricEvent): FabricState {
     case "sensor.read.confirmed": {
       const p = event.payload as { key: string; value: unknown };
       next = { ...next, sensors: { ...next.sensors, [p.key]: p.value } };
+      break;
+    }
+
+    // --- B-13: onay yasam dongusu (yalnizca dispatcher.grantApproval/
+    // denyApproval/revokeApproval bu event'leri yazar - approval.grant/deny
+    // capabilityMap'te YOK, MCP/A2A/otomasyon tools/call ile asla erisemez) ---
+    case "approval.granted": {
+      const p = event.payload as { capability: string; expiresAt?: number };
+      next = {
+        ...next,
+        approvals: {
+          ...next.approvals,
+          [p.capability]: { capability: p.capability, status: "granted", decidedAt: event.ts, expiresAt: p.expiresAt },
+        },
+      };
+      break;
+    }
+    case "approval.denied": {
+      const p = event.payload as { capability: string };
+      next = {
+        ...next,
+        approvals: {
+          ...next.approvals,
+          [p.capability]: { capability: p.capability, status: "denied", decidedAt: event.ts },
+        },
+      };
+      break;
+    }
+    case "approval.revoked": {
+      const p = event.payload as { capability: string };
+      next = {
+        ...next,
+        approvals: {
+          ...next.approvals,
+          [p.capability]: { capability: p.capability, status: "revoked", decidedAt: event.ts },
+        },
+      };
       break;
     }
 

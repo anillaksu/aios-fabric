@@ -79,6 +79,19 @@ export interface FabricState {
   sensors: Record<string, unknown>;
   // UI'nin canli akis gostermesi icin son N event (sinirli ring buffer)
   recentEvents: FabricEvent[];
+  // B-13: risk:"ask" capability'ler icin insan onay kaydi, capability adiyla
+  // anahtarlanir (bkz. approval.ts - scope bugun capability-duzeyinde,
+  // artefakt-duzeyi kapsam Katman B gelince eklenir).
+  approvals: Record<string, ApprovalRecord>;
+}
+
+export type ApprovalStatus = "granted" | "denied" | "revoked";
+
+export interface ApprovalRecord {
+  capability: string;
+  status: ApprovalStatus;
+  decidedAt: number;
+  expiresAt?: number;
 }
 
 export type Reducer = (state: FabricState, event: FabricEvent) => FabricState;
