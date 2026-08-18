@@ -194,3 +194,121 @@ Owner ihtiyacı / kararı
 
 Bu sıra, arşivi pasif bir not yığını değil, AIOS'un öğrenilmiş ve yeniden
 kullanılabilir ürün hafızası yapar.
+
+## 5. Oluşum ağı — ürün döngüsü
+
+AIOS'un büyüme birimi yalnız artefact ya da tek bir capability değildir.
+Doğrulanmış bir oluşum, aşağıdaki izli döngünün düğümüdür:
+
+```text
+İNSAN
+  ↓ karar / amaç / kabul
+CİHAZ
+  ↓ gerçek gözlem / sınır / sonuç
+CAPABILITY
+  ↓ dispatcher + policy + journal
+OLUŞUM
+  ↓ artifact / ApplicationEntry / ekran / otomasyon kuralı
+DOĞRULANMIŞ İZ
+  ↓ commit + test + canlı kanıt
+BAŞKA BAĞLAMDA KULLANIM
+  ↓ aynı contract, yeni kullanıcı ihtiyacı
+YENİ OLUŞUM
+  ↓ yeni kanıt
+AĞIN BİRLEŞMESİ
+  ↺
+```
+
+Bu bir soy ağacı değil, yönlü bir kanıt grafiğidir:
+
+- **İnsan**, niyeti ve kabul ölçütünü verir; ajan bunu authority olarak
+  yorumlayıp kendi kendine ürün/ekonomi kararı vermez.
+- **Cihaz**, fiziksel gerçeği ölçer; bir capability'nin adı cihaz sonucunun
+  yerine geçmez.
+- **Capability**, yetkili eylem/okuma sınırıdır; dispatcher ve policy her
+  yeniden kullanımda korunur.
+- **Oluşum**, bu parçaların kullanıcıya görünen, kalıcı ve açıklanabilir
+  bileşimidir. Örneğin ses paneli ve Cihaz Durum Merkezi bu sınıftadır.
+- **Doğrulanmış iz**, oluşumun tekrar kullanım sözleşmesidir. Aynı primitive
+  başka ekranda kullanılabilir; canlı kanıtı olmayan yeni davranış eski FACT'i
+  miras almaz.
+- **Ağın birleşmesi**, tek bir merkezi LLM hafızası değil; kanıtlı kartların
+  ortak capability, veri kaynağı, karar ve davranış bağlantılarıyla
+  bulunabilir hale gelmesidir.
+
+Dolayısıyla AI, bu ağda yalnızca arama/öneri/özetleme yardımı sunabilir.
+Yeni kartı FACT'e yükseltemez, approval veremez, cihaz capability'si
+çalıştıramaz veya ekonomik değer atayamaz.
+
+## 6. Cloudflare oluşum ağı — mevcut gerçek ve güvenli pilot sınırı
+
+### 6.1 Bugünkü denetim
+
+2026-08-19 salt-okunur Wrangler denetimi:
+
+- Cloudflare hesabı için kullanıcı API token'ı ile `wrangler whoami` başarılı.
+- Bu depoda `wrangler.jsonc`, Worker, D1, R2 ya da Cloudflare deployment
+  kodu yok.
+- Hesapta mevcut KV namespace'leri var; AIOS'a ait oldukları kanıtlanmadığı
+  için **yeniden kullanılmayacak**.
+- R2 API, hesapta R2'nin etkin olmadığı hatasını döndürdü. D1 listesinde AIOS
+  için kullanılabilir bir veritabanı görülmedi.
+
+Bu bulgular yalnız hazırlık kanıtıdır; Cloudflare entegrasyonu FACT değildir.
+
+### 6.2 Önerilen ilk bulut birimi — owner-only Formation Index
+
+İlk Cloudflare birimi, cihaz execution'ı veya para sistemi değildir. Yalnız
+yeniden kullanılabilir oluşum kartlarının **redakte edilmiş indeksi** olur:
+
+| Katman | Sorumluluk | Yapmayacağı şey |
+|---|---|---|
+| Cloudflare Worker | Kimliği doğrulanmış sorgu/ingest kapısı, şema doğrulaması | Capability çalıştırmaz, approval vermez |
+| Yeni ve yalnız AIOS'a ait D1 | Kart metadatası, commit/test/canlı kanıt referansları, ilişki kenarları | Ham journal, gizli veri veya cihaz komutu saklamaz |
+| İsteğe bağlı R2 | Sahibi açıkça seçtiği kanıt eki/screenshot | R2 etkin değilken zorunlu değildir; ham telefon yedeği değildir |
+| AI yardımı (ileride) | Redakte edilmiş kartlarda retrieval, ilişki/benzerlik önerisi | Canonical kayıt, promotion, execution veya ödeme otoritesi değildir |
+
+Cloudflare Workers bindings, Worker'ın hesap kaynaklarına secret/API token
+gömmeden bağlanmasını sağlar; D1/R2/AI gibi kaynaklar bununla erişilir.
+Bu, ayrı bir runtime'ın Fabric dispatcher'ına erişmesinden daha dar ve
+denetlenebilir bir sınırdır. [Cloudflare Workers bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/)
+
+### 6.3 Özellikle yapılmayacaklar
+
+- Fabric, Hermes, A2A veya telefon capability'leri Cloudflare Worker'a
+  taşınmayacak; Tailscale/telefon execution sınırı korunacak.
+- Journal'ın ham içeriği, approval kayıtları, prompt/yanıt, cihaz konumu,
+  token/secret veya kişisel veri varsayılan olarak buluta gönderilmeyecek.
+- Public `workers.dev` endpoint'i, owner authentication olmadan kanıt indeksi
+  veya ingest açmayacak.
+- Mevcut başka ürünlerin KV namespace'i kullanılmayacak.
+- "Kendini fonlayan" ya da "değer takası" ifadeleri teknik FACT değildir.
+  Ödeme, muhasebe, vergi, tüketici koruması, fiyatlandırma, fraud ve açık
+  rıza kararları olmadan para/puan/token/marketplace sistemi kurulmayacak.
+
+### 6.4 Ekonomik yön — TARGET, teknik değil ürün/uyum kararı
+
+Sistemin gelecekte ekonomik değer üretmesi, ancak kullanıcıya tekrar
+kullanılabilir, ölçülebilir bir fayda sağladığında araştırılabilir. İlk
+ölçülebilir birim para değil şudur:
+
+```text
+doğrulanmış oluşum
+  → başka bağlamda yeniden kullanım
+  → gerçekten tasarruf edilen üretim/arama/doğrulama zamanı
+  → owner'ın kabul ettiği değer modeli
+```
+
+Bu ölçüm dahi gerçek kullanım verisi, açık rıza ve owner kararı ister. AIOS
+veya Cloudflare AI, kendi başına değer üretme, fiyat belirleme, ödeme alma ya
+da fon yönlendirme otorisi edinmez.
+
+### 6.5 Bir sonraki güvenli kapı
+
+Cloudflare'da kaynak oluşturmadan önce owner'ın tek bir sınırı onaylaması
+gerekir: ilk pilot **yalnız owner erişimli, redakte edilmiş Formation Index**
+mi olacak; yoksa erişim/kimlik, paylaşım modeli, veri sınıfları ve ekonomik
+model ayrıca mı tasarlanacak? İlk seçenek seçilirse sırayla yeni izole D1,
+staging Worker, schema/contract testleri, owner authentication, yalnız örnek
+redakte edilmiş kartlarla canlı kabul yapılır. R2, Workers AI ve ödeme yüzeyi
+bu ilk kapının dışındadır.
