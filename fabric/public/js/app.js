@@ -598,8 +598,13 @@ function paintApplications() {
   reference.dataset.variant = "ghost";
   reference.title = "Native range + dispatcher referansı";
   reference.addEventListener("click", async () => {
-    const result = await ctx.dispatch({ type: "ui.referenceSoundPanel" });
-    if (!result.ok) toast(result.error || "Ses paneli açılamadı", true);
+    try {
+      const result = await ctx.dispatch({ type: "ui.referenceSoundPanel" });
+      if (!result.ok) toast(result.error || "Ses paneli açılamadı", true);
+    } catch (err) {
+      logClientError("referenceSoundPanel.open", err);
+      toast("Ses paneli açılamadı; istemci günlüğünü kontrol et", true);
+    }
   });
   body.appendChild(reference);
   if (!entries.length) {
