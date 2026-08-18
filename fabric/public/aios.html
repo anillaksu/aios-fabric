@@ -37,7 +37,7 @@
     background: var(--s1); border-top: 1px solid var(--line);
   }
   #composer .cbtn {
-    flex: 0 0 auto; width: 42px; height: 42px; border-radius: var(--r-md);
+    flex: 0 0 auto; width: var(--touch-target); height: var(--touch-target); border-radius: var(--r-md);
     display: flex; align-items: center; justify-content: center;
     background: var(--s2); border: 1px solid var(--line-mid); color: var(--fg-dim);
     cursor: pointer; transition: background var(--t-fast) var(--ease),
@@ -54,7 +54,7 @@
     background: var(--s2); border: 1px solid var(--line-mid); border-radius: var(--r-md);
     color: var(--fg); font-family: var(--font-ui); font-size: var(--fs-md);
     padding: 10px 12px; outline: none; resize: none;
-    min-height: 42px; max-height: 110px; line-height: 1.35;
+    min-height: var(--control-h); max-height: 110px; line-height: 1.35;
   }
   #input:focus { border-color: var(--primary); }
 

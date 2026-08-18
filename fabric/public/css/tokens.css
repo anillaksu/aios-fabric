@@ -40,6 +40,20 @@
   --fg-mute:   #5B7787;   /* ucuncul / micro-label */
   --fg-invert: #060B10;   /* primary zemin uzerinde */
 
+  /* ── Ortak component anlami ──
+     Eski s1/s2/fg tokenlari tema paletidir; asagidaki adlar component'in
+     niyetini tasir. Yeni ekranlar ham renk ya da yeni gray uretmez. */
+  --surface:          var(--s1);
+  --surface-elevated: var(--s2);
+  --surface-pressed:  var(--s3);
+  --text-primary:     var(--fg);
+  --text-secondary:   var(--fg-dim);
+  --text-muted:       var(--fg-mute);
+  --border:           var(--line);
+  --border-strong:    var(--line-mid);
+  --success:          var(--primary);
+  --focus:            var(--info);
+
   /* ── Tipografi ──
      KRITIK: her sey monospace DEGIL. Hermes'in 3 paragraf cevabini
      monospace okumak eziyet. Monospace SADECE sistem metadata icin:
@@ -84,6 +98,10 @@
   --h-status: 30px;
   --h-command: 52px;
   --h-tabbar: 60px;
+  --control-h: 42px;
+  --touch-target: 44px;
+  --page-pad: var(--sp-4);
+  --section-gap: var(--sp-5);
 }
 
 /* Framework7'yi kendi paletimize baglariz - F7'nin kendi degiskenlerini
