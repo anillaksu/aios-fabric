@@ -27,6 +27,7 @@ import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
 import { hasMeaningfulData } from "./dispatch-utils.js";
 import { normalizeNavigation, toHistoryState, isSameNavigation } from "./navigation-state.js";
+import { runViewTransition } from "./view-transitions.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -420,7 +421,8 @@ function applyNavigation(next, historyMode = null) {
   if (historyMode === "replace") history.replaceState(toHistoryState(nav), "");
   document.querySelectorAll(".aios-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === currentTab));
   syncComposer();
-  paint();
+  const kind = historyMode === "push" ? "push" : historyMode === null ? "pop" : "tab";
+  runViewTransition({ kind, render: () => { paint(); } });
 }
 function goTab(tab) {
   // Bos pencere doldurulmadan sekme degistirilirse iptal say - kalici
@@ -760,8 +762,7 @@ function openArtifact(id, historyMode = "push") {
     }).catch((err) => logClientError("referenceDeviceStatus.load", err));
     return;
   }
-  if (document.startViewTransition) document.startViewTransition(draw);
-  else draw();
+  draw();
 }
 
 /* ════════ W6.C (orijinal kapsam): BOŞ PENCERE ════════
@@ -795,8 +796,7 @@ function openEmptyWindow(id) {
     wrap.appendChild(body);
     host.appendChild(wrap);
   };
-  if (document.startViewTransition) document.startViewTransition(draw);
-  else draw();
+  draw();
 }
 
 function renderWindowLoading(text) {

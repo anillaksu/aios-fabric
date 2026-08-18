@@ -11,6 +11,26 @@
 /* ── SHELL ────────────────────────────────────────────────── */
 body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); }
 
+/* Native View Transition API: sadece ayni #screen yuzeyi gecis alir.
+   Kisa hareket yon bilgisini verir; icerik okunurlugu gecikmez. */
+#screen { view-transition-name: aios-screen; }
+:root[data-aios-transition="push"]::view-transition-old(aios-screen) { animation: aios-screen-out var(--t-fast) var(--ease) both; }
+:root[data-aios-transition="push"]::view-transition-new(aios-screen) { animation: aios-screen-in var(--t-base) var(--ease) both; }
+:root[data-aios-transition="pop"]::view-transition-old(aios-screen) { animation: aios-screen-pop-out var(--t-fast) var(--ease) both; }
+:root[data-aios-transition="pop"]::view-transition-new(aios-screen) { animation: aios-screen-pop-in var(--t-base) var(--ease) both; }
+:root[data-aios-transition="tab"]::view-transition-old(aios-screen) { animation: aios-fade-out var(--t-fast) var(--ease) both; }
+:root[data-aios-transition="tab"]::view-transition-new(aios-screen) { animation: aios-fade-in var(--t-fast) var(--ease) both; }
+@keyframes aios-screen-out { to { opacity: 0; transform: translateX(-4%); } }
+@keyframes aios-screen-in { from { opacity: 0; transform: translateX(5%); } }
+@keyframes aios-screen-pop-out { to { opacity: 0; transform: translateX(4%); } }
+@keyframes aios-screen-pop-in { from { opacity: 0; transform: translateX(-5%); } }
+@keyframes aios-fade-out { to { opacity: 0; } }
+@keyframes aios-fade-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
 /* ── IKON BOYUTLARI ───────────────────────────────────────────
    .f7-icons varsayilani 28px; bizim baglamlarimizda bu cok buyuk ve
    kartlari sisiriyor. Her baglam icin acikca sabitlenir.            */
