@@ -4,18 +4,46 @@ export const SOUND_PANEL_REQUIREMENTS = [
   "scroll-region", "range", "range-change-action", "capability:volume.set",
 ];
 
-export const SCROLLABLE_SOUND_PANEL = {
+const DEFAULT_MUSIC_VOLUME = { value: 7, max: 15 };
+
+/**
+ * termux-volume'un gercek JSON cevabindan yalniz music stream'ini alir.
+ * Bu bir medya metadata tahmini degildir: bilinmeyen/bozuk cevap null olur
+ * ve renderer empty state gosterir.
+ */
+export function musicVolumeFromResponse(data) {
+  if (!Array.isArray(data)) return null;
+  const music = data.find((item) => item && String(item.stream || "").toLowerCase() === "music");
+  const value = Number(music?.volume);
+  const max = Number(music?.max_volume);
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0 || value < 0 || value > max) return null;
+  return { value: Math.round(value), max: Math.round(max) };
+}
+
+/** Referans artefact'in goruntusu; kalici artifact spec'ini degistirmez. */
+export function soundPanelWithMusicVolume(volume) {
+  const live = volume || DEFAULT_MUSIC_VOLUME;
+  const hasLiveVolume = !!volume;
+  const volumeNode = hasLiveVolume
+    ? { type: "range", label: `Medya sesi · ${live.value} / ${live.max}`, min: 0, max: live.max, value: live.value, step: 1,
+      valueKey: "value", action: { type: "volume.set", payload: { stream: "music" } } }
+    : { type: "empty-state", icon: "speaker_slash", title: "Ses durumu okunamadı",
+      detail: "Cihaz geçerli bir medya ses değeri döndürmedi. Kontroller dispatcher üzerinden kullanılabilir." };
+
+  return {
   id: "reference-sound-panel-v1",
   title: "Kaydırılabilir Ses Paneli",
   subtitle: "Native range · change → dispatcher",
   sections: [{
     type: "section", title: "MEDYA SESİ", children: [{
       type: "scroll-region", title: "Ses paneli", maxHeight: 250, children: [{
-        type: "stack", direction: "column", gap: 3, align: "stretch", children: [
-          { type: "range", label: "Müzik", min: 0, max: 15, value: 7, step: 1,
-            valueKey: "value", action: { type: "volume.set", payload: { stream: "music" } } },
-          { type: "info-card", icon: "hand_draw", title: "Parmağınla kaydır",
-            body: "Değer anında bu panelde değişir. Parmağını bıraktığında tek bir cihaz eylemi gönderilir." },
+      type: "stack", direction: "column", gap: 3, align: "stretch", children: [
+          volumeNode,
+          { type: "info-card", icon: hasLiveVolume ? "speaker_2" : "speaker_slash",
+            title: hasLiveVolume ? "Cihazdan okunan ses" : "Cihaz durumu yok",
+            body: hasLiveVolume
+              ? `Müzik akışı ${live.value} / ${live.max}. Parmağınla kaydır; bırakışta tek cihaz eylemi gönderilir.`
+              : "Ses değeri uydurulmaz; geçerli cevap gelirse native slider gösterilir." },
           { type: "button-row", children: [
             { type: "button", label: "ÖNCEKİ", variant: "ghost", action: { type: "media.control", payload: { action: "prev" } } },
             { type: "button", label: "DURAKLAT", variant: "ghost", action: { type: "media.control", payload: { action: "pause" } } },
@@ -28,4 +56,9 @@ export const SCROLLABLE_SOUND_PANEL = {
       }],
     }],
   }],
-};
+  };
+}
+
+// Kalici referans artefact'i deterministiktir; acilis anindaki cihaz state'i
+// yalniz render gorunumune uygulanir, artifact spec'ine yazilmaz.
+export const SCROLLABLE_SOUND_PANEL = soundPanelWithMusicVolume(DEFAULT_MUSIC_VOLUME);

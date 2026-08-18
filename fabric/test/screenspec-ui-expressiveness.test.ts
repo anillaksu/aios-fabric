@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateScreen as validateServer } from "../src/screenspec.ts";
 import { validateScreen as validateClient, setAllowedActions } from "../public/js/renderer.js";
 import { meetsUiRequirements } from "../public/js/ui-requirements.js";
-import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS } from "../public/js/reference-artifacts.js";
+import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume } from "../public/js/reference-artifacts.js";
 
 const range = {
   type: "range", label: "Müzik", min: 0, max: 15, value: 7, step: 1, valueKey: "value",
@@ -58,4 +58,27 @@ test("meetsUiRequirements dogal dil degil, yalniz belirtilen yapisal gereksiniml
   assert.equal(meetsUiRequirements(SCROLLABLE_SOUND_PANEL, ["capability:script.run"]), false);
   assert.equal(meetsUiRequirements({ sections: [{ type: "button", action: { type: "volume.set" } }] }, ["range"]), false);
   assert.equal(meetsUiRequirements(SCROLLABLE_SOUND_PANEL, ["kaydirilabilir ses paneli"]), false);
+});
+
+test("referans ses paneli yalniz gercek termux-volume music cevabini ScreenSpec'e baglar", () => {
+  const music = musicVolumeFromResponse([
+    { stream: "alarm", volume: 4, max_volume: 7 },
+    { stream: "music", volume: 10, max_volume: 150 },
+  ]);
+  assert.deepEqual(music, { value: 10, max: 150 });
+  const panel = soundPanelWithMusicVolume(music);
+  const range = panel.sections[0].children[0].children[0].children[0];
+  assert.equal(range.type, "range");
+  assert.equal(range.value, 10);
+  assert.equal(range.max, 150);
+  assert.match(range.label, /10 \/ 150/);
+  assert.equal(meetsUiRequirements(panel, SOUND_PANEL_REQUIREMENTS), true);
+});
+
+test("bozuk veya music stream'i olmayan volume cevabi fake slider uretmez", () => {
+  assert.equal(musicVolumeFromResponse({ music: 10 }), null);
+  assert.equal(musicVolumeFromResponse([{ stream: "music", volume: 9, max_volume: 0 }]), null);
+  const panel = soundPanelWithMusicVolume(null);
+  const state = panel.sections[0].children[0].children[0].children[0];
+  assert.equal(state.type, "empty-state");
 });

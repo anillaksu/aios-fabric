@@ -18,7 +18,7 @@ import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
-import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS } from "./reference-artifacts.js";
+import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume } from "./reference-artifacts.js";
 import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, updateApplicationEntry } from "./application-model.js";
@@ -645,7 +645,7 @@ function openArtifact(id) {
   if (!a) return;
   wm.register({ id: a.id, title: a.title });
   wm.focus(id);
-  const draw = () => {
+  const draw = (spec = a.spec) => {
     const host = $("#screen");
     host.innerHTML = "";
     const head = pageHead(a.title, when(a.createdAt), () => {
@@ -655,12 +655,34 @@ function openArtifact(id) {
     host.appendChild(head);
     const wrap = el("div", "c-section");
     const body = el("div", "body");
-    body.appendChild(artifactBlock(a));
+    body.appendChild(artifactBlock({ ...a, spec }));
     wrap.appendChild(body);
     host.appendChild(wrap);
   };
   // Izgara -> tam ekran gecisi native View Transitions ile (K6, sifir token).
   // Desteklenmeyen tarayicida sessizce dogrudan cizer (ozellik algila, tarayici degil).
+  // Referans medya paneli acilirken yalniz mevcut volume.read capability'si
+  // dispatcher zarfina gider. Diger artifact'lerde state loader yoktur;
+  // yeni bir genel widget-state sistemi burada acilmiyor.
+  if (a.id === SCROLLABLE_SOUND_PANEL.id) {
+    draw(soundPanelWithMusicVolume(null));
+    sendIntent("volume.read", {}, {
+      source: "ui", raw: "Medya paneli ses durumunu oku", by: "deterministic", timeoutMs: 12000,
+    }).then((result) => {
+      if (!result.ok) {
+        logClientError("referenceSoundPanel.volumeRead", new Error(String(result.error || "volume.read başarısız")));
+        return;
+      }
+      const volume = musicVolumeFromResponse(result.data);
+      if (!volume) {
+        logClientError("referenceSoundPanel.volumeRead", new Error("geçerli music volume cevabı yok"));
+        return;
+      }
+      // Kullanici bu arada geri donduyse gec cevap gorunur ekrani ezmez.
+      if (wm.focusedId === a.id) draw(soundPanelWithMusicVolume(volume));
+    }).catch((err) => logClientError("referenceSoundPanel.volumeRead", err));
+    return;
+  }
   if (document.startViewTransition) document.startViewTransition(draw);
   else draw();
 }
