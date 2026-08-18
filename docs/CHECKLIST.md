@@ -5,9 +5,11 @@ Bir madde ancak **canlı kanıtı** varsa `[x]` olur — "yazdım, çalışıyor
 
 Son güncelleme: 2026-08-18 (B-13 Approval Contract kapandı) · Kanonik depo: `C:\Users\anil\Desktop\aios-fabric`
 
-**Belge haritası:** bu dosya = *ne yapacağız* · `docs/MIMARI_TEMEL.md` = *nasıl karar veriyoruz*
+**Belge haritası:** `docs/AIOS_SESSION_START.md` = *oturuma nasıl başlanır* ·
+`docs/AIOS_HANDOFF_CURRENT.md` = *özet/index, güncel durum* · bu dosya =
+*ne yapacağız* · `docs/MIMARI_TEMEL.md` = *nasıl karar veriyoruz*
 · `docs/STANDARTLAR.md` = *hangi standarda dayanıyoruz* · `docs/PLAN_W6_app-shell.md` = *W6 tasarımı*.
-Çakışırlarsa **bu dosya kazanır.**
+Çakışırlarsa **bu dosya kazanır** (handoff/session-start yalnızca özet/pointer, birincil kaynak değil).
 
 ---
 

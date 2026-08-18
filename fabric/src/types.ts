@@ -138,8 +138,13 @@ export interface Capability {
    * "ask"    -> calismadan ONCE onay gerekir (dispatcher.ts bunu ZORUNLU kilar)
    *
    * Belirtilmezse "ask" varsayilir - kanitlanmadikca en kisitli secenek.
-   * Bugun (W2'ye kadar - AETHER onay kuyrugu baglanana dek) "ask" calisma
-   * zamaninda reddedilir, sessizce izin verilmez.
+   * B-13 (2026-08-18) oncesi "ask" calisma zamaninda KOSULSUZ reddediliyordu.
+   * Artik approval.ts:isApproved() kontrolune bagli - gecerli bir insan
+   * onayi (approval.granted, suresi dolmamis) yoksa reddedilir, sessizce
+   * izin verilmez. Onay AETHER'DAN DEGIL, Fabric'in KENDI journal'indan
+   * gelir (dispatcher.ts:grantApproval/denyApproval/revokeApproval, insan-
+   * tetikli server.ts /approvals/* uclarindan) - AETHER hala pasif, bu akisa
+   * hic dahil degil (bkz. MIMARI_TEMEL.md SS9).
    */
   risk?: "safe" | "notify" | "ask";
 }
