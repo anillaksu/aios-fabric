@@ -183,6 +183,10 @@ Son güncelleme: 2026-08-18 (B-13 Approval Contract kapandı) · Kanonik depo: `
       · Yeni router yok: `navigation-state.js` yalnız aynı-belge browser state'ini normalize eder. Tab seçimi history adımı üretmez; kategori/secondary ekran ve odaklı artifact geri dönülebilir adımdır. Artifact odaktayken secondary filtre taşınmaz; browser/Android geri hareketi eski WindowManager focus'unu kapatır. Native sheet/dialog kendi cancel/close semantiğinde kalır, navigation ile karışmaz.
       · Tüm secondary ScreenSpec yüzeyleri ortak geri başlığı alır; touch target 42px'tir. Uygulama/artefakt geri akışı geldiği yüzeye döner, sabit ARTEFAKT sekmesine zorlanmaz.
       · **Test + canlı kabul:** saf state contract testleri ile `npm test` 83/83; telefon BUILD_OK, 83/83 ve 65 dosya md5 eşitliği geçti. Owner telefonda kategori → Cihaz Durum Merkezi/artefact → geri, ikinci geri ile KEŞFET, tab değişimi ve Android/browser geri jestini doğruladı.
+- [x] **W6 Phone Workspace motion — native View Transition + reduced motion.** ✅ **FACT (2026-08-18; kod `71688e1`).**
+      · Yeni animasyon kütüphanesi yok: mevcut `--t-fast`/`--t-base` tokenlarıyla aynı-belge View Transition API kullanılır. Navigation push/pop/tab türleri kısa, yönlü geçişe map edilir; destek yoksa doğrudan render edilir. Geçiş kesilirse görünür tanı kaydı bırakılır; sessiz catch yoktur.
+      · `prefers-reduced-motion: reduce` hem adapter'da API geçişini atlar hem CSS hareket/sürelerini anlıklaştırır. Bu preference kullanıcı seçimi olarak korunur.
+      · **Test + canlı kabul:** `view-transitions.test.ts` ile `npm test` 85/85; telefon BUILD_OK, 85/85 ve 67 dosya md5 eşitliği geçti. Owner telefonda tab, kategori, artifact giriş/geri geçişlerini ve reduced-motion davranışını doğruladı.
 - [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
 - [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
 - [ ] W6.O **Widget kalıcı verisi.** Widget başına alan mı, paylaşılan depo mu; paylaşımlıysa yetkiyi kim verir

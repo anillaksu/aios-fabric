@@ -552,3 +552,17 @@ normalizasyonudur; bozuk/başka origin state'i HOME'a iner. Native `<dialog>`
 sheet/confirmation kapatma davranışı browser navigation'dan ayrı kalır.
 Artifact'tan çıkarken WindowManager focus'u da temizlenir; lifecycle ve
 navigation iki farklı sorumluluk olarak korunur.
+
+---
+
+## 18. Motion — Web Platform ve kullanıcı tercihi
+
+**FACT (2026-08-18; kod `71688e1`, canlı kabul `CHECKLIST.md`).** Aynı-belge
+navigation geçişleri, destekleyen tarayıcıda native
+`document.startViewTransition()` ile çalışır. Push/pop/tab yalnız geçiş
+türüdür; navigation state'i, protokolü veya capability semantiği değildir.
+Mevcut kısa motion tokenları kullanılır; yeni animation frameworkü yoktur.
+
+`prefers-reduced-motion: reduce` tercihinde adapter doğrudan render eder ve
+CSS süreleri anlık kalır. API yoksa aynı fallback geçerlidir. Böylece hareket
+görsel süs değil, okunurluğu geciktirmeyen progresif geliştirmedir.
