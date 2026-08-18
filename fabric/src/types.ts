@@ -147,6 +147,15 @@ export interface Capability {
    * hic dahil degil (bkz. MIMARI_TEMEL.md SS9).
    */
   risk?: "safe" | "notify" | "ask";
+  /**
+   * Bu capability salt-okuma mi?
+   *
+   * `risk:"safe"` tek basina yeterli DEGILDIR: ses/fener/parlaklik gibi
+   * yan etkili ama geri alinabilir eylemler de safe olabilir. Bu alan yalniz
+   * /read'in journal'siz, dogrudan calistirabilecegi capability'leri acikca
+   * isaretler. Belirtilmezse fail-closed (false) kabul edilir.
+   */
+  readOnly?: boolean;
 }
 // Not: iyimser (optimistic) projeksiyonlar capability basina degil,
 // dispatcher.ts'te intent.type'a gore merkezi olarak tanimlanir - hangi
