@@ -28,6 +28,7 @@ import { ParseClient } from "./parse-client.js";
 import { hasMeaningfulData } from "./dispatch-utils.js";
 import { normalizeNavigation, toHistoryState, isSameNavigation } from "./navigation-state.js";
 import { runViewTransition } from "./view-transitions.js";
+import { createRootFormation, verifyFormation } from "./formation-memory.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -246,10 +247,30 @@ function addArtifact(spec, prompt, contract, id) {
   };
   artifacts.unshift(item);
   saveArtifacts();
+  // Formation kaydi artifact'in yerini almaz: ayni kalici artefakta eklenen,
+  // deterministic ve portable kimlik/provenance projeksiyonudur. Web Crypto
+  // asenkron oldugu icin ilk kayit once mevcut semantikle yazilir; identity
+  // hazir olunca ayni kayit tekrar sunucu-birincil depoya yazilir.
+  void ensureRootFormation(item);
   updateBadges();
   return item;
 }
 const findArtifact = (id) => artifacts.find((a) => a.id === id);
+
+async function ensureRootFormation(artifact) {
+  try {
+    if (artifact?.formation && await verifyFormation(artifact.formation)) return artifact.formation;
+    const formation = await createRootFormation(artifact);
+    artifact.formation = formation;
+    await saveArtifacts();
+    return formation;
+  } catch (err) {
+    // Artefaktin mevcut davranisi identity hesap hatasiyla bozulmaz; hata
+    // sessiz kalmaz ve formation kaydi FACT diye sunulmaz.
+    logClientError("formationMemory.ensureRootFormation", err);
+    return null;
+  }
+}
 
 /* ════════ TEMALAR ════════ */
 const THEMES = [
@@ -745,6 +766,9 @@ function paintApplications() {
 function openArtifact(id, historyMode = "push") {
   const a = findArtifact(id);
   if (!a) return;
+  // Legacy kayitlar ilk gerçek açılışta geriye uyumlu formation kökü alır.
+  // Bu navigation/execution semantiğini değiştirmez.
+  void ensureRootFormation(a);
   if (historyMode) {
     const next = { tab: currentTab, artifactId: id, index: navigationIndex + 1 };
     applyNavigation(next, isSameNavigation(navigationSnapshot(), next) ? "replace" : historyMode);
