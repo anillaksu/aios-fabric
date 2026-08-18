@@ -886,6 +886,8 @@ function openControlCenter() {
         <a href="#" class="link sheet-close k-micro">KAPAT</a>
       </div>
       <div class="cc-grid" id="cc-toggles"></div>
+      <div style="padding:14px 16px 4px" id="cc-approvals-label" hidden><span class="k-micro">İZİNLER</span></div>
+      <div style="padding:0 16px 8px" id="cc-approvals"></div>
       <div style="padding:14px 16px 8px"><span class="k-micro">TEMA</span></div>
       <div style="padding:0 16px"><div class="theme-row" id="cc-themes"></div></div>
       <div style="padding:14px 16px 4px"><span class="k-micro">SERVİSLER</span></div>
@@ -960,6 +962,55 @@ function openControlCenter() {
     });
     tg.appendChild(t);
   });
+
+  // B-13: risk:ask capability onaylari - HAM KAYIT ile AYNI ilke (insan-
+  // tetikli duz HTTP uc, capability DEGIL - grant/deny/revoke MCP/A2A/model
+  // tarafindan asla cagirilamaz, bkz. dispatcher.ts). Liste boot'ta yuklenen
+  // capabilitiesWithRisk'ten (fetch YOK), durum GET /approvals'tan gelir.
+  const askCaps = capabilitiesWithRisk.filter((c) => c.risk === "ask").map((c) => c.name).sort();
+  if (askCaps.length) {
+    document.getElementById("cc-approvals-label").hidden = false;
+    const host = document.getElementById("cc-approvals");
+    const TONE = { granted: ["ok", "ONAYLI"], denied: ["error", "REDDEDİLDİ"], revoked: ["warn", "GERİ ALINDI"] };
+    getJSON("/approvals").then((approvals) => {
+      const state = approvals || {};
+      const list = el("div", "c-list");
+      askCaps.forEach((cap) => {
+        const row = el("div", "c-rowitem");
+        row.dataset.tap = "1";
+        const g = el("div", "c-grow");
+        g.appendChild(el("div", "c-title", cap));
+        g.appendChild(el("div", "c-sub", "risk: ask"));
+        row.appendChild(g);
+        const chip = el("span", "c-chip");
+        const paint = () => {
+          const rec = state[cap];
+          const [tone, label] = (rec && TONE[rec.status]) || ["idle", "ONAY BEKLİYOR"];
+          chip.dataset.tone = tone;
+          chip.textContent = label;
+        };
+        paint();
+        row.appendChild(chip);
+        row.addEventListener("click", async () => {
+          if (row.dataset.busy === "1") return;
+          row.dataset.busy = "1";
+          const granted = state[cap] && state[cap].status === "granted";
+          const endpoint = granted ? "/approvals/revoke" : "/approvals/grant";
+          const r = await postJSON(endpoint, { capability: cap }).catch(() => null);
+          if (r && r.ok) {
+            state[cap] = { capability: cap, status: granted ? "revoked" : "granted" };
+            toast(granted ? `"${cap}" onayı geri alındı` : `"${cap}" onaylandı`);
+          } else {
+            toast("İşlem başarısız", true);
+          }
+          paint();
+          row.dataset.busy = "0";
+        });
+        list.appendChild(row);
+      });
+      host.appendChild(list);
+    });
+  }
 
   const themeHost = document.getElementById("cc-themes");
   THEMES.forEach((t) => {
