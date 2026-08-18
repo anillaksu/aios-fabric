@@ -174,6 +174,18 @@ değildir. Server/client validator ve registry drift testi aynı sözleşme seti
 korur. Bu Layer A kanıtı Layer B/sandbox, pub/sub, shared state veya
 compiler/DAG için yetki ya da gereksinim üretmez.
 
+**Dar device-state mapping (FACT, 2026-08-18):** `reference-sound-panel-v1`
+açılırken genel bir widget state deposu kurulmaz. UI, mevcut envelope yolu ile
+`volume.read` dispatch eder; `termux-volume` cevabından yalnız doğrulanmış
+`music.volume`/`music.max_volume` alınır ve saf mapping mevcut ScreenSpec
+range'in `label`/`value`/`max` alanlarını türetir. Bu görünüm artefact'ın
+kalıcı spec'ine yazılmaz; yeniden açılış yeni bir gerçek cihaz okumasıdır.
+Geçersiz ya da `music` içermeyen cevapta sahte değer yerine `empty-state`
+render edilir. Böylece cihaz state'i → deterministik mapping → ScreenSpec →
+native renderer zinciri korunurken execution yine dispatcher/policy'dedir.
+Bu kanıt medya metadata'sı, playback state/position, kalıcı widget state veya
+pub/sub için genelleme yetkisi vermez.
+
 Bunun değeri şudur: **AIOS iki yapının birleşip birleşemeyeceğini LLM'e sormadan
 karara bağlayabilir.** Bugün böyle bir soru sorulmuyor çünkü birleşim yok; ama
 W6'nın widget/galeri katmanı geldiğinde soru kaçınılmaz olarak ortaya çıkacak.

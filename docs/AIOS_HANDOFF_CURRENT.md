@@ -43,6 +43,7 @@ B13_DOC_COMMIT = 5784344
 W6G_TEST_VERIFIED_COMMIT = 3b28451
 W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT = 5905039
 W6_UI_EXPRESSIVENESS_FACT_CHAIN = 5873af2 -> 82a5f6b -> 5905039
+W6_MEDIA_VOLUME_STATE_FACT_CODE_COMMIT = 82d694b
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -141,6 +142,15 @@ W6.G'nin durumunu değiştirmez.
   bağımsız `volume.read` aynı `music=10` değerini döndürdü. İç-scroll ve yeniden açılış owner
   tarafından canlı doğrulandı. `volume.read` bugün `readOnly` damgası taşımadığından doğrulama
   bilinçli olarak `/read` yerine dispatcher üzerinden yapıldı. Kod zinciri: `5873af2 → 82a5f6b → 5905039`.
+- **W6 medya-volume state (2026-08-18) FACT:** `82d694b`, referans panel açılışında
+  `volume.read`i mevcut UI → envelope → dispatcher zincirinden çağırır. Sadece
+  gerçek `termux-volume` içindeki `music.volume/max_volume`, saf mapping ile
+  range label/value/max'a görünüm olarak uygulanır; artifact spec'i ve ephemeral
+  state kalıcılığı değişmez. Eksik/bozuk cevap empty state'tir. Telefon K5'te
+  slider bırakışları 49→91→150→68→150 olarak tek tek `volume.set` task'larına
+  dönüştü; yeniden açılış `volume.read` ile önce 68/150, sonra 150/150 okudu.
+  Test 77/77, telefon BUILD_OK ve 61 dosya md5 eşitliği geçti. `media.control`
+  Shizuku kapalıyken fail-closed kaldığından playback metadata/state FACT değildir.
 - Testler: `npm test` → **75/75** yeşil (telefon dağıtımında). Telefon build → **BUILD_OK**.
 - Telefon-depo senkronu: `deploy-to-phone.sh --check` ile düzenli doğrulanıyor, son kontrol birebir.
 
@@ -179,9 +189,10 @@ W6.G'nin durumunu değiştirmez.
 - **W6.V** Performans bütçesi — aynı anda kaç pencere
 - **W6.Z** AETHER'a kayıt — widget üretimi yönetişim hattında görünsün
 
-**CURRENT DECISION POINT:** Layer A'nın ilk referans dilimi FACT'tir. Sıradaki
-karar W6.N/O/P/V/Z'den hangisinin gerçek kullanım değeri için ele alınacağıdır;
-owner seçmeden ajan yeni W6 koduna başlamaz.
+**CURRENT DECISION POINT:** Owner sonraki görünür ekran/gerçek kullanım
+isteğini verir. Medya için çalan uygulama, parça, sanatçı ve playback state
+bugün capability kaynağı olmadan TARGET'tır; veri uydurulmaz. W6.N/O/P/V/Z
+otomatik başlatılmaz.
 
 ---
 
