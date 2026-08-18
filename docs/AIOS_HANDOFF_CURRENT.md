@@ -41,6 +41,8 @@ B13_READ_COMMIT = 2388002
 B13_A2A_COMMIT = 10670f1
 B13_DOC_COMMIT = 5784344
 W6G_TEST_VERIFIED_COMMIT = 3b28451
+W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT = 5905039
+W6_UI_EXPRESSIVENESS_FACT_CHAIN = 5873af2 -> 82a5f6b -> 5905039
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -52,6 +54,10 @@ kabulü yoktur ve **FACT değildir**. Bu handoff dosyasını içeren commit kend
 hash'ini içeriğine doğru yazamaz; geçerli `CANONICAL_HEAD` her devralmada
 `git rev-parse HEAD` ile okunur ve bu dosyadaki önceki zincir ankrajlarıyla
 karşılaştırılır.
+
+`W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT`, yukarıdaki üç commit'in son kod
+ankrajıdır. FACT için ayrıca aşağıdaki canlı K5 kanıtı gerekir; bu kod zinciri
+W6.G'nin durumunu değiştirmez.
 
 ---
 
@@ -125,7 +131,17 @@ karşılaştırılır.
 - **B-9 anlık canlı sağlık (2026-08-18 13:25 +03):** fabric, llm_bridge, Hermes gateway ve watchdog
   süreçleri mevcuttu; Fabric 200, 9300/9201/8642 dinliyordu. Bu FACT, MIUI'nin gelecekte Termux'u
   öldürmeyeceği anlamına gelmez.
-- Testler: `npm test` → **67/67** yeşil (telefon dağıtımında). Telefon build → **BUILD_OK**.
+- **W6 UI Expressiveness / Layer A (2026-08-18) FACT:** ScreenSpec'in güvenilir deklaratif
+  katalogu `stack`, `scroll-region` ve native HTML `range` ile genişledi. Sunucu/istemci validator
+  ve registry drift testleri aynı contract'ı taşır; `meetsUiRequirements()` saf ve doğal dil
+  yorumlamayan kabul kapısıdır. Kalıcı `reference-sound-panel-v1` gerçek
+  `scroll-region → stack → range` spec'iyle telefonda açıldı. Parmak sürükleme yerel değeri anında
+  değiştirdi; bırakışta yalnız bir `volume.set` dispatcher zinciri oluştu
+  (`taskId 624f3358-5582-49cc-b2e3-1df2a874ebb5`, `music=10`). Dispatcher üzerinden yapılan
+  bağımsız `volume.read` aynı `music=10` değerini döndürdü. İç-scroll ve yeniden açılış owner
+  tarafından canlı doğrulandı. `volume.read` bugün `readOnly` damgası taşımadığından doğrulama
+  bilinçli olarak `/read` yerine dispatcher üzerinden yapıldı. Kod zinciri: `5873af2 → 82a5f6b → 5905039`.
+- Testler: `npm test` → **75/75** yeşil (telefon dağıtımında). Telefon build → **BUILD_OK**.
 - Telefon-depo senkronu: `deploy-to-phone.sh --check` ile düzenli doğrulanıyor, son kontrol birebir.
 
 ---
@@ -153,20 +169,19 @@ karşılaştırılır.
 | M-4 (corpus provenance + W6.5d tetikleyicisi) | `provenance` alanı var, `"corpus"` değeri hiç kullanılmamış | **Katman B'ye bağlı** (W6.5d 200-artefakt eşiği henüz kodda yok) |
 | M-5 kalan iş (`approvalScope` artefakt kaydına bağlanması) | B-13 onay deposu var ama artefakta bağlanmadı | **Katman B'ye bağlı** — Katman B'nin kendi onay senaryosu olmadan bağlamak erken soyutlama |
 
-### W6 Katman B ürün kararları (henüz seçilmedi — 2026-08-18 sonu itibarıyla owner'a soruldu, cevap bekleniyor)
+### W6 açık ürün kararları (owner seçer)
 
-- **W6.G** Uygulamaya dönüştürme — galeriden ana ekrana sürükle → kalıcı "uygulama"
+- **W6.G** ApplicationEntry implementation/test kanıtlıdır (`3b28451`), fakat bu
+  UI-expressiveness FACT'i onun bağımsız lifecycle kabulünü FACT'e çıkarmaz.
 - **W6.N** Pub/sub yetki modeli — widget'lar birbirinin olayını dinleyebilir mi, kanal başına izin
 - **W6.O** Widget kalıcı verisi — widget başına mı paylaşılan depo mu
 - **W6.P** Yaşam döngüsü/bellek — pencere kapanınca temizlik + eşik
 - **W6.V** Performans bütçesi — aynı anda kaç pencere
 - **W6.Z** AETHER'a kayıt — widget üretimi yönetişim hattında görünsün
 
-**CURRENT DECISION POINT:** Bu altı maddeden hangisiyle başlanacağı owner'a
-soruldu (AskUserQuestion), henüz cevap gelmeden bu handoff talimatı devreye
-girdi. **Sıradaki ajan bunu owner'a TEKRAR sormalı, kendi seçmemeli** —
-W6.G önerilen seçenekti (diğerlerinin çoğunun ön koşulu) ama bu bir öneri,
-karar değil.
+**CURRENT DECISION POINT:** Layer A'nın ilk referans dilimi FACT'tir. Sıradaki
+karar W6.N/O/P/V/Z'den hangisinin gerçek kullanım değeri için ele alınacağıdır;
+owner seçmeden ajan yeni W6 koduna başlamaz.
 
 ---
 

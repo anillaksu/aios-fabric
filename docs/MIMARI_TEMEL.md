@@ -155,6 +155,25 @@ Bir artefakt `{name, type}` değildir. Kavramsal sözleşme alanları:
 Input · Output · Event · Capability · Policy · Lifecycle · Version · Provenance
 ```
 
+### 4.2 Layer A deklaratif UI — FACT (2026-08-18)
+
+Katman A serbest HTML/JS değildir: güvenilir ScreenSpec contract'ı native Web
+Platform karşılıklarına render edilir. İlk canlı referans dilimi `stack`,
+`scroll-region` ve native `<input type="range">` ile kanıtlandı. `range`
+`input` olayında yalnız widget-yerel değeri değiştirir; `change` olayında
+`valueKey` action payload'a eklenir ve mevcut UI → envelope →
+`dispatcher.dispatch()` → policy zincirinden tek eylem geçer. Bu nedenle
+sürükleme boyunca capability çalıştırılmaz, bırakışta tek `volume.set` oluşur.
+
+`reference-sound-panel-v1` kalıcı artefact'ı gerçek
+`scroll-region → stack → range` yapısı ve `volume.set({stream:"music", value})`
+binding'iyle telefonda doğrulandı. Deterministik kabul `meetsUiRequirements()`
+yalnız yapısal requirement'ları (`scroll-region`, `range`,
+`range-change-action`, `capability:volume.set`) arar; doğal dil sınıflandırıcısı
+değildir. Server/client validator ve registry drift testi aynı sözleşme setini
+korur. Bu Layer A kanıtı Layer B/sandbox, pub/sub, shared state veya
+compiler/DAG için yetki ya da gereksinim üretmez.
+
 Bunun değeri şudur: **AIOS iki yapının birleşip birleşemeyeceğini LLM'e sormadan
 karara bağlayabilir.** Bugün böyle bir soru sorulmuyor çünkü birleşim yok; ama
 W6'nın widget/galeri katmanı geldiğinde soru kaçınılmaz olarak ortaya çıkacak.
