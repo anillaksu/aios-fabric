@@ -36,7 +36,7 @@ export const ALLOWED_TYPES = new Set([
 export const UI_META_ACTIONS = new Set([
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
   "ui.compose", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
-  "ui.miniapp", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
+  "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
 ]);
 
 function actionAllowed(type: string): boolean {

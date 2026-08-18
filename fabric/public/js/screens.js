@@ -35,7 +35,7 @@ function greeting() {
 /* ══════════════ HOME / NOW ══════════════
    "Dashboard" degil "NOW": su an ne oluyor. Teknik metrikler en altta,
    ozet halinde; detay Device Center'da.                                */
-export function homeScreen(artifacts = []) {
+export function homeScreen(artifacts = [], applications = []) {
   const b = S.battery, w = S.wifi;
   const p = pct(b);
   const sections = [];
@@ -73,6 +73,18 @@ export function homeScreen(artifacts = []) {
         type: "action-card", icon: "pin_fill", title: a.title,
         subtitle: a.prompt ? a.prompt.slice(0, 50) : "canlı panel",
         action: { type: "ui.artifact", payload: { id: a.id } },
+      })),
+    });
+  }
+
+  // W6.G: ApplicationEntry artifact'in kendisi DEGIL, onu acan kalici
+  // launcher identity'sidir. Entry'nin kendi capability/execution'i yoktur.
+  if (applications.length) {
+    sections.push({
+      type: "section", title: "UYGULAMALAR", trailing: String(applications.length), layout: "grid-4",
+      children: applications.map((app) => ({
+        type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        action: { type: "ui.application", payload: { artifactId: app.artifactId } },
       })),
     });
   }

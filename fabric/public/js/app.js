@@ -19,6 +19,7 @@ import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { capabilitySetVersion } from "./artifact-contract.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
+import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, updateApplicationEntry } from "./application-model.js";
 import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
@@ -87,6 +88,9 @@ const $ = (s) => document.querySelector(s);
    uretilebilir. localStorage'da kalir.                                  */
 const ART_KEY = "aios.artifacts";
 let artifacts = [];        // { id, title, spec, prompt, createdAt, pinned }
+// W6.G: ApplicationEntry ayri launcher identity'sidir; artifact'in spec/capability
+// kopyasi degildir. Sunucu birincil, /applications yalniz bu kucuk listeyi tasir.
+let applications = [];     // { id, artifactId, title, icon, position }
 
 // W6.C: artefakt acma/kapama artik WindowManager'in lifecycle'indan geciyor
 // (register/focus/unfocus). Icerik hala mevcut artifactBlock()/render() ile
@@ -144,6 +148,53 @@ async function saveArtifacts() {
   } catch (err) { logClientError("saveArtifacts.serverPost", err); } // sunucuya ulasilamadi - onbellek yine de guncellenir, bir sonraki basarili acilista sunucu bu onbellekten beslenir
   // 30 kayit sinirlamasi YOK (W6.F) - IndexedDB kotasi buna gerek birakmiyor.
   try { await storePutAll(artifacts); } catch (err) { logClientError("saveArtifacts.storePutAll", err); }
+}
+async function loadApplications() {
+  try {
+    const r = await fetch("/applications", { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const list = await r.json();
+    if (!Array.isArray(list)) throw new Error("dizi bekleniyor");
+    applications = list;
+  } catch (err) {
+    // İlk kurulumda dosya yoksa sunucu [] döner; gerçek ağ/parsing hatası görünür kalır.
+    logClientError("loadApplications", err);
+    applications = [];
+  }
+}
+async function saveApplications() {
+  try {
+    const r = await fetch("/applications", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(applications), signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+  } catch (err) { logClientError("saveApplications", err); }
+}
+function addApplication(artifact) {
+  const id = "app" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const entry = createApplicationEntry({ id, artifact, position: nextApplicationPosition(applications) });
+  applications.push(entry);
+  saveApplications();
+  return entry;
+}
+function removeApplication(id) {
+  const before = applications.length;
+  applications = applications.filter((entry) => entry.id !== id);
+  if (applications.length === before) return false;
+  saveApplications();
+  return true;
+}
+function editApplication(entry) {
+  const title = window.prompt("Uygulama adı", entry.title || "Uygulama");
+  if (title === null) return false;
+  const icon = window.prompt("Framework7 ikon adı", entry.icon || "square_grid_2x2_fill");
+  if (icon === null) return false;
+  const result = updateApplicationEntry(applications, entry.id, { title, icon });
+  if (!result.changed) return false;
+  applications = result.entries;
+  saveApplications();
+  return true;
 }
 function addArtifact(spec, prompt, contract, id) {
   const item = {
@@ -205,6 +256,7 @@ const ctx = {
     // yoksa ayni kullanici mesaji iki kez gorunuyor.
     if (type === "ui.ask")       { ask(payload && payload.q, { silent: !!(payload && payload.silent) }); return { ok: true }; }
     if (type === "ui.artifact")  { openArtifact(payload && payload.id); return { ok: true }; }
+    if (type === "ui.application") { openArtifact(payload && payload.artifactId); return { ok: true }; }
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
     if (type === "cap.test")     { return testCapability(payload && payload.name); }
     // MINI-APP URETIMI: normal bir istekten tek farki, sonucun otomatik
@@ -366,11 +418,11 @@ async function paint() {
   if (secondary === "journal")     return mount(host, validateScreen(await SC.journalScreen(secondaryArg)), ctx);
   if (secondary === "connections") return mount(host, validateScreen(await SC.connectionsScreen()), ctx);
   if (secondary === "settings")    return mount(host, validateScreen(await SC.settingsScreen()), ctx);
-  if (secondary === "miniapps")    return mount(host, validateScreen(SC.miniAppsScreen(artifacts)), ctx);
+  if (secondary === "miniapps")    return paintApplications();
   if (secondary === "automations") return mount(host, validateScreen(await SC.automationsScreen()), ctx);
   if (secondary === "history")     return mount(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)), ctx);
 
-  if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts)), ctx);
+  if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "komut")     return mount(host, validateScreen(SC.komutScreen(query, capabilityNames)), ctx);
   if (currentTab === "activity")  return mount(host, validateScreen(SC.activityScreen()), ctx);
   if (currentTab === "artifacts") return paintArtifacts();
@@ -497,12 +549,64 @@ function artifactBlock(a) {
     a.pinned = !a.pinned; saveArtifacts(); paint();
     toast(a.pinned ? "Sabitlendi" : "Sabit kaldırıldı");
   }));
+  acts.appendChild(mk("square_grid_2x2_fill", "ANA EKRANA EKLE", false, () => {
+    const entry = addApplication(a);
+    toast(`Ana ekrana eklendi: ${entry.title}`);
+  }));
   acts.appendChild(mk("trash", "SİL", false, () => {
+    const linked = applicationsForArtifact(applications, a.id);
+    if (!canDeleteArtifact(applications, a.id)) {
+      toast(`Silinmedi: önce ${linked.length} ana ekran girişini kaldır`, true);
+      return;
+    }
     artifacts = artifacts.filter((x) => x.id !== a.id);
     saveArtifacts(); updateBadges(); paint(); toast("Silindi");
   }));
   b.appendChild(acts);
   return b;
+}
+
+/* ════════ W6.G UYGULAMALAR ════════
+   Buradaki kayıtlar yalnız launcher entry'dir. Kaldırmak artifact'i silmez;
+   artifact silmek ise bağlı entry varken fail-closed bloklanır. */
+function paintApplications() {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Uygulamalar", applications.length + " GİRİŞ", () => goTab("home")));
+  const wrap = el("div", "c-section");
+  const body = el("div", "body");
+  const entries = orderedApplications(applications);
+  if (!entries.length) {
+    body.appendChild(render({ type: "empty-state", icon: "square_grid_2x2", title: "Henüz uygulama yok",
+      detail: "Bir artefaktta ANA EKRANA EKLE seçeneğini kullan." }, ctx));
+  } else {
+    entries.forEach((entry) => {
+      const row = el("div", "c-rowitem");
+      const icon = el("i", "icon f7-icons"); icon.textContent = entry.icon || "square_grid_2x2_fill";
+      const lead = el("div", "lead"); lead.appendChild(icon);
+      row.appendChild(lead);
+      const grow = el("div", "c-grow");
+      grow.appendChild(el("div", "c-title", entry.title || "Uygulama"));
+      const artifact = findArtifact(entry.artifactId);
+      grow.appendChild(el("div", "c-sub", artifact ? "Artefaktı aç" : "Bağlı artefakt bulunamadı"));
+      row.appendChild(grow);
+      row.addEventListener("click", () => { if (artifact) openArtifact(entry.artifactId); else toast("Bağlı artefakt bulunamadı", true); });
+      const remove = el("button", "c-btn", "KALDIR");
+      remove.dataset.variant = "ghost";
+      remove.addEventListener("click", (event) => { event.stopPropagation(); removeApplication(entry.id); paintApplications(); toast("Ana ekran girişi kaldırıldı"); });
+      row.appendChild(remove);
+      const edit = el("button", "c-btn", "DÜZENLE");
+      edit.dataset.variant = "ghost";
+      edit.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (editApplication(entry)) { paintApplications(); toast("Uygulama güncellendi"); }
+      });
+      row.appendChild(edit);
+      body.appendChild(row);
+    });
+  }
+  wrap.appendChild(body);
+  host.appendChild(wrap);
 }
 
 function openArtifact(id) {
@@ -1160,7 +1264,7 @@ function handleEntry() {
 
 /* ════════ ACILIS ════════ */
 export async function boot() {
-  loadTheme(); loadRecent(); await loadArtifacts();
+  loadTheme(); loadRecent(); await loadArtifacts(); await loadApplications();
   requestPersistence(); // B-9 ile ayni riskin veri tarafi: Android baski altinda depoyu temizleyebilir
   // M-9: acilis senkronu artik loadArtifacts()'in kendi isi (sunucu birincil,
   // gerekirse onbellekten besler) - burada tekrar POST etmeye gerek yok.

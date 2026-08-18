@@ -224,7 +224,11 @@ function AppTile(spec, ctx) {
   // tetiklenmiyor ve ikonlar hicbir zaman gorunmuyordu (2026-08-16).
   const ic = el("div", "ic");
   ic.style.background = stableColor(spec.pkg || spec.name || "?");
-  ic.appendChild(el("span", "letter", (spec.name || "?").charAt(0).toUpperCase()));
+  if (spec.icon && !spec.pkg) {
+    ic.appendChild(icon(spec.icon));
+  } else {
+    ic.appendChild(el("span", "letter", (spec.name || "?").charAt(0).toUpperCase()));
+  }
   if (spec.pkg) {
     const img = document.createElement("img");
     img.loading = "lazy";

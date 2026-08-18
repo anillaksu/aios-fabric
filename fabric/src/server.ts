@@ -67,6 +67,7 @@ const PORT = Number(process.env.FABRIC_PORT ?? 9300);
 const HOME = process.env.HOME ?? "/data/data/com.termux/files/home";
 const JOURNAL_PATH = `${HOME}/fabric-journal.db`;
 const ARTIFACTS_PATH = `${HOME}/fabric-artifacts.json`;
+const APPLICATIONS_PATH = `${HOME}/fabric-applications.json`;
 // Agent Card'da disariya duyurulan URL - uzak peer'lar (PC coding agent vb.)
 // bize BU adresten geri yazacak, o yuzden 127.0.0.1 degil Tailscale/LAN
 // adresi olmali. FABRIC_SELF_URL env ile override edilebilir (baska bir
@@ -381,6 +382,30 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    // ---------- Application launcher senkronu (W6.G) ----------
+    // ApplicationEntry artifact'in kopyasi DEGIL: yalnizca kalici launcher
+    // identity'si. Ayrç dosya, mevcut /artifacts dizi sîzleümesini bozmaz.
+    if (url.pathname === "/applications" && req.method === "GET") {
+      try {
+        json(res, 200, JSON.parse(readFileSync(APPLICATIONS_PATH, "utf8")));
+      } catch (err) {
+        logErr("server:applicationsRead", err);
+        json(res, 200, []);
+      }
+      return;
+    }
+    if (url.pathname === "/applications" && req.method === "POST") {
+      const body = await readBody(req);
+      try {
+        const list = JSON.parse(body || "[]");
+        if (!Array.isArray(list)) throw new Error("dizi bekleniyor");
+        writeFileSync(APPLICATIONS_PATH, JSON.stringify(list, null, 1), "utf8");
+        json(res, 200, { ok: true, count: list.length });
+      } catch (err) {
+        json(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+      return;
+    }
     // ---------- Ikon ayari: ag uzerinden ikon cekme ac/kapa ----------
     // Kullanici bilgilendirilmis onayla actigi icin var; istedigi an kapatabilir.
     if (url.pathname === "/appicon-settings" && req.method === "GET") {
