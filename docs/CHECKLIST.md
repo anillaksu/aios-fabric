@@ -187,6 +187,10 @@ Son güncelleme: 2026-08-18 (B-13 Approval Contract kapandı) · Kanonik depo: `
       · Yeni animasyon kütüphanesi yok: mevcut `--t-fast`/`--t-base` tokenlarıyla aynı-belge View Transition API kullanılır. Navigation push/pop/tab türleri kısa, yönlü geçişe map edilir; destek yoksa doğrudan render edilir. Geçiş kesilirse görünür tanı kaydı bırakılır; sessiz catch yoktur.
       · `prefers-reduced-motion: reduce` hem adapter'da API geçişini atlar hem CSS hareket/sürelerini anlıklaştırır. Bu preference kullanıcı seçimi olarak korunur.
       · **Test + canlı kabul:** `view-transitions.test.ts` ile `npm test` 85/85; telefon BUILD_OK, 85/85 ve 67 dosya md5 eşitliği geçti. Owner telefonda tab, kategori, artifact giriş/geri geçişlerini ve reduced-motion davranışını doğruladı.
+- [x] **W6 Phone Workspace visual tokens + focus.** ✅ **FACT (2026-08-18; kod `06f3128`).**
+      · Mevcut PHS/AMB/ICE/SYN/PPR temaları korunarak component niyet tokenları (`surface`, `text`, `border`, `success`, `focus`) merkezi hale getirildi. Yeni ekranlar ham renk/ayrı gray üretmez. `--touch-target`, `--control-h`, `--page-pad`, `--section-gap` ortak ölçülerdir.
+      · Klavye erişimi için görünür, tema-duyarlı `:focus-visible` halkası; composer eylemlerinde 44px dokunma alanı eklendi. Yeni component paketi veya tema motoru yoktur.
+      · **Test + canlı kabul:** `design-tokens.test.ts` ile `npm test` 86/86; telefon BUILD_OK, 86/86 ve 68 dosya md5 eşitliği geçti. Owner telefon yüzeylerinde tema tutarlılığı, dokunma alanı, focus halkası, okunurluk ve küçük ekran taşmasını doğruladı.
 - [ ] W6.M **Deterministik prompt şablonları.** Serbest istek değil, sınırları çizilmiş görev; sabit iskelet + değişken yuvalar
 - [ ] W6.N **Pub/sub yetki modeli.** Widget A, widget B'nin olaylarını dinleyebilir mi? Kanal başına izin — "secure" kelimesinin karşılığı
 - [ ] W6.O **Widget kalıcı verisi.** Widget başına alan mı, paylaşılan depo mu; paylaşımlıysa yetkiyi kim verir

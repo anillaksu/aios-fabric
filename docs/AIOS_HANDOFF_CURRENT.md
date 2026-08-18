@@ -225,12 +225,12 @@ kaydında contract nesnesi değil ayrı `capabilities`/`version`/`provenance`
 alanları saklanır; canlı kayıtta `provenance:"reference"` vardır.
 
 **CURRENT DECISION POINT (güncel):** Phone Workspace'in sonraki bağımsız
-görünür dilimi merkezi visual token/typography tutarlılığı denetimidir.
-`71688e1` native View Transition API'yi push/pop/tab için bağladı; reduced
-motion ve desteksiz tarayıcıda doğrudan rendera düşer. Telefon BUILD_OK,
-85/85 test ve 67 dosya md5 eşitliği geçti; owner geçişleri ve reduced-motion
-davranışını canlı doğruladı. W6.N/O/P/V/Z, Layer B, pub/sub, generic state
-store, yeni router/protokol otomatik açılmaz.
+görünür dilimi HOME bilgi hiyerarşisi ve veri-state denetimidir. `06f3128`
+semantic renk/ölçü tokenları, görünür focus ve 44px composer touch target'ını
+ekledi; telefon BUILD_OK, 86/86 test ve 68 dosya md5 eşitliği geçti. Owner
+tema tutarlılığı, okunurluk, focus ve küçük ekran yüzeyini canlı doğruladı.
+W6.N/O/P/V/Z, Layer B, pub/sub, generic state store, yeni router/protokol
+otomatik açılmaz.
 
 ---
 

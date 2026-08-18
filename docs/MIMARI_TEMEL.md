@@ -566,3 +566,16 @@ Mevcut kısa motion tokenları kullanılır; yeni animation frameworkü yoktur.
 `prefers-reduced-motion: reduce` tercihinde adapter doğrudan render eder ve
 CSS süreleri anlık kalır. API yoksa aynı fallback geçerlidir. Böylece hareket
 görsel süs değil, okunurluğu geciktirmeyen progresif geliştirmedir.
+
+---
+
+## 19. Visual token ve focus sözleşmesi
+
+**FACT (2026-08-18; kod `06f3128`, canlı kabul `CHECKLIST.md`).** Tema
+paleti (`s1/s2/fg` vb.) ile component niyeti ayrıdır: componentlar `surface`,
+`text`, `border`, `success` ve `focus` semantic tokenlarını kullanır. Böylece
+PHS/AMB/ICE/SYN/PPR arasında aynı anlamdaki UI farklı rastgele renkler üretmez.
+
+`--touch-target`, `--control-h`, `--page-pad` ve `--section-gap` ortak
+etkileşim/yerleşim ölçüleridir. Keyboard focus görünür ve tema-duyarlıdır;
+bu kural görsel kalite ile erişilebilirliği aynı component sözleşmesinde tutar.
