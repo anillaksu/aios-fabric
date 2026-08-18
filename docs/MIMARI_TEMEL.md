@@ -113,7 +113,7 @@ Kullanıcı / Ajan
       ↓
   Birleşim          TARGET (§5)
       ↓
-  Yürütme           FACT · dispatcher.dispatch() — tek kapı
+  Yürütme           FACT · dispatcher.dispatch() — eylem yürütme kapısı
       ↓
   Journal           FACT · append-only SQLite WAL, journal.ts
       ↓
@@ -126,13 +126,24 @@ Kullanıcı / Ajan
 
 - politikayı atlayamaz — `dispatcher.ts:112` fail-closed: risk belirtilmemişse `ask` sayılır
 - capability yaratamaz — kayıt `capabilities.ts`'te, 39 capability (18 safe · 10 notify · 11 ask)
-- yetki veremez — `risk:"ask"` çalışma zamanında koşulsuz reddedilir (`dispatcher.ts:113`)
+- yetki veremez — `risk:"ask"`, geçerli **insan** approval kaydı yoksa fail-closed
+  reddedilir; kayıt varsa yalnızca `dispatcher.dispatch()` politikası üzerinden ilerler.
+  A2A/MCP/otomasyon approval grant edemez
 - runtime gerçeği üretemez — W5.9'da bu **canlı olarak kanıtlandı**: `llm.generate`
   çağıranın `context` alanına güveniyordu, MCP üzerinden sahte pil verisi enjekte
   edilebiliyordu; `readLiveDeviceContext()` ile kapatıldı ve model gerçek veriyle cevap verdi
 
 Son madde bu zincirin **neden yazılı bir kural değil kod olması gerektiğinin**
 kanıtıdır: kural belgede vardı, kodda yoktu, ve açık gerçekti.
+
+**Dar `/read` istisnası (FACT, 2026-08-18 canlı doğrulandı):** `/read` genel bir
+execution endpoint'i değildir. Yalnız capability kaydında birlikte `risk:"safe"`
+ve `readOnly:true` olan salt-okuma capability'leri kabul eden özel facade'dır;
+bugünkü set `sensor.battery.read` ve `wifi.info`'dur. Bu dar yol doğrudan
+`cap.execute()` çağırır; maliyetsiz gerçek cihaz okuması için dispatcher task/journal
+yaşam döngüsü üretmez. Bunun dışındaki capability execution yolları dispatcher'dan
+geçer. `torch.set`, `sensor.location.read` ve `script.run` `/read` üzerinde 403
+fail-closed olarak canlı doğrulandı.
 
 ---
 
@@ -284,7 +295,7 @@ Kanıtları (**FACT**):
 | Yer | Keşif yüzeyi | Yürütme yüzeyi | Bağlanma kanıtı |
 |---|---|---|---|
 | MCP | `tools/list` | `tools/call` | `mcp.test.ts` — "tools/list, isMcpExposed() ile aynı seti döndürür (drift olamaz)" |
-| A2A | Agent Card `skills` | `capability:` yolu | W1.9 + W5: `dispatcher.dispatch()`'e bağlandı |
+| A2A | Agent Card `skills` | `capability:` yolu | `dispatcher.dispatch()`; `risk:ask` geçerli insan approval'ı ile aynı policy'den geçer (2026-08-18 canlı) |
 | İstemci | `REGISTRY` | `ALLOWED_TYPES` | `renderer.js:22` — `new Set(Object.keys(REGISTRY))`, türetme |
 
 ### 8.1 İhlal: B-6 bir "borç" değil, invaryant ihlalidir
@@ -342,7 +353,9 @@ AIOS → Composition proposal → Execution Graph → Aether → Dispatcher/Sand
 **Owner'ın asıl sezgisi doğru, konumu yanlıştı:** AETHER'ın birleşim hikâyesinde
 gerçek bir rolü var — ama *politika ve yönetişim* tarafında (onay kuyruğu, karar
 kaydı, W6.Z'deki "widget üretimi yönetişim hattında görünsün"), *yürütme*
-tarafında değil. Yürütmenin tek sahibi `dispatcher.dispatch()` olarak kalır.
+tarafında değil. Eylem yürütmenin sahibi `dispatcher.dispatch()` olarak kalır;
+yalnız yukarıdaki dar, `safe + readOnly` `/read` facade'ı genel yürütme yolu
+değildir.
 
 ---
 

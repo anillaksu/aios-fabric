@@ -27,6 +27,24 @@ Kanonik depo: `C:\Users\anil\Desktop\aios-fabric` · Telefon: Tailscale
 `100.75.177.88:9300` (Fabric), SSH `:8022`. `deploy-to-phone.sh --check`
 ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
 
+## Kanıt Durumları
+
+- **FACT** = izlenebilir commit + ilgili test + canlı kanıt birlikte var.
+- **TEST-VERIFIED** = implementation ve test var; canlı kabul kanıtı yoktur.
+- **TARGET** = henüz uygulanmamış karar veya iş.
+
+## Kanonik B-13 Ankrajları
+
+```text
+CANONICAL_BASE = 4824cf3
+B13_READ_COMMIT = 2388002
+B13_A2A_COMMIT = 10670f1
+```
+
+Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
+hizalaması aynı değişiklik kümesi değildir. Canlı kanıt ayrıntıları aşağıdaki
+B-13 kaydında, test karşılıkları ilgili commitlerde yer alır.
+
 ---
 
 ## DEĞİŞMEZ AIOS İLKELERİ (bunları asla yeniden tartışma, uygula)
@@ -46,7 +64,9 @@ ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
 
 **Ayrıca (mimari invaryant, tercih değil):**
 - LLM authority değildir — önerir, AIOS doğrular/yetkilendirir, runtime yürütür.
-- `dispatcher.dispatch()` = **tek execution kapısı** (UI/MCP/A2A/otomasyon hepsi buradan geçer).
+- `dispatcher.dispatch()` = UI/MCP/A2A/otomasyon için **eylem execution kapısıdır**.
+  `/read`, yalnız açık `risk:"safe" + readOnly:true` capability'leri kabul eden dar
+  read facade'ıdır; genel execution endpoint'i değildir.
 - AETHER execution sahibi DEĞİLDİR — pasif yönetişim belleği (`read_canonical`,
   `append_unverified_metadata` var; `write_canonical`/`promote`/`execute` YOK).
   Kod tarafında AETHER'a sıfır import (`MIMARI_TEMEL.md §9`).
@@ -66,7 +86,7 @@ ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
 | Katman B onay modeli = tek-seferlik ask + aynı kapsam reuse + kapsam değişince yeniden ask | KARAR-2, ÇÖZÜLDÜ | `CHECKLIST.md` KARAR-2, B-13 ile çalışma zamanına geçti |
 | Model/provider = mevcut Hermes gateway (Codex OAuth üzerinden), yeni entegrasyon YOK | KARAR-3, ÇÖZÜLDÜ | `CHECKLIST.md` KARAR-3 |
 | AETHER = governance/approval/promotion, execution DEĞİL | Sabit mimari invaryant | `MIMARI_TEMEL.md §9` |
-| `dispatcher.dispatch()` = execution kapısı, tüm yollar (UI/MCP/A2A/otomasyon) buradan geçer | Sabit, test edilmiş | `test/action-bus.test.ts`, `dispatcher.ts:72` |
+| `dispatcher.dispatch()` = UI/MCP/A2A/otomasyon eylem kapısı; `/read` yalnız `safe + readOnly` dar read facade'ı | Sabit, test+canlı kanıtlı | `test/action-bus.test.ts`, `test/read-policy.test.ts`, `dispatcher.ts`, `read-policy.ts` |
 | Depolama: sunucu birincil, IndexedDB önbellek (ters çevrildi) | M-9, TEST-VERIFIED | `app.js:loadArtifacts/saveArtifacts` |
 | Prompt cache: READ her zaman dener, WRITE yalnızca `trustedWrite` kaynaklardan | W6.L revize, FACT | `prompt-cache.js:writeEligible` |
 | **B-13 = Approval Contract + Control Center UI** | FACT, canlı kanıtlı (backend + UI ikisi de) | `src/approval.ts`, `app.js:openControlCenter` İZİNLER bölümü |
@@ -80,7 +100,7 @@ ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
 - W0-W5 tamamlandı (A2A v1.0, risk kapısı, async teslim, MCP cihaz sunucusu, deterministik action bus).
 - W6.I/B/C/D/F/H/K/L/T/W kapandı — Framework7 kaldırıldı (native `<dialog>`/Popover), WindowManager + gerçek artefakt lifecycle, IndexedDB göçü, izole Worker (parse), prompt cache.
 - M-5 (capabilities/version/provenance kısmı), M-6 (tanım düzeyi), M-7, M-10 kapandı.
-- B-1/2/3/5/6/7/8/10/12/13 kapandı; B-9 kısmi (kod tarafı FACT, MIUI ayarı owner'ı bekliyor); B-4/B-11 bilinçli erteleme/karar.
+- B-1/2/3/5/6/7/8/10/12/13 kapandı; B-9 anlık süreç sağlığı FACT, fakat MIUI Termux survivability owner ayarını bekliyor; B-4/B-11 bilinçli erteleme/karar.
 - **B-13 (2026-08-18) — bugünkü en büyük iş:** `risk:ask` capability'ler artık koşulsuz reddedilmiyor;
   `src/approval.ts` (saf `isApproved`), `state.ts`/`types.ts` (`approval.granted/denied/revoked`),
   `dispatcher.ts` (`grantApproval/denyApproval/revokeApproval` — **capabilityMap'te YOK**, MCP/A2A/
@@ -90,10 +110,14 @@ ile depo/telefon senkronu her zaman doğrulanabilir (md5, değişiklik yapmaz).
   invalidation Katman B'ye kadar TARGET, sahte test yazılmadı. **Canlı kanıt iki kez:** curl ile
   (onaysız red → grant → gerçek `stdout` ile tamamlandı → revoke → red) VE owner'ın telefonda gerçek
   dokunuşuyla (journal: `approval.granted` 08:45:30.671 → `approval.revoked` 08:45:32.705).
-  64/64 test (PC), 10/10 (telefon, gerçek Termux).
-- Testler: `npm test` → **64/64** yeşil (bu handoff'u yazarken tekrar çalıştırıldı). `npm run build`
-  (bash ile doğrudan, `for` döngüsü Windows'ta npm'in cmd.exe'si yüzünden patlıyor — bilinen ortam
-  kısıtı) → **BUILD_OK**.
+   İlk contract/UI kanıtı 64/64'tü; enforcement uzantısı sonrası **67/67** test telefonunda geçti.
+   A2A, geçerli insan approval'ı varken dispatcher üzerinden gerçek `script.run` sonucuna ulaştı;
+   approval yok/revoke/geçmiş expiry fail-closed, A2A approval grant edemiyor. `/read` canlıda yalnız
+   `sensor.battery.read` ve `wifi.info` için izinli, `torch.set`/`sensor.location.read`/`script.run` için 403.
+- **B-9 anlık canlı sağlık (2026-08-18 13:25 +03):** fabric, llm_bridge, Hermes gateway ve watchdog
+  süreçleri mevcuttu; Fabric 200, 9300/9201/8642 dinliyordu. Bu FACT, MIUI'nin gelecekte Termux'u
+  öldürmeyeceği anlamına gelmez.
+- Testler: `npm test` → **67/67** yeşil (telefon dağıtımında). Telefon build → **BUILD_OK**.
 - Telefon-depo senkronu: `deploy-to-phone.sh --check` ile düzenli doğrulanıyor, son kontrol birebir.
 
 ---
@@ -197,25 +221,23 @@ dosya oluşturur).
 
 ---
 
-## § Bilinen belge kaymaları (bu handoff'u yazarken bulundu, düzeltildi)
+## § Bilinen belge kaymaları (2026-08-18 hizalaması)
 
 - `src/types.ts`'teki `risk` alanı yorumu, B-13 öncesi "AETHER onay kuyruğu
   bağlanana kadar ask koşulsuz reddedilir" diyordu — **artık yanlış**, B-13
   ile `isApproved()`'a bağlandı ve onay **AETHER'dan değil Fabric'in kendi
   journal'ından** geliyor (AETHER hâlâ pasif, bu akışa hiç dahil değil).
   **Bu handoff'u yazarken düzeltildi** (`types.ts:140-147`).
-- `MIMARI_TEMEL.md §3`'teki "Runtime otorite zinciri" tablosu hâlâ
-  *"`risk:"ask"` çalışma zamanında koşulsuz reddedilir"* diyor — B-13
-  sonrası kısmen eskidi (artık koşullu: onay varsa geçer). **Bu dosya elle
-  düzeltilmedi** (kapsam dışı tutuldu, yalnızca burada işaretlendi) — MIMARI_
-  TEMEL.md bir "belgenin kendi ilkesine tabi" tarihsel doküman, düzeltme
-  gerekiyorsa ayrı bir iş olarak ele alınmalı.
+- Eski `MIMARI_TEMEL.md §3` "risk:ask koşulsuz reddedilir" ifadesi ve
+  "tüm yollar doğrudan dispatcher" genellemesi bu turda düzeltildi. Güncel
+  gerçek: geçerli insan approval'ı A2A dahil dispatcher policy'sinden geçer;
+  `/read` yalnız açık `safe + readOnly` seti için ayrı, genel olmayan facade'dır.
 
 ---
 
 ## NEXT SAFE ACTION
 
-1. B-9 canlı kontrolü (yukarıdaki komut).
+1. Bir sonraki canlı testten önce B-9 canlı kontrolünü tekrar yap (anlık sağlık kalıcı survivability değildir).
 2. Owner'a W6 Katman B önceliği sorusu HÂLÂ AÇIK — tekrar sor, tahmin etme.
 3. Cevap gelene kadar S-1/S-2/M-1 (ürün kararı gerektirmeyen, düşük riskli
    teknik işler) bir "boşta iken yapılabilir" havuzu olarak değerlendirilebilir
