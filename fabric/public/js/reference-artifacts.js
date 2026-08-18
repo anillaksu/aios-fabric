@@ -1,7 +1,7 @@
 /* Ilk ScreenSpec 2.0 referans artefakti. LLM uretimi degil; yeni contract'in
    gercek telefon kabulunde kullanilacak deterministik fixture'i. */
 export const SOUND_PANEL_REQUIREMENTS = [
-  "scroll-region", "range", "range-change-action", "capability:volume.set",
+  "scroll-region", "range", "range-change-action", "capability:volume.set", "capability:media.control",
 ];
 
 const DEFAULT_MUSIC_VOLUME = { value: 7, max: 15 };
@@ -46,7 +46,7 @@ export function soundPanelWithMusicVolume(volume) {
               : "Ses değeri uydurulmaz; geçerli cevap gelirse native slider gösterilir." },
           { type: "button-row", children: [
             { type: "button", label: "ÖNCEKİ", variant: "ghost", action: { type: "media.control", payload: { action: "prev" } } },
-            { type: "button", label: "DURAKLAT", variant: "ghost", action: { type: "media.control", payload: { action: "pause" } } },
+            { type: "button", label: "OYNAT / DURAKLAT", variant: "ghost", action: { type: "media.control", payload: { action: "toggle" } } },
             { type: "button", label: "SONRAKİ", variant: "ghost", action: { type: "media.control", payload: { action: "next" } } },
           ] },
           { type: "text", text: "Bu alan kasıtlı olarak kendi sınırı içinde kayar. Ses değeri artefaktın davranışını değiştirmez; yeniden açıldığında aynı native range ve dispatcher binding yeniden kurulur." },

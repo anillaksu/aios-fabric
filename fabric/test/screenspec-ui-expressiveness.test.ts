@@ -73,6 +73,10 @@ test("referans ses paneli yalniz gercek termux-volume music cevabini ScreenSpec'
   assert.equal(range.max, 150);
   assert.match(range.label, /10 \/ 150/);
   assert.equal(meetsUiRequirements(panel, SOUND_PANEL_REQUIREMENTS), true);
+  const playPause = panel.sections[0].children[0].children[0].children[2].children[1];
+  assert.equal(playPause.label, "OYNAT / DURAKLAT");
+  assert.equal(playPause.action.type, "media.control");
+  assert.equal(playPause.action.payload.action, "toggle");
 });
 
 test("bozuk veya music stream'i olmayan volume cevabi fake slider uretmez", () => {
