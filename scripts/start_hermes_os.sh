@@ -37,7 +37,7 @@ disown
 nohup setsid proot-distro login ubuntu -- bash -c "cd /root && source hermes-agent/venv/bin/activate && python3 -m uvicorn llm_bridge:app --host 127.0.0.1 --port 9201" > "$HOME/llm_bridge.log" 2>&1 < /dev/null &
 disown
 
-# 3) Fabric (9300) - TypeScript omurga + AI-OS arayuzu (Framework7 PWA).
+# 3) Fabric (9300) - TypeScript omurga + AI-OS arayuzu (PWA).
 # Termux'un KENDI Node'unda: capability'ler Termux:API binary'lerini ve
 # `am`/`pm`'i dogrudan cagiriyor (proot'ta rish/izinler bozuluyor).
 nohup setsid bash -c "cd '$HOME/fabric' && node --experimental-strip-types src/server.ts" > "$HOME/fabric.log" 2>&1 < /dev/null &
@@ -48,5 +48,28 @@ sleep 5
 nohup bash "$HOME/watchdog.sh" > "$HOME/watchdog_stdout.log" 2>&1 < /dev/null &
 disown
 
-sleep 2
-termux-toast "AI-OS hazir -> Chrome: http://localhost:9300" 2>/dev/null
+# Widget komutu bir terminal islemi degil, AIOS baslaticisidir. Fabric gercekten
+# hazir olmadan tarayiciyi one getirmeyiz; aksi halde bos/baglanamiyor ekranini
+# kullanici gorur. Paket veya activity adi tahmin edilmez: standart ACTION_VIEW
+# Android'in localhost URL'sini kayitli PWA/uygun tarayici yuzeyine yonlendirir.
+ready=0
+for _ in $(seq 1 12); do
+  # Fabric'in health route'u yoktur; PWA shell'i olan GET /, gercek baslangic
+  # yuzeyidir. 200 yaniti hem Node dinleyicisini hem de statik shell'i kanitlar.
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:9300/)" = "200" ]; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$ready" -eq 1 ]; then
+  termux-toast "AI-OS hazir" 2>/dev/null
+  am start -a android.intent.action.VIEW -d http://localhost:9300 > "$HOME/aios-launcher.log" 2>&1 || {
+    echo "$(date): AIOS ACTION_VIEW baslatilamadi" >> "$HOME/aios-launcher.log"
+    termux-toast "AI-OS hazir, ana ekrandaki AIOS simgesinden ac" 2>/dev/null
+  }
+else
+  echo "$(date): Fabric 9300 17sn icinde hazir olmadi; UI acilmadi" >> "$HOME/aios-launcher.log"
+  termux-toast "AI-OS henuz hazir degil" 2>/dev/null
+fi

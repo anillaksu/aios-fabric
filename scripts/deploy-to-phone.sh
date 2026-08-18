@@ -29,7 +29,7 @@ norm() { awk '{gsub(/^\*/,"",$2); print $1, $2}' | sort; }
 # HIC kanitlanmamisti. UI bastan yazilacaksa (W6) bu delik once kapanmali.
 # vendor/ ve icons/ ucuncu-parti/ikili varliklar: nadiren degisir, ayri
 # kuruluma birakildi (her deploy'da 1.5MB md5'lemek anlamsiz).
-REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/package.json fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json"
+REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/package.json fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json scripts/start_hermes_os.sh"
 
 # Iki tarafta AYNI dosya listesi uzerinden md5 uretir (yol farki normalize).
 # 2026-08-17 BULUNDU: package.json bu listede hic yoktu - "test" script'i
@@ -37,10 +37,10 @@ REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/package.json fabric/publ
 # yerine "Missing script" ile patladi. Dagitim BURADA dogru sekilde durdu
 # (sessizce gecmedi) ama kok neden buydu: dagitim kapsami TAM degildi.
 phone_md5() {
-    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null' | norm
+    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum ~/start_hermes_os.sh | awk "{print \$1, \"launcher/root\"}"; md5sum ~/.shortcuts/start_hermes_os.sh | awk "{print \$1, \"launcher/widget\"}"' | norm
 }
 repo_md5() {
-    (cd "$REPO/fabric" && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null) | norm
+    (cd "$REPO/fabric" && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/root"}'; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/widget"}') | norm
 }
 
 say "0) Telefona erisim"
@@ -63,7 +63,7 @@ if [ "${1:-}" = "--check" ]; then
 fi
 
 say "1) Yedek (telefonda)"
-$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css $D/test && cp ~/fabric/src/*.ts ~/fabric/package.json ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json $D/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; cp ~/fabric/test/*.test.ts $D/test/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
+$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css $D/test $D/shortcuts && cp ~/fabric/src/*.ts ~/fabric/package.json ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json ~/start_hermes_os.sh $D/ 2>/dev/null; cp ~/.shortcuts/start_hermes_os.sh $D/shortcuts/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; cp ~/fabric/test/*.test.ts $D/test/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
 
 say "2) Dagit"
 $SCP "$REPO"/fabric/src/*.ts          "$PHONE":'~/fabric/src/'        >/dev/null || fail "src kopyalanamadi"
@@ -75,7 +75,9 @@ $SCP "$REPO"/fabric/public/css/*      "$PHONE":'~/fabric/public/css/' >/dev/null
 $SCP "$REPO"/fabric/public/aios.html \
      "$REPO"/fabric/public/sw.js \
      "$REPO"/fabric/public/manifest.json "$PHONE":'~/fabric/public/'  >/dev/null || fail "kabuk dosyalari kopyalanamadi"
-echo "kopyalandi (src + test + package.json + js + css + aios.html/sw.js/manifest.json)"
+$SCP "$REPO"/scripts/start_hermes_os.sh "$PHONE":'~/start_hermes_os.sh' || fail "kanonik baslatici kopyalanamadi"
+$SSH "$PHONE" 'mkdir -p ~/.shortcuts && cp ~/start_hermes_os.sh ~/.shortcuts/start_hermes_os.sh && chmod 700 ~/start_hermes_os.sh ~/.shortcuts/start_hermes_os.sh' || fail "Widget baslaticisi hazirlanamadi"
+echo "kopyalandi (src + test + package.json + js + css + PWA kabugu + baslatici)"
 
 # Depoda olmayan bir dosya telefonda kalmis olabilir (orn. silinmis olu kod).
 # B-8 (2026-08-17 bulundu, 2026-08-18 duzeltildi): onceden yalnizca src/*.ts
