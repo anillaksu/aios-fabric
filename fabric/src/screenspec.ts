@@ -35,7 +35,7 @@ export const ALLOWED_TYPES = new Set([
 // olmali. fabric/test/registry-drift.test.ts bu ikisini karsilastirir (B-6).
 export const UI_META_ACTIONS = new Set([
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
-  "ui.compose", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
+  "ui.compose", "ui.refreshApps", "ui.refreshArtifacts", "ui.refreshApplications", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
   "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
   "ui.referenceSoundPanel", "ui.referenceDeviceStatus",
 ]);

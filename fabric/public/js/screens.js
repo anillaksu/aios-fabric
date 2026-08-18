@@ -16,6 +16,8 @@ export const S = {
   battery: null,
   wifi: null,
   apps: [],
+  appsLoadState: "loading", // yalniz Android uygulama listesinin veri durumu
+  appsLoadError: null,
   recent: [],       // son acilan paketler (yerelde tutulur)
   tasks: [],        // Fabric task'lari
   activity: [],     // son olaylar
@@ -184,9 +186,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
   if (categoryKnown) {
     sections.push({ type: "section", title: category.toUpperCase(), children: entriesForCategory(category).map(card) });
     if (category === "Uygulamalar") {
-      sections.push({ type: "section", title: "TELEFONDAKİ UYGULAMALAR · " + S.apps.length, layout: "grid-4",
-        children: S.apps.slice(0, 12).map((app) => ({ type: "app-tile", name: app.name, pkg: app.pkg,
-          action: { type: "app.open", payload: { pkg: app.pkg } }, longPress: { type: "ui.appsheet", payload: { pkg: app.pkg, name: app.name } } })) });
+      sections.push({ type: "section", title: "TELEFONDAKİ UYGULAMALAR", layout: "grid-4", children: phoneAppsContent(12) });
     }
     if (category === "AIOS" && applications.length) {
       sections.push({ type: "section", title: "UYGULAMALARIM · " + applications.length, layout: "grid-4",
@@ -211,7 +211,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
           action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })),
       });
     }
-    sections.push({ type: "section", title: "TELEFON UYGULAMALARI · " + S.apps.length,
+    sections.push({ type: "section", title: "TELEFON UYGULAMALARI" + (S.appsLoadState === "ready" ? " · " + S.apps.length : ""),
       children: [{ type: "action-card", icon: "square_grid_2x2_fill", title: "Tüm uygulamaları aç", subtitle: "Cihazda yüklü uygulamalar",
         action: { type: "ui.goto", payload: { screen: "androidApps" } } }] });
     return { id: "discover", title: "Keşfet", sections };
@@ -242,6 +242,15 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
       })),
     });
   }
+  if (!apps.length && S.appsLoadState === "loading") {
+    sections.push({ type: "section", title: "TELEFON UYGULAMALARI", children: [{ type: "skeleton", rows: 2 }] });
+  }
+  if (!apps.length && S.appsLoadState === "error") {
+    sections.push({ type: "section", title: "TELEFON UYGULAMALARI", children: [{ type: "error-state", icon: "wifi_exclamationmark", title: "Uygulama listesi alınamadı", detail: "Listeyi yeniden deneyebilirsin.", actionLabel: "TEKRAR DENE", action: { type: "ui.refreshApps" } }] });
+  }
+  if (!catalog.length && !matchingApplications.length && !matchingArtifacts.length && !apps.length && !caps.length) {
+    sections.push({ type: "section", title: "SONUÇ", children: [{ type: "empty-state", icon: "magnifyingglass", title: "Eşleşme bulunamadı", detail: "Yerel katalogda bu adla bir işlev yok. İstersen Hermes'e sorabilirsin." }] });
+  }
   if (caps.length) {
     sections.push({ type: "section", title: "CAPABILITY",
       children: [{ type: "list", children: caps.map((n) => ({
@@ -261,12 +270,16 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
 export function androidAppsScreen() {
   return {
     id: "android-apps", title: "Telefon Uygulamaları",
-    sections: [{ type: "section", title: "UYGULAMALAR · " + S.apps.length, layout: "grid-4",
-      children: S.apps.length ? S.apps.map((app) => ({ type: "app-tile", name: app.name, pkg: app.pkg,
-        action: { type: "app.open", payload: { pkg: app.pkg } }, longPress: { type: "ui.appsheet", payload: { pkg: app.pkg, name: app.name } } }))
-        : [{ type: "skeleton", rows: 4 }],
-    }],
+    sections: [{ type: "section", title: "UYGULAMALAR" + (S.appsLoadState === "ready" ? " · " + S.apps.length : ""), layout: "grid-4", children: phoneAppsContent() }],
   };
+}
+
+function phoneAppsContent(limit = Infinity) {
+  if (S.appsLoadState === "loading") return [{ type: "skeleton", rows: 4 }];
+  if (S.appsLoadState === "error") return [{ type: "error-state", icon: "wifi_exclamationmark", title: "Uygulama listesi alınamadı", detail: "Bağlantıyı kontrol edip yeniden deneyebilirsin.", actionLabel: "TEKRAR DENE", action: { type: "ui.refreshApps" } }];
+  if (!S.apps.length) return [{ type: "empty-state", icon: "square_grid_2x2", title: "Uygulama yok", detail: "Cihaz uygulama listesi boş döndü.", actionLabel: "YENİLE", action: { type: "ui.refreshApps" } }];
+  return S.apps.slice(0, limit).map((app) => ({ type: "app-tile", name: app.name, pkg: app.pkg,
+    action: { type: "app.open", payload: { pkg: app.pkg } }, longPress: { type: "ui.appsheet", payload: { pkg: app.pkg, name: app.name } } }));
 }
 
 /** Yalnız gerçek, parametresi burada belirlenmiş günlük araçlar. */

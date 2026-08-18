@@ -94,9 +94,13 @@ const $ = (s) => document.querySelector(s);
    uretilebilir. localStorage'da kalir.                                  */
 const ART_KEY = "aios.artifacts";
 let artifacts = [];        // { id, title, spec, prompt, createdAt, pinned }
+let artifactsLoadState = "loading"; // loading | ready | error — yalniz galeri kaynagi
+let artifactsLoadError = null;
 // W6.G: ApplicationEntry ayri launcher identity'sidir; artifact'in spec/capability
 // kopyasi degildir. Sunucu birincil, /applications yalniz bu kucuk listeyi tasir.
 let applications = [];     // { id, artifactId, title, icon, position }
+let applicationsLoadState = "loading";
+let applicationsLoadError = null;
 
 // W6.C: artefakt acma/kapama artik WindowManager'in lifecycle'indan geciyor
 // (register/focus/unfocus). Icerik hala mevcut artifactBlock()/render() ile
@@ -113,16 +117,17 @@ async function loadArtifacts() {
   try {
     const r = await fetch("/artifacts", { signal: AbortSignal.timeout(4000) });
     if (r.ok) { const j = await r.json(); if (Array.isArray(j)) serverList = j; }
-  } catch (err) { logClientError("loadArtifacts.serverFetch", err); } // B-9 riskiyle ayni: sunucu erisilemez olabilir, onbellege dus
+  } catch (err) { artifactsLoadError = String(err.message || err); logClientError("loadArtifacts.serverFetch", err); } // B-9 riskiyle ayni: sunucu erisilemez olabilir, onbellege dus
 
   if (serverList && serverList.length) {
     artifacts = serverList;
     try { await storePutAll(artifacts); } catch (err) { logClientError("loadArtifacts.storePutAll(sunucu->onbellek senkron)", err); }
+    artifactsLoadState = "ready"; artifactsLoadError = null;
     return;
   }
 
   // Sunucu bos ya da erisilemedi - yerel onbellekten oku.
-  try { artifacts = await storeGetAll(); } catch (err) { logClientError("loadArtifacts.storeGetAll", err); artifacts = []; }
+  try { artifacts = await storeGetAll(); } catch (err) { artifactsLoadError = String(err.message || err); logClientError("loadArtifacts.storeGetAll", err); artifacts = []; }
   if (artifacts.length === 0) {
     // W6.F GOC (2026-08-17): IndexedDB de bosSA eski localStorage'da veri
     // kalmis olabilir - TEK SEFERLIK tasi, veri kaybi olmasin.
@@ -143,6 +148,7 @@ async function loadArtifacts() {
     }).catch((err) => logClientError("loadArtifacts.serverSeed", err));
   }
   try { localStorage.removeItem(ART_KEY); } catch (err) { logClientError("loadArtifacts.legacyCleanup", err); }
+  artifactsLoadState = artifactsLoadError && artifacts.length === 0 ? "error" : "ready";
 }
 async function saveArtifacts() {
   // Sunucu BIRINCIL kaynak (M-9) - once sunucuya yazilir.
@@ -162,12 +168,29 @@ async function loadApplications() {
     const list = await r.json();
     if (!Array.isArray(list)) throw new Error("dizi bekleniyor");
     applications = list;
+    applicationsLoadState = "ready"; applicationsLoadError = null;
   } catch (err) {
     // İlk kurulumda dosya yoksa sunucu [] döner; gerçek ağ/parsing hatası görünür kalır.
     logClientError("loadApplications", err);
     applications = [];
+    applicationsLoadState = "error"; applicationsLoadError = String(err.message || err);
   }
 }
+async function refreshAndroidApps() {
+  S.appsLoadState = "loading"; S.appsLoadError = null; paint();
+  try {
+    const result = await read("app.list", {});
+    if (!result.ok || !Array.isArray(result.data?.apps)) throw new Error(result.error || "uygulama listesi alınamadı");
+    S.apps = result.data.apps;
+    S.appsLoadState = "ready";
+  } catch (err) {
+    S.apps = []; S.appsLoadState = "error"; S.appsLoadError = String(err.message || err);
+    logClientError("refreshAndroidApps", err);
+  }
+  paint();
+}
+async function refreshArtifacts() { await loadArtifacts(); paint(); }
+async function refreshApplications() { applicationsLoadState = "loading"; applicationsLoadError = null; paint(); await loadApplications(); paint(); }
 async function saveApplications() {
   try {
     const r = await fetch("/applications", {
@@ -273,6 +296,9 @@ const ctx = {
     if (type === "ui.referenceSoundPanel") return openReferenceArtifact(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, "Kaydırılabilir Ses Paneli");
     if (type === "ui.referenceDeviceStatus") return openReferenceArtifact(DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, "Cihaz Durum Merkezi");
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
+    if (type === "ui.refreshApps") { await refreshAndroidApps(); return { ok: S.appsLoadState === "ready", error: S.appsLoadError }; }
+    if (type === "ui.refreshArtifacts") { await refreshArtifacts(); return { ok: artifactsLoadState === "ready", error: artifactsLoadError }; }
+    if (type === "ui.refreshApplications") { await refreshApplications(); return { ok: applicationsLoadState === "ready", error: applicationsLoadError }; }
     if (type === "cap.test")     { return testCapability(payload && payload.name); }
     // MINI-APP URETIMI: normal bir istekten tek farki, sonucun otomatik
     // SABITLENMESI. "Kalici giris" derken kastedilen sey buydu - artefakt
@@ -530,6 +556,14 @@ function paintArtifacts() {
   newWrap.appendChild(newBody);
   host.appendChild(newWrap);
 
+  if (artifactsLoadState === "error" && !artifacts.length) {
+    const wrap = el("div", "c-section");
+    const body = el("div", "body");
+    body.appendChild(render({ type: "error-state", icon: "wifi_exclamationmark", title: "Artefaktlar yüklenemedi",
+      detail: "Sunucu ve yerel önbellekte kayıt okunamadı. Bağlantıyı kontrol edip yeniden deneyebilirsin.",
+      actionLabel: "TEKRAR DENE", action: { type: "ui.refreshArtifacts" } }, ctx));
+    wrap.appendChild(body); host.appendChild(wrap); return;
+  }
   if (!artifacts.length) {
     const wrap = el("div", "c-section");
     const body = el("div", "body");
@@ -671,7 +705,11 @@ function paintApplications() {
     }
   });
   body.appendChild(deviceReference);
-  if (!entries.length) {
+  if (applicationsLoadState === "error") {
+    body.appendChild(render({ type: "error-state", icon: "wifi_exclamationmark", title: "Uygulamalarım yüklenemedi",
+      detail: "Launcher girişleri sunucudan okunamadı. Bağlantıyı kontrol edip yeniden deneyebilirsin.",
+      actionLabel: "TEKRAR DENE", action: { type: "ui.refreshApplications" } }, ctx));
+  } else if (!entries.length) {
     body.appendChild(render({ type: "empty-state", icon: "square_grid_2x2", title: "Henüz uygulama yok",
       detail: "Bir artefaktta ANA EKRANA EKLE seçeneğini kullan." }, ctx));
   } else {
@@ -683,7 +721,7 @@ function paintApplications() {
       const grow = el("div", "c-grow");
       grow.appendChild(el("div", "c-title", entry.title || "Uygulama"));
       const artifact = findArtifact(entry.artifactId);
-      grow.appendChild(el("div", "c-sub", artifact ? "Artefaktı aç" : "Bağlı artefakt bulunamadı"));
+      grow.appendChild(el("div", "c-sub", artifact ? (entry.lastOpenedAt ? "Son açılış: " + when(entry.lastOpenedAt) : "Henüz açılmadı") : "Bağlı artefakt bulunamadı"));
       row.appendChild(grow);
       row.addEventListener("click", () => { if (artifact) openApplication(entry.id, entry.artifactId); else toast("Bağlı artefakt bulunamadı", true); });
       const remove = el("button", "c-btn", "KALDIR");
@@ -1449,12 +1487,7 @@ export async function boot() {
   goTab("home");
   await refresh();
 
-  read("app.list").then((r) => {
-    if (r.ok && r.data && r.data.apps) {
-      S.apps = r.data.apps;
-      if (["komut", "home"].includes(currentTab)) paint();
-    }
-  });
+  refreshAndroidApps();
 
   setInterval(paintStatus, 20000);
   setInterval(refresh, 45000);

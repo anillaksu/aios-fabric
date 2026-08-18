@@ -6,7 +6,7 @@ import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWork
 // origin kabuğunu verip ekranı dinamik import ediyoruz. Katalog kendisi DOM/ağ
 // bağımsız kalır.
 globalThis.location = { origin: "http://localhost" } as Location;
-const { S, discoverScreen, homeScreen } = await import("../public/js/screens.js");
+const { S, androidAppsScreen, discoverScreen, homeScreen } = await import("../public/js/screens.js");
 
 test("Phone Workspace katalogu kisa Turkce aramayi deterministik metadata ile bulur", () => {
   assert.equal(foldWorkspaceText("CİHAZ AĞI"), "cihaz agi");
@@ -37,4 +37,20 @@ test("HOME son kullanilan ApplicationEntry'yi artifact'ten ayri launcher kimligi
   const recent = home.sections.find((section) => section.title === "SON KULLANILAN UYGULAMALAR");
   assert.equal(recent.children[0].action.type, "ui.application");
   assert.deepEqual(recent.children[0].action.payload, { applicationId: "app1", artifactId: "artifact1" });
+});
+
+test("telefon uygulamalari loading, empty ve error durumlarini ayirt eder ve retry UI action kullanir", () => {
+  S.apps = [];
+  S.appsLoadState = "loading";
+  assert.equal(androidAppsScreen().sections[0].children[0].type, "skeleton");
+
+  S.appsLoadState = "error";
+  const failed = androidAppsScreen().sections[0].children[0];
+  assert.equal(failed.type, "error-state");
+  assert.equal(failed.action.type, "ui.refreshApps");
+
+  S.appsLoadState = "ready";
+  const empty = androidAppsScreen().sections[0].children[0];
+  assert.equal(empty.type, "empty-state");
+  assert.equal(empty.action.type, "ui.refreshApps");
 });
