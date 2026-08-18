@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateScreen as validateServer } from "../src/screenspec.ts";
 import { validateScreen as validateClient, setAllowedActions } from "../public/js/renderer.js";
 import { meetsUiRequirements } from "../public/js/ui-requirements.js";
-import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume } from "../public/js/reference-artifacts.js";
+import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume, DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, deviceStatusWithLiveData } from "../public/js/reference-artifacts.js";
 
 const range = {
   type: "range", label: "Müzik", min: 0, max: 15, value: 7, step: 1, valueKey: "value",
@@ -85,4 +85,33 @@ test("bozuk veya music stream'i olmayan volume cevabi fake slider uretmez", () =
   const panel = soundPanelWithMusicVolume(null);
   const state = panel.sections[0].children[0].children[0].children[0];
   assert.equal(state.type, "empty-state");
+});
+
+test("Cihaz Durum Merkezi yalniz gercek battery ve Wi-Fi alanlarini mevcut ScreenSpec'e map eder", () => {
+  const panel = deviceStatusWithLiveData({
+    battery: { percentage: 31, temperature: 29.2, voltage: 3782, cycle: 1100, status: "DISCHARGING", health: "GOOD", plugged: "UNPLUGGED", technology: "Li-poly", current: 130000 },
+    wifi: { ssid: "DESKTOP-BLDNDGB 1875", ip: "192.168.137.69", rssi: -9, frequency_mhz: 2437, link_speed_mbps: 144 },
+    appCount: 63,
+    fabricReachable: true,
+  });
+  const stack = panel.sections[0].children[0].children[0];
+  assert.equal(stack.type, "stack");
+  assert.equal(stack.children[0].children[0].value, 31);
+  assert.equal(stack.children[0].children[2].value, "3.78");
+  assert.equal(stack.children[0].children[4].value, 63);
+  assert.equal(stack.children[2].children[0].children[0].subtitle, "DESKTOP-BLDNDGB 1875");
+  assert.equal(stack.children[3].children[0].children[0].chip.label, "ERİŞİLEBİLİR");
+  assert.equal(stack.children[4].action.type, "ui.artifact");
+  assert.equal(meetsUiRequirements(panel, DEVICE_STATUS_PANEL_REQUIREMENTS), true);
+  setAllowedActions(["ui.artifact"]);
+  assert.ok(validateServer(panel));
+  assert.ok(validateClient(panel));
+});
+
+test("Cihaz Durum Merkezi veri yoksa sayi uydurmaz", () => {
+  const panel = deviceStatusWithLiveData();
+  const stack = panel.sections[0].children[0].children[0];
+  assert.equal(stack.children[0].children[0].type, "empty-state");
+  assert.equal(stack.children[3].children[0].children[0].chip.label, "ÖLÇÜLMEDİ");
+  assert.equal(DEVICE_STATUS_PANEL.id, "reference-device-status-v1");
 });

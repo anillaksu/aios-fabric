@@ -4,6 +4,9 @@ export const SOUND_PANEL_REQUIREMENTS = [
   "scroll-region", "range", "range-change-action", "capability:volume.set", "capability:media.control",
 ];
 
+export const DEVICE_STATUS_PANEL_REQUIREMENTS = ["scroll-region"];
+export const DEVICE_STATUS_PANEL_ID = "reference-device-status-v1";
+
 const DEFAULT_MUSIC_VOLUME = { value: 7, max: 15 };
 
 /**
@@ -62,3 +65,57 @@ export function soundPanelWithMusicVolume(volume) {
 // Kalici referans artefact'i deterministiktir; acilis anindaki cihaz state'i
 // yalniz render gorunumune uygulanir, artifact spec'ine yazilmaz.
 export const SCROLLABLE_SOUND_PANEL = soundPanelWithMusicVolume(DEFAULT_MUSIC_VOLUME);
+
+function finite(value) { return typeof value === "number" && Number.isFinite(value); }
+function rows(items) { return items.filter((item) => item.trailing !== "—"); }
+
+/** Yalniz gercek dispatcher cevaplarini mevcut ScreenSpec alanlaryna map eder. */
+export function deviceStatusWithLiveData({ battery = null, wifi = null, appCount = null, fabricReachable = false } = {}) {
+  const batteryMetrics = [];
+  if (finite(battery?.percentage)) batteryMetrics.push({ type: "metric", label: "PİL", value: battery.percentage, unit: "%", tone: battery.percentage < 15 ? "error" : battery.percentage < 35 ? "warn" : "ok", progress: battery.percentage });
+  if (finite(battery?.temperature)) batteryMetrics.push({ type: "metric", label: "SICAKLIK", value: battery.temperature, unit: "°C", tone: battery.temperature > 42 ? "warn" : "ok" });
+  if (finite(battery?.voltage)) batteryMetrics.push({ type: "metric", label: "VOLTAJ", value: (battery.voltage / 1000).toFixed(2), unit: "V" });
+  if (finite(battery?.cycle)) batteryMetrics.push({ type: "metric", label: "DÖNGÜ", value: battery.cycle });
+  if (finite(appCount)) batteryMetrics.push({ type: "metric", label: "UYG.", value: appCount });
+
+  const sections = [{
+    type: "section", title: "CİHAZ DURUM MERKEZİ", children: [{
+      type: "scroll-region", title: "Cihaz durumu", maxHeight: 560, children: [{
+        type: "stack", direction: "column", gap: 3, align: "stretch", children: [
+          {
+            type: "section", title: "SAĞLIK", layout: "grid-2",
+            children: batteryMetrics.length ? batteryMetrics : [{ type: "empty-state", icon: "battery_slash", title: "Pil durumu okunamadı", detail: "Geçerli cihaz cevabı gelmedi." }],
+          },
+          {
+            type: "section", title: "PİL DETAY", children: [{ type: "list", children: rows([
+              { type: "list-row", title: "Durum", trailing: typeof battery?.status === "string" ? battery.status : "—" },
+              { type: "list-row", title: "Sağlık", trailing: typeof battery?.health === "string" ? battery.health : "—" },
+              { type: "list-row", title: "Bağlantı", trailing: typeof battery?.plugged === "string" ? battery.plugged : "—" },
+              { type: "list-row", title: "Teknoloji", trailing: typeof battery?.technology === "string" ? battery.technology : "—" },
+              { type: "list-row", title: "Akım", trailing: finite(battery?.current) ? String(battery.current) : "—" },
+            ]) }],
+          },
+          {
+            type: "section", title: "WI-FI", children: [{ type: "list", children: rows([
+              { type: "list-row", icon: "wifi", title: "Ağ", subtitle: typeof wifi?.ssid === "string" ? wifi.ssid.replace(/\"/g, "") : "—", chip: { label: wifi ? "BAĞLI" : "YOK", tone: wifi ? "ok" : "idle" } },
+              { type: "list-row", title: "IP", trailing: typeof wifi?.ip === "string" ? wifi.ip : "—" },
+              { type: "list-row", title: "Sinyal", trailing: finite(wifi?.rssi) ? `${wifi.rssi} dBm` : "—" },
+              { type: "list-row", title: "Frekans", trailing: finite(wifi?.frequency_mhz) ? `${wifi.frequency_mhz} MHz` : "—" },
+              { type: "list-row", title: "Hız", trailing: finite(wifi?.link_speed_mbps) ? `${wifi.link_speed_mbps} Mbps` : "—" },
+            ]) }],
+          },
+          {
+            type: "section", title: "SERVİSLER", children: [
+              { type: "list", children: [{ type: "list-row", icon: "cube_box", title: "Fabric", subtitle: "Bu panelin dispatcher okumaları", chip: { label: fabricReachable ? "ERİŞİLEBİLİR" : "ÖLÇÜLMEDİ", tone: fabricReachable ? "ok" : "idle" } }] },
+              { type: "info-card", icon: "info_circle", title: "Hermes / Gateway", body: "Bu artefact için canlı sağlık kaynağı yok; durum uydurulmaz." },
+            ],
+          },
+          { type: "button", label: "YENİLE", variant: "primary", action: { type: "ui.artifact", payload: { id: DEVICE_STATUS_PANEL_ID } } },
+        ],
+      }],
+    }],
+  }];
+  return { id: DEVICE_STATUS_PANEL_ID, title: "Cihaz Durum Merkezi", subtitle: "Gerçek cihaz okumaları", sections };
+}
+
+export const DEVICE_STATUS_PANEL = deviceStatusWithLiveData();

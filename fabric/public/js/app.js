@@ -7,8 +7,8 @@
      · 1 komut = 1 net durum akisi
      · 1 sonuc  = 1 birincil ARTEFAKT -> metin kisa, cikti artefakt
      · FAB yok  -> mic composer'in icinde
-   Sekmeler: HOME · KOMUT · ARTEFAKT · AKTİF · HERMES
-   (UYG ayri sekme degil: uygulamalar KOMUT icinde + HOME'da oneri)
+   Sekmeler: HOME · KEŞFET · ARTEFAKT · AKTİF · HERMES
+   (Keşfet: sistem yüzeyleri + Android uygulamaları + AIOS uygulamaları)
    ═══════════════════════════════════════════════════════════════ */
 
 import { read, getJSON, postJSON, sendIntent, events } from "./api.js";
@@ -18,7 +18,7 @@ import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
-import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume } from "./reference-artifacts.js";
+import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume, DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_ID, DEVICE_STATUS_PANEL_REQUIREMENTS, deviceStatusWithLiveData } from "./reference-artifacts.js";
 import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
 import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, updateApplicationEntry } from "./application-model.js";
@@ -259,22 +259,8 @@ const ctx = {
     if (type === "ui.ask")       { ask(payload && payload.q, { silent: !!(payload && payload.silent) }); return { ok: true }; }
     if (type === "ui.artifact")  { openArtifact(payload && payload.id); return { ok: true }; }
     if (type === "ui.application") { openArtifact(payload && payload.artifactId); return { ok: true }; }
-    if (type === "ui.referenceSoundPanel") {
-      const existing = findArtifact(SCROLLABLE_SOUND_PANEL.id);
-      if (existing) { openArtifact(existing.id); return { ok: true }; }
-      if (!meetsUiRequirements(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS)) {
-        return { ok: false, error: "referans ses paneli contract gereksinimlerini karşılamıyor" };
-      }
-      const contract = admitArtifact(SCROLLABLE_SOUND_PANEL, {
-        knownCapabilities: capabilityNames,
-        versionStamp: await capabilitySetVersion(capabilityNames),
-        provenance: "reference",
-      });
-      if (!contract.ok) return { ok: false, error: contract.reason };
-      const artifact = addArtifact(SCROLLABLE_SOUND_PANEL, "Kaydırılabilir Ses Paneli", contract.contract, SCROLLABLE_SOUND_PANEL.id);
-      openArtifact(artifact.id);
-      return { ok: true };
-    }
+    if (type === "ui.referenceSoundPanel") return openReferenceArtifact(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, "Kaydırılabilir Ses Paneli");
+    if (type === "ui.referenceDeviceStatus") return openReferenceArtifact(DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, "Cihaz Durum Merkezi");
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
     if (type === "cap.test")     { return testCapability(payload && payload.name); }
     // MINI-APP URETIMI: normal bir istekten tek farki, sonucun otomatik
@@ -369,6 +355,24 @@ const ctx = {
   },
 };
 
+/** Referans artefact'lar LLM uretimi degildir; ayni admission/persistence kapisindan gecer. */
+async function openReferenceArtifact(spec, requirements, prompt) {
+  const existing = findArtifact(spec.id);
+  if (existing) { openArtifact(existing.id); return { ok: true }; }
+  if (!meetsUiRequirements(spec, requirements)) {
+    return { ok: false, error: "referans artefact contract gereksinimlerini karşılamıyor" };
+  }
+  const contract = admitArtifact(spec, {
+    knownCapabilities: capabilityNames,
+    versionStamp: await capabilitySetVersion(capabilityNames),
+    provenance: "reference",
+  });
+  if (!contract.ok) return { ok: false, error: contract.reason };
+  const artifact = addArtifact(spec, prompt, contract.contract, spec.id);
+  openArtifact(artifact.id);
+  return { ok: true };
+}
+
 /** Eylemi insan diline cevirir - zarfin "ham ifade" alani icin. */
 function labelForAction(type, payload) {
   if (type === "app.open" && payload && payload.pkg) {
@@ -413,7 +417,7 @@ function syncComposer() {
   inp.placeholder =
     fillTarget              ? "Bu pencere için ne üretilsin?" :
     currentTab === "hermes" ? "Hermes'e yaz…" :
-    currentTab === "komut"  ? "Uygulama, komut veya soru ara…" :
+    currentTab === "komut"  ? "Uygulama, araç veya özellik ara…" :
                               "Ne yapmak istiyorsun?";
   if (currentTab !== "komut" && inp.value !== "" && query === inp.value) { /* koru */ }
 }
@@ -430,7 +434,10 @@ function updateBadges() {
 /* ════════ CIZIM ════════ */
 async function paint() {
   const host = $("#screen");
-  if (secondary === "device")   return mount(host, validateScreen(SC.deviceScreen()), ctx);
+  if (secondary === "discover") return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications), secondaryArg)), ctx);
+  if (secondary === "androidApps") return mount(host, validateScreen(SC.androidAppsScreen()), ctx);
+  if (secondary === "tools") return mount(host, validateScreen(SC.toolsScreen()), ctx);
+  if (secondary === "device")   return ctx.dispatch({ type: "ui.referenceDeviceStatus" });
   if (secondary === "agents")   return mount(host, validateScreen(SC.agentsScreen()), ctx);
   if (secondary === "capabilities") return mount(host, validateScreen(await SC.capabilitiesScreen()), ctx);
   if (secondary === "journal")     return mount(host, validateScreen(await SC.journalScreen(secondaryArg)), ctx);
@@ -441,7 +448,7 @@ async function paint() {
   if (secondary === "history")     return mount(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)), ctx);
 
   if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts, orderedApplications(applications))), ctx);
-  if (currentTab === "komut")     return mount(host, validateScreen(SC.komutScreen(query, capabilityNames)), ctx);
+  if (currentTab === "komut")     return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "activity")  return mount(host, validateScreen(SC.activityScreen()), ctx);
   if (currentTab === "artifacts") return paintArtifacts();
   if (currentTab === "hermes")    return paintHermes();
@@ -607,6 +614,19 @@ function paintApplications() {
     }
   });
   body.appendChild(reference);
+  const deviceReference = el("button", "c-btn", "CİHAZ DURUM MERKEZİ");
+  deviceReference.dataset.variant = "ghost";
+  deviceReference.title = "Gerçek battery + Wi-Fi durumunu dispatcher üzerinden oku";
+  deviceReference.addEventListener("click", async () => {
+    try {
+      const result = await ctx.dispatch({ type: "ui.referenceDeviceStatus" });
+      if (!result.ok) toast(result.error || "Cihaz Durum Merkezi açılamadı", true);
+    } catch (err) {
+      logClientError("referenceDeviceStatus.open", err);
+      toast("Cihaz Durum Merkezi açılamadı; istemci günlüğünü kontrol et", true);
+    }
+  });
+  body.appendChild(deviceReference);
   if (!entries.length) {
     body.appendChild(render({ type: "empty-state", icon: "square_grid_2x2", title: "Henüz uygulama yok",
       detail: "Bir artefaktta ANA EKRANA EKLE seçeneğini kullan." }, ctx));
@@ -681,6 +701,23 @@ function openArtifact(id) {
       // Kullanici bu arada geri donduyse gec cevap gorunur ekrani ezmez.
       if (wm.focusedId === a.id) draw(soundPanelWithMusicVolume(volume));
     }).catch((err) => logClientError("referenceSoundPanel.volumeRead", err));
+    return;
+  }
+  if (a.id === DEVICE_STATUS_PANEL_ID) {
+    draw(deviceStatusWithLiveData());
+    Promise.all([
+      sendIntent("sensor.battery.read", {}, { source: "ui", raw: "Cihaz Durum Merkezi pil durumunu oku", by: "deterministic", timeoutMs: 12000 }),
+      sendIntent("wifi.info", {}, { source: "ui", raw: "Cihaz Durum Merkezi Wi-Fi durumunu oku", by: "deterministic", timeoutMs: 12000 }),
+      sendIntent("app.list", {}, { source: "ui", raw: "Cihaz Durum Merkezi uygulama listesini oku", by: "deterministic", timeoutMs: 18000 }),
+    ]).then(([batteryResult, wifiResult, appsResult]) => {
+      const battery = batteryResult.ok ? batteryResult.data : null;
+      const wifi = wifiResult.ok ? wifiResult.data : null;
+      const appCount = appsResult.ok && Number.isFinite(Number(appsResult.data?.count)) ? Number(appsResult.data.count) : null;
+      if (!batteryResult.ok) logClientError("referenceDeviceStatus.battery", new Error(String(batteryResult.error || "battery.read başarısız")));
+      if (!wifiResult.ok) logClientError("referenceDeviceStatus.wifi", new Error(String(wifiResult.error || "wifi.info başarısız")));
+      if (!appsResult.ok) logClientError("referenceDeviceStatus.appList", new Error(String(appsResult.error || "app.list başarısız")));
+      if (wm.focusedId === a.id) draw(deviceStatusWithLiveData({ battery, wifi, appCount, fabricReachable: !!(batteryResult.ok || wifiResult.ok || appsResult.ok) }));
+    }).catch((err) => logClientError("referenceDeviceStatus.load", err));
     return;
   }
   if (document.startViewTransition) document.startViewTransition(draw);
@@ -1332,7 +1369,7 @@ export async function boot() {
   inp.addEventListener("input", () => {
     inp.style.height = "auto";
     inp.style.height = Math.min(inp.scrollHeight, 110) + "px";
-    // KOMUT sekmesinde yazmak = canli filtre (ayri arama kutusu YOK)
+    // KEŞFET sekmesinde yazmak = canlı deterministik filtre.
     if (currentTab === "komut") { query = inp.value; paint(); }
   });
   inp.addEventListener("keydown", (e) => {

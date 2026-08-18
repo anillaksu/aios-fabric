@@ -8,6 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 import { read, getJSON } from "./api.js";
+import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWorkspaceEntries } from "./workspace-catalog.js";
 
 /* ── paylasilan durum (shell tarafindan tazelenir) ── */
 export const S = {
@@ -48,6 +49,17 @@ export function homeScreen(artifacts = [], applications = []) {
       subtitle: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
         + (w && w.ssid ? " · " + String(w.ssid).replace(/"/g, "") : ""),
     }],
+  });
+
+  // Phone Workspace: HOME yalniz durum panosu degil, kullanıcının bildiği
+  // işi adına bakmadan bulabildiği çalışma yüzeyidir. Bunlar catalog metadata
+  // üzerinden saf istemci gezintisidir; capability çalıştırmaz.
+  sections.push({
+    type: "section", title: "ÇALIŞMA ALANI", layout: "grid-2",
+    children: WORKSPACE_CATEGORIES.map((category) => ({
+      type: "tile", name: category.id, value: category.icon === "iphone" ? "CİHAZ" : "AÇ",
+      meta: category.subtitle, tap: { type: "ui.goto", payload: { screen: "discover", filter: category.id } },
+    })),
   });
 
   // NOW - calisan isler (yoksa bos birakma, oneriye cevir)
@@ -126,7 +138,7 @@ function suggestions(artifacts = []) {
 
   if (p != null && p < 25 && S.battery && S.battery.status !== "CHARGING") {
     out.push({ type: "action-card", icon: "battery_25", title: "Pil azalıyor",
-      subtitle: "Pil detayını gör", action: { type: "ui.goto", payload: { screen: "device" } } });
+      subtitle: "Pil detayını gör", action: { type: "ui.referenceDeviceStatus" } });
   }
   if (S.battery && S.battery.temperature > 42) {
     out.push({ type: "action-card", icon: "thermometer", title: "Cihaz ısındı",
@@ -148,57 +160,66 @@ function suggestions(artifacts = []) {
   return out.slice(0, 3);
 }
 
-/* ══════════════ KOMUT ══════════════
-   Start Menu + Spotlight + terminal + launcher tek yerde.
-   Bos sorgu = hizli komutlar + TUM uygulamalar (ayri UYG sekmesi YOK).   */
-export function komutScreen(q, capabilityNames = []) {
+/* ══════════════ KEŞFET ══════════════
+   Phone Workspace'in deterministik discovery yüzeyi. LLM anlam çıkarmaz:
+   built-in catalog metadata'sı + ad/prompt eşleşmesi ile bulur. */
+export function discoverScreen(q, capabilityNames = [], artifacts = [], applications = [], category = null) {
   const query = (q || "").toLowerCase().trim();
   const sections = [];
 
-  const commands = [
-    { label: "Fener aç", icon: "flashlight_on_fill", action: { type: "torch.set", payload: { on: true } }, keys: "fener torch isik" },
-    { label: "Fener kapat", icon: "flashlight_off_fill", action: { type: "torch.set", payload: { on: false } }, keys: "fener torch kapat" },
-    { label: "Titret", icon: "waveform", action: { type: "vibrate", payload: { ms: 250 } }, keys: "titre vibrate" },
-    { label: "Pil durumu", icon: "battery_75", action: { type: "sensor.battery.read" }, keys: "pil batarya" },
-    { label: "Ağ bilgisi", icon: "wifi", action: { type: "wifi.info" }, keys: "wifi ag net" },
-    { label: "Konum oku", icon: "location_fill", action: { type: "sensor.location.read" }, keys: "konum gps" },
-    { label: "Panoyu oku", icon: "doc_on_clipboard", action: { type: "clipboard.get" }, keys: "pano clipboard" },
-    { label: "Device Center", icon: "gauge", action: { type: "ui.goto", payload: { screen: "device" } }, keys: "cihaz device sistem" },
-    { label: "Agents", icon: "person_2_fill", action: { type: "ui.goto", payload: { screen: "agents" } }, keys: "ajan agent a2a" },
-    { label: "Capabilities", icon: "square_stack_3d_up", action: { type: "ui.goto", payload: { screen: "capabilities" } }, keys: "capability mcp yetenek" },
-    { label: "Ayarlar", icon: "gear_alt_fill", action: { type: "ui.goto", payload: { screen: "settings" } }, keys: "ayar settings tema ikon" },
-    { label: "Event Journal", icon: "list_bullet_rectangle", action: { type: "ui.goto", payload: { screen: "journal" } }, keys: "journal olay log hata kayit" },
-    { label: "Bağlantılar", icon: "antenna_radiowaves_left_right", action: { type: "ui.goto", payload: { screen: "connections" } }, keys: "baglanti servis peer a2a port" },
-    { label: "Mini Apps", icon: "square_grid_2x2_fill", action: { type: "ui.goto", payload: { screen: "miniapps" } }, keys: "mini app uygulama sabit" },
-    { label: "Otomasyonlar", icon: "bolt_horizontal_circle", action: { type: "ui.goto", payload: { screen: "automations" } }, keys: "otomasyon automation kural" },
-    { label: "Niyet Geçmişi", icon: "clock", action: { type: "ui.goto", payload: { screen: "history" } }, keys: "gecmis history niyet istek prompt" },
-  ];
+  const card = (entry) => ({ type: "action-card", icon: entry.icon, title: entry.title, subtitle: entry.subtitle, action: entry.action });
+  const categoryKnown = WORKSPACE_CATEGORIES.some((item) => item.id === category);
+  if (categoryKnown) {
+    sections.push({ type: "section", title: category.toUpperCase(), children: entriesForCategory(category).map(card) });
+    if (category === "Uygulamalar") {
+      sections.push({ type: "section", title: "TELEFONDAKİ UYGULAMALAR · " + S.apps.length, layout: "grid-4",
+        children: S.apps.slice(0, 12).map((app) => ({ type: "app-tile", name: app.name, pkg: app.pkg,
+          action: { type: "app.open", payload: { pkg: app.pkg } }, longPress: { type: "ui.appsheet", payload: { pkg: app.pkg, name: app.name } } })) });
+    }
+    if (category === "AIOS" && applications.length) {
+      sections.push({ type: "section", title: "UYGULAMALARIM · " + applications.length, layout: "grid-4",
+        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+          action: { type: "ui.application", payload: { artifactId: app.artifactId } } })) });
+    }
+    return { id: "discover:" + category, title: category, sections };
+  }
 
   if (!query) {
     sections.push({
-      type: "section", title: "HIZLI KOMUT",
-      children: [{ type: "list", children: commands.slice(0, 6).map((c) => ({
-        type: "list-row", icon: c.icon, title: c.label, action: c.action })) }],
+      type: "section", title: "KEŞFET", layout: "grid-2",
+      children: WORKSPACE_CATEGORIES.map((item) => ({
+        type: "tile", name: item.id, value: "AÇ", meta: item.subtitle,
+        tap: { type: "ui.goto", payload: { screen: "discover", filter: item.id } },
+      })),
     });
-    if (!S.apps.length) {
-      sections.push({ type: "section", title: "UYGULAMALAR", children: [{ type: "skeleton", rows: 4 }] });
-    } else {
+    if (applications.length) {
       sections.push({
-        type: "section", title: "UYGULAMALAR · " + S.apps.length, layout: "grid-4",
-        children: S.apps.map((a) => ({
-          type: "app-tile", name: a.name, pkg: a.pkg,
-          action: { type: "app.open", payload: { pkg: a.pkg } },
-          longPress: { type: "ui.appsheet", payload: { pkg: a.pkg, name: a.name } },
-        })),
+        type: "section", title: "UYGULAMALARIM", layout: "grid-4",
+        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+          action: { type: "ui.application", payload: { artifactId: app.artifactId } } })),
       });
     }
-    return { id: "komut", title: "Komut", sections };
+    sections.push({ type: "section", title: "TELEFON UYGULAMALARI · " + S.apps.length,
+      children: [{ type: "action-card", icon: "square_grid_2x2_fill", title: "Tüm uygulamaları aç", subtitle: "Cihazda yüklü uygulamalar",
+        action: { type: "ui.goto", payload: { screen: "androidApps" } } }] });
+    return { id: "discover", title: "Keşfet", sections };
   }
 
-  const apps = S.apps.filter((a) => a.name.toLowerCase().includes(query) || a.pkg.toLowerCase().includes(query));
-  const cmds = commands.filter((c) => c.label.toLowerCase().includes(query) || c.keys.includes(query));
+  const needle = foldWorkspaceText(query);
+  const catalog = searchWorkspaceEntries(query);
+  const apps = S.apps.filter((app) => foldWorkspaceText(app.name).includes(needle) || foldWorkspaceText(app.pkg).includes(needle));
+  const matchingApplications = applications.filter((app) => foldWorkspaceText(app.title).includes(needle));
+  const matchingArtifacts = artifacts.filter((artifact) => foldWorkspaceText(artifact.title).includes(needle) || foldWorkspaceText(artifact.prompt).includes(needle));
   const caps = capabilityNames.filter((n) => n.toLowerCase().includes(query)).slice(0, 5);
 
+  if (catalog.length) sections.push({ type: "section", title: "AIOS İŞLEVLERİ", children: catalog.map(card) });
+  if (matchingApplications.length) sections.push({ type: "section", title: "UYGULAMALARIM", layout: "grid-4",
+    children: matchingApplications.map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+      action: { type: "ui.application", payload: { artifactId: app.artifactId } } })) });
+  if (matchingArtifacts.length) sections.push({ type: "section", title: "ARTEFAKTLAR", children: [{ type: "list", children: matchingArtifacts.slice(0, 8).map((artifact) => ({
+    type: "list-row", icon: "square_stack_3d_up", title: artifact.title || "Artefakt", subtitle: artifact.prompt ? artifact.prompt.slice(0, 72) : "",
+    action: { type: "ui.artifact", payload: { id: artifact.id } },
+  })) }] });
   if (apps.length) {
     sections.push({
       type: "section", title: "UYGULAMA · " + apps.length, layout: "grid-4",
@@ -208,11 +229,6 @@ export function komutScreen(q, capabilityNames = []) {
         longPress: { type: "ui.appsheet", payload: { pkg: a.pkg, name: a.name } },
       })),
     });
-  }
-  if (cmds.length) {
-    sections.push({ type: "section", title: "KOMUT",
-      children: [{ type: "list", children: cmds.map((c) => ({
-        type: "list-row", icon: c.icon, title: c.label, action: c.action })) }] });
   }
   if (caps.length) {
     sections.push({ type: "section", title: "CAPABILITY",
@@ -226,7 +242,37 @@ export function komutScreen(q, capabilityNames = []) {
       subtitle: "Gönder tuşuna bas veya buraya dokun",
       action: { type: "ui.ask", payload: { q } } }],
   });
-  return { id: "komut", title: "Komut", sections };
+  return { id: "discover-search", title: "Keşfet", sections };
+}
+
+/** Android launcher listesi ApplicationEntry'den ayrıdır: cihaz paketlerini açar. */
+export function androidAppsScreen() {
+  return {
+    id: "android-apps", title: "Telefon Uygulamaları",
+    sections: [{ type: "section", title: "UYGULAMALAR · " + S.apps.length, layout: "grid-4",
+      children: S.apps.length ? S.apps.map((app) => ({ type: "app-tile", name: app.name, pkg: app.pkg,
+        action: { type: "app.open", payload: { pkg: app.pkg } }, longPress: { type: "ui.appsheet", payload: { pkg: app.pkg, name: app.name } } }))
+        : [{ type: "skeleton", rows: 4 }],
+    }],
+  };
+}
+
+/** Yalnız gerçek, parametresi burada belirlenmiş günlük araçlar. */
+export function toolsScreen() {
+  return {
+    id: "tools", title: "Hızlı Araçlar",
+    sections: [
+      { type: "section", title: "CİHAZ", children: [
+        { type: "button-row", children: [
+          { type: "button", label: "FENER AÇ", variant: "primary", action: { type: "torch.set", payload: { on: true } } },
+          { type: "button", label: "FENER KAPAT", variant: "ghost", action: { type: "torch.set", payload: { on: false } } },
+        ] },
+        { type: "button", label: "TİTRET", variant: "ghost", action: { type: "vibrate", payload: { ms: 250 } } },
+      ] },
+      { type: "section", title: "SINIR", children: [{ type: "info-card", icon: "lock", title: "Policy korunur",
+        body: "Her araç mevcut dispatcher ve capability risk politikasından geçer. Parametresi belirsiz capability'ler burada uygulama gibi gösterilmez." }] },
+    ],
+  };
 }
 
 /* ══════════════ HERMES BOŞ EKRANI ══════════════
@@ -762,8 +808,8 @@ export async function settingsScreen() {
         subtitle: "Tüm olaylar ve hatalar", action: { type: "ui.goto", payload: { screen: "journal" } } },
       { type: "list-row", icon: "antenna_radiowaves_left_right", title: "Bağlantılar",
         subtitle: "Servisler ve A2A peer'lar", action: { type: "ui.goto", payload: { screen: "connections" } } },
-      { type: "list-row", icon: "gauge", title: "Device Center",
-        subtitle: "Pil, ağ, bellek", action: { type: "ui.goto", payload: { screen: "device" } } },
+      { type: "list-row", icon: "gauge", title: "Cihaz Durum Merkezi",
+        subtitle: "Gerçek pil, Wi-Fi ve uygulama sayısı", action: { type: "ui.referenceDeviceStatus" } },
     ] }],
   });
 
