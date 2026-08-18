@@ -15,6 +15,65 @@
 HOME=/data/data/com.termux/files/home
 export HOME
 
+show_status() {
+  local fabric="OFFLINE" llm="OFFLINE" gateway="OFFLINE" watchdog="OFFLINE"
+  [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:9300/)" = "200" ] && fabric="ONLINE"
+  pgrep -f '^python3 -m uvicorn llm_bridge' > /dev/null 2>&1 && llm="ONLINE"
+  pgrep -f 'hermes-agent/venv/bin/hermes gateway run' > /dev/null 2>&1 && gateway="ONLINE"
+  pgrep -f "^bash $HOME/watchdog\.sh$" > /dev/null 2>&1 && watchdog="ONLINE"
+  printf '  Fabric       : %s\n' "$fabric"
+  printf '  LLM bridge   : %s\n' "$llm"
+  printf '  Hermes A2A   : %s\n' "$gateway"
+  printf '  Watchdog     : %s\n' "$watchdog"
+}
+
+open_aios() {
+  am start -a android.intent.action.VIEW -d http://localhost:9300 > "$HOME/aios-launcher.log" 2>&1 || {
+    echo "$(date): AIOS ACTION_VIEW baslatilamadi" >> "$HOME/aios-launcher.log"
+    printf '\nAIOS acilamadi. Ana ekrandaki AIOS simgesini kullanabilir veya logu inceleyebilirsin.\n'
+    return 1
+  }
+  printf '\nAIOS aciliyor...\n'
+}
+
+admin_console() {
+  local choice log_target
+  while true; do
+    printf '\n--- AIOS ADMIN ---\n'
+    printf '[s] Durum yenile  [l] Log oku  [r] Yigini yeniden baslat\n'
+    printf '[o] AIOS ac       [q] Terminalden cik\n'
+    printf '> '
+    read -r choice || choice="q"
+    case "$choice" in
+      s|S) show_status ;;
+      l|L)
+        printf 'Log sec (fabric/llm/gateway/watchdog): '
+        read -r log_target || log_target=""
+        case "$log_target" in
+          fabric) tail -30 "$HOME/fabric.log" ;;
+          llm) tail -30 "$HOME/llm_bridge.log" ;;
+          gateway) tail -30 "$HOME/gateway.log" ;;
+          watchdog) tail -30 "$HOME/watchdog.log" ;;
+          *) printf 'Bilinmeyen log.\n' ;;
+        esac
+        ;;
+      r|R)
+        printf 'AIOS yigini yeniden baslatiliyor...\n'
+        exec bash "$HOME/start_hermes_os.sh"
+        ;;
+      o|O) open_aios; return ;;
+      q|Q) printf 'Cikmak icin Enter tusla.\n'; read -r; return ;;
+      *) printf 'Gecersiz secim.\n' ;;
+    esac
+  done
+}
+
+clear 2>/dev/null || true
+printf '========================================\n'
+printf '           AIOS ADMIN TERMINALI\n'
+printf '========================================\n'
+printf 'Yerel servisler baslatiliyor...\n\n'
+
 termux-toast "AI-OS baslatiliyor..." 2>/dev/null
 
 # Android'in surecleri oldurmesini zorlastir (tekrarlayan OOM cokme dongusu)
@@ -65,11 +124,19 @@ done
 
 if [ "$ready" -eq 1 ]; then
   termux-toast "AI-OS hazir" 2>/dev/null
-  am start -a android.intent.action.VIEW -d http://localhost:9300 > "$HOME/aios-launcher.log" 2>&1 || {
-    echo "$(date): AIOS ACTION_VIEW baslatilamadi" >> "$HOME/aios-launcher.log"
-    termux-toast "AI-OS hazir, ana ekrandaki AIOS simgesinden ac" 2>/dev/null
-  }
+  printf '\nAIOS hazir.\n'
+  show_status
+  printf '\n8 saniye icinde AIOS acilacak. Yonetim icin [a] yazip Enter tusla: '
+  choice=""
+  read -r -t 8 choice || true
+  if [ "$choice" = "a" ] || [ "$choice" = "A" ]; then
+    admin_console
+  else
+    open_aios
+  fi
 else
   echo "$(date): Fabric 9300 17sn icinde hazir olmadi; UI acilmadi" >> "$HOME/aios-launcher.log"
   termux-toast "AI-OS henuz hazir degil" 2>/dev/null
+  printf '\nFabric henuz hazir degil. Yonetim terminali aciliyor.\n'
+  admin_console
 fi
