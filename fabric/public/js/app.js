@@ -19,7 +19,7 @@ import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
 import { capabilitySetVersion } from "./artifact-contract.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
-import { cacheKey, getCached, putCached } from "./prompt-cache.js";
+import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
 
@@ -467,7 +467,11 @@ function artifactBlock(a) {
   acts.appendChild(mk("arrow_clockwise", "YENİLE", false, async () => {
     if (!a.prompt) { toast("Bu artefakt yeniden üretilemiyor", true); return; }
     toast("Yeniden üretiliyor…");
-    await ask(a.prompt, { silent: true, narrow: true });
+    // W6.L (2026-08-18): YENILE narrow (gecmissiz) VE kendi kaydedilmis
+    // orijinal prompt'unu tekrar calistiriyor - sohbet-ici bir "devam" degil,
+    // fillWindow()'la ayni sinifta STANDALONE bir yeniden-uretim. trustedWrite
+    // bu yuzden true - bkz. ask()'taki writeOrigin yorumu.
+    await ask(a.prompt, { silent: true, narrow: true, trustedWrite: true });
   }));
   acts.appendChild(mk(a.pinned ? "pin_fill" : "pin", a.pinned ? "SABİT" : "SABİTLE", a.pinned, () => {
     a.pinned = !a.pinned; saveArtifacts(); paint();
@@ -570,6 +574,9 @@ function renderWindowError(icon, title, detail) {
 async function fillWindow(id, text) {
   // W6.L: ayni/kanonik-esdeger istek daha once basariyla uretildiyse LLM'e
   // HIC gidilmez - onbellekteki spec dogrudan kullanilir (sifir token).
+  // ARTEFAKT/bos pencere STANDALONE (guvenilir) uretim kaynagidir - bu yuzden
+  // asagidaki getCached/putCached kosulsuz (ask()'taki opts.trustedWrite ile
+  // AYNI kategori, bkz. ask()'taki writeOrigin yorumu, 2026-08-18 revize).
   const key = await cacheKey(text, capabilitiesWithRisk);
   const cached = await getCached(key);
   if (cached) {
@@ -711,24 +718,37 @@ async function ask(q, opts = {}) {
   const history = opts.narrow ? [] : chat.filter((m) => m.text).slice(-7)
     .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
 
-  // W6.L: onbellek YALNIZCA gecmis-siz cagrilarda kullanilir (narrow ya da
-  // sohbetin ilk mesaji). Gercek bir sohbet gecmisi varken ayni metni
-  // onbellekten donmek YANLIS olurdu - "evet" gibi bir yanit onceki soruya
-  // gore anlam degistirir, cache anahtari bunu tasimiyor (bilincli sinir).
-  const cacheable = history.length === 0;
-  let cacheKeyValue = null;
-  if (cacheable) {
-    cacheKeyValue = await cacheKey(text, capabilitiesWithRisk);
-    const cached = await getCached(cacheKeyValue);
-    if (cached) {
-      chat.pop(); // "Hermes calisiyor" yukleme kartini kaldir
-      const item = addArtifact(cached.spec, text, cached.contract);
-      chat.push({ role: "agent", artifactId: item.id });
-      if (!opts.narrow) paintHermes();
-      updateBadges();
-      fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: cacheKeyValue }) }).catch((err) => logClientError("promptCache.hitPing(ask)", err));
-      return;
-    }
+  // W6.L (2026-08-18, REVIZE — owner karari): "canWrite = history.length===0"
+  // modeli terk edildi. Gercek canli kullanimda HERMES sohbetinde 2. mesajdan
+  // sonra cache TAMAMEN kapaniyordu - bagimsiz, birebir tekrarlanan bir istek
+  // bile artik hicbir zaman onbellekten donmuyordu (sohbet gecmisi bir daha
+  // hic bos olmuyor). Yeni kural: yazma uygunlugu SOHBET GECMISINDEN degil
+  // URETIMIN KAYNAGINDAN belirlenir.
+  //   READ  -> HER ZAMAN denenir. cacheKey() zaten gecmis tasimiyor (bkz.
+  //            prompt-cache.js: yalnizca normalizedPrompt+capSig+regVer+
+  //            model) - bir isabet ancak bu METNIN daha once GUVENILIR bir
+  //            kaynaktan yazilmis olmasiyla mumkun (asagiya bak), yani
+  //            gecmis olsa da olmasa da guvenli.
+  //   WRITE -> yalnizca opts.trustedWrite=true isaretli, BAGIMSIZ/STANDALONE
+  //            uretim kaynaklarindan (fillWindow() zaten kosulsuz yaziyor -
+  //            ayri fonksiyon, asagida degil; YENILE burada trustedWrite
+  //            ile isaretleniyor). Sohbet ici genel `ask()` cagrilari
+  //            (normal HERMES mesaji, ui.ask retry, ui.miniapp, share-intent)
+  //            VARSAYILAN OLARAK YAZAMAZ - "evet"/"onu degistir" gibi
+  //            baglama bagli kisa mesajlarin cache'e HICBIR ZAMAN girmemesini
+  //            garanti eden asil sinir bu: byte-exact eslesme + guvenilmeyen
+  //            yazma kaynagi cift katmanli savunma.
+  const canWrite = writeEligible(opts.trustedWrite);
+  const cacheKeyValue = await cacheKey(text, capabilitiesWithRisk);
+  const cached = await getCached(cacheKeyValue);
+  if (cached) {
+    chat.pop(); // "Hermes calisiyor" yukleme kartini kaldir
+    const item = addArtifact(cached.spec, text, cached.contract);
+    chat.push({ role: "agent", artifactId: item.id });
+    if (!opts.narrow) paintHermes();
+    updateBadges();
+    fetch("/prompt-cache-hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: cacheKeyValue }) }).catch((err) => logClientError("promptCache.hitPing(ask)", err));
+    return;
   }
 
   // OTOMATIK DEVAM (2026-08-16).
@@ -805,7 +825,7 @@ async function ask(q, opts = {}) {
       // W6.L: yalnizca gecmis-siz, TEK spec'lik cagrilarda onbellege yazilir -
       // birden fazla spec varsa hangisinin bu anahtara karsilik geldigi
       // belirsiz olurdu (bilincli sinir).
-      if (cacheable && specsLength === 1) putCached(cacheKeyValue, { spec: s, contract, title: s.title || "Artefakt" });
+      if (canWrite && specsLength === 1) putCached(cacheKeyValue, { spec: s, contract, title: s.title || "Artefakt" });
     });
     if (opts.pin && admitted.length) toast("Mini uygulama sabitlendi");
     // Reddedilen sema sessizce kaybolmaz - kullanici NEDEN gormedigini bilsin.

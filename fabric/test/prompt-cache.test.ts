@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizePrompt, cacheKey } from "../public/js/prompt-cache.js";
+import { normalizePrompt, cacheKey, writeEligible } from "../public/js/prompt-cache.js";
 
 test("normalizePrompt: kucuk harf + bosluk sadelestirme, KELIME SILINMEZ", () => {
   assert.equal(normalizePrompt("  Hesap   Makinesi   Yap  "), "hesap makinesi yap");
@@ -60,4 +60,33 @@ test("cacheKey: capability sirasi anahtari DEGISTIRMEZ (sort edilir)", async () 
   const ka = await cacheKey("x", a);
   const kb = await cacheKey("x", b);
   assert.equal(ka, kb, "capability sirasi anlam tasimaz, hash'i etkilememeli");
+});
+
+// ─── writeEligible: W6.L revize (2026-08-18) - yazma uygunlugu KAYNAKTAN
+// belirlenir, sohbet gecmisinden DEGIL. Bu iki test owner'in istedigi
+// guvenlik sinirinin CEKIRDEGINI dogrudan sinar (IndexedDB round-trip
+// canli cihazda kanitlanir - bkz. dosya basindaki not).
+
+test("writeEligible: guvenilmeyen kaynak (HERMES sohbeti, trustedWrite verilmemis/false) YAZAMAZ", () => {
+  // ask()'in butun varsayilan cagri yollari (normal mesaj, ui.ask retry,
+  // ui.miniapp, share-intent) trustedWrite GONDERMEZ - "evet" gibi baglama
+  // bagli bir mesaj HERMES'in ilk mesaji olarak gelse ve artefakt uretilse
+  // bile cache'e YAZILAMAZ.
+  assert.equal(writeEligible(undefined), false);
+  assert.equal(writeEligible(false), false);
+});
+
+test("writeEligible: guvenilir/standalone kaynak (ARTEFAKT bos pencere, YENILE) YAZABILIR", () => {
+  assert.equal(writeEligible(true), true);
+});
+
+test("senaryo: ARTEFAKT'ta yazilan istekle HERMES'te AYNI (normalize) istek AYNI anahtara dusuyor (capraz-yuzey reuse'un temeli)", async () => {
+  const caps = [{ name: "sensor.battery.read", risk: "safe" }];
+  // ARTEFAKT'ta (fillWindow, trustedWrite=true) yazilan istek:
+  const artefaktKey = await cacheKey("basit hesap makinesi paneli", caps);
+  // Ayni oturumda DAHA SONRA HERMES sohbetinde (trustedWrite yok, farkli
+  // yazimla) AYNI istek - READ her zaman denendigi icin (ask()'ta kosulsuz
+  // getCached) bu anahtar isabet eder, LLM'e HIC gidilmez:
+  const hermesKey = await cacheKey("Basit Hesap Makinesi Paneli", caps);
+  assert.equal(artefaktKey, hermesKey, "READ kaynaktan bagimsiz calisir - anahtar zaten sadece metne/capability'ye bakiyor");
 });

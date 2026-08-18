@@ -39,6 +39,25 @@ export function normalizePrompt(text) {
     .replace(/\s+/g, " ");
 }
 
+/**
+ * Cache YAZMA uygunlugu (W6.L revize, 2026-08-18 - owner karari).
+ * ESKI model "history.length===0" idi: HERMES sohbetinde 2. mesajdan sonra
+ * hicbir zaman yazilamiyordu, canli kullanimda bagimsiz/tekrarlanan bir
+ * istegin bile cache'e HIC girmemesine yol aciyordu. YENI model: yazma
+ * uygunlugu sohbet gecmisinden degil URETIMIN KAYNAGINDAN belirlenir.
+ * trustedWrite=true YALNIZCA bagimsiz/standalone uretim kaynaklarindan
+ * gelir (ARTEFAKT bos pencere - fillWindow, YENILE) - sohbet-ici genel
+ * HERMES cagrilari (normal mesaj, ui.ask retry, ui.miniapp, share-intent)
+ * VARSAYILAN OLARAK false'tur. Bu, "evet"/"onu degistir" gibi baglama
+ * bagli kisa mesajlarin cache'e hicbir zaman yazilmamasini garanti eden
+ * ASIL sinirdir - byte-exact eslesme (cacheKey) ile birlikte cift katmanli.
+ * OKUMA bu fonksiyonu KULLANMAZ - getCached() her zaman denenir (bkz.
+ * app.js:ask()'taki writeOrigin yorumu).
+ */
+export function writeEligible(trustedWrite) {
+  return trustedWrite === true;
+}
+
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
