@@ -22,3 +22,31 @@ test("CLI hatayı STDERR ve deterministik nonzero exit ile verir", async () => {
   const unavailable = await runCli(["status"], { stdout: stream() as any, stderr: stream() as any, fetcher: async () => response(503, {}) as any });
   assert.equal(unavailable, 3);
 });
+
+test("node doctor mevcut A2A Agent Card ve read-only yüzeyleri doğrulamadan node kabul etmez", async () => {
+  const out = stream(); const err = stream(); const seen: string[] = [];
+  const values: Record<string, unknown> = {
+    "/.well-known/agent-card.json": { protocolVersion: "1.0", name: "Fabric", version: "0.1.0", url: "http://node.test", skills: [{ id: "wifi.info", name: "Wi-Fi" }] },
+    "/runtime-status": { observedAt: "2026-08-19T00:00:00.000Z", services: [] },
+    "/capabilities": [{ name: "wifi.info", class: "REFLEX", risk: "safe" }],
+  };
+  const code = await runCli(["--url", "http://node.test", "--json", "node", "doctor"], {
+    stdout: out as any, stderr: err as any,
+    fetcher: async (url: string) => { seen.push(url); return response(200, values[url.replace("http://node.test", "")] ?? {}) as any; },
+  });
+  assert.equal(code, 0); assert.equal(err.text(), "");
+  assert.deepEqual(seen, ["http://node.test/.well-known/agent-card.json", "http://node.test/runtime-status", "http://node.test/capabilities"]);
+  const report = JSON.parse(out.text());
+  assert.equal(report.endpoint, "http://node.test");
+  assert.deepEqual(report.checks.map((check: { ok: boolean }) => check.ok), [true, true, true]);
+});
+
+test("node doctor eksik Agent Card bilgisinde fail-closed ve nonzero döner", async () => {
+  const out = stream(); const err = stream();
+  const code = await runCli(["node", "doctor"], {
+    stdout: out as any, stderr: err as any,
+    fetcher: async (url: string) => response(200, url.endsWith("agent-card.json") ? { name: "eksik-protocol" } : []) as any,
+  });
+  assert.equal(code, 3);
+  assert.match(err.text(), /admission failed/);
+});
