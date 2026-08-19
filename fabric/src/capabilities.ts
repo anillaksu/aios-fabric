@@ -24,6 +24,11 @@ import type { Capability, CapabilityResult } from "./types.ts";
 import type { A2AHub } from "./a2a.ts";
 import { logErr } from "./log.ts";
 
+/** Dispatcher'in sunucu tarafinda ekledigi, JSON ile taklit edilemeyen LLM
+ * baglami. Agdan gelen payload bu Symbol'u uretemez; LLM capability'si
+ * kullanicinin `context` veya `system` alanlarini authority kabul etmez. */
+export const TRUSTED_LLM_CONTEXT = Symbol("trusted-llm-context");
+
 const execFileAsync = promisify(execFile);
 
 // ─── A2A HUB ENJEKSIYONU (2026-08-17) ───
@@ -108,33 +113,14 @@ function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-/**
- * llm.generate icin cihaz baglamini SUNUCUNUN KENDISI, gercek capability
- * cagrilariyla okur (W5 nokta 8, 2026-08-17). `capabilityMap` bu dosyanin
- * sonunda tanimlanir ama burasi bir CLOSURE - yalnizca cagrildiginda okunur,
- * modul tamamen yuklendikten SONRA calisir, TDZ sorunu yok.
- * Herhangi bir okuma basarisiz olursa (izin yok, sensor kapali) o parca
- * sessizce atlanir - kismi baglam, uydurma baglamdan iyidir.
- */
-async function readLiveDeviceContext(): Promise<string> {
-  const parts: string[] = [];
-  try {
-    const b = await capabilityMap.get("sensor.battery.read")?.execute({});
-    if (b?.ok && b.data && typeof b.data === "object") {
-      const d = b.data as { percentage?: number; level?: number; status?: string; temperature?: number };
-      const pct = d.percentage ?? d.level;
-      if (typeof pct === "number") parts.push(`pil %${pct}${d.status === "CHARGING" ? " (sarjda)" : ""}`);
-      if (typeof d.temperature === "number") parts.push(`${d.temperature}C`);
-    }
-  } catch (err) { logErr("readLiveDeviceContext:battery", err); }
-  try {
-    const w = await capabilityMap.get("wifi.info")?.execute({});
-    if (w?.ok && w.data && typeof w.data === "object") {
-      const ssid = (w.data as { ssid?: string }).ssid;
-      if (ssid) parts.push(`wifi ${String(ssid).replace(/"/g, "")}`);
-    }
-  } catch (err) { logErr("readLiveDeviceContext:wifi", err); }
-  return parts.join(", ");
+/** Guncel ScreenSpec `action`, erken artifact'ler ise `cmd` kullandi.
+ * Bu saf normalizasyon execution'dan once iki kaydi ayni capability
+ * semantiginde birlestirir; bilinmeyen deger yine capability tarafinda
+ * fail-closed reddedilir. */
+export function normalizeMediaAction(payload: unknown): string {
+  const raw = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const legacy = str(raw.cmd);
+  return str(raw.action || (legacy === "playpause" ? "toggle" : legacy), "toggle").toLowerCase();
 }
 
 // ─── Uygulama adi turetme ───
@@ -574,6 +560,37 @@ export const capabilities: Capability[] = [
     },
   },
   {
+    // Peer kaydi A2A wire protocol'unun parcasi DEGILDIR: operatorun
+    // kontrol-duzlemi degisikligidir. Bu nedenle ham HTTP endpointi yerine
+    // mevcut dispatcher + human approval zincirinden gecer; token ise journal
+    // ve sonucu dahil hicbir gorunur projection'a yazilmaz.
+    name: "a2a.peer.add",
+    class: "AGENT",
+    risk: "ask",
+    maxRetries: 0,
+    sensitiveFields: ["token"],
+    sensitiveResult: true,
+    execute: async (payload) => {
+      const name = str(payload?.name).trim();
+      const urlText = str(payload?.url).trim();
+      const token = str(payload?.token).trim();
+      const description = str(payload?.description).trim() || undefined;
+      if (!name || !urlText || !token) return { ok: false, error: "name, url ve token gerekli" };
+      let url: URL;
+      try {
+        url = new URL(urlText);
+      } catch {
+        return { ok: false, error: "url gecersiz" };
+      }
+      if (!/^https?:$/.test(url.protocol) || url.username || url.password) {
+        return { ok: false, error: "yalniz kullanicisiz http/https peer URL kabul edilir" };
+      }
+      if (!a2aHub) return { ok: false, error: "A2A hub henuz hazir degil" };
+      const peer = a2aHub.addPeer({ name, url: url.toString(), description, token });
+      return { ok: true, data: peer };
+    },
+  },
+  {
     // ─── A2A DELEGASYONU (2026-08-17, self-fetch kaldirildi) ───
     // A2A altyapisi vardi ama YALNIZCA HTTP ucu olarak (/a2a/delegate).
     // Yani Hermes bir artefakt icinden baska cihaza is veremiyordu - eylem
@@ -852,7 +869,7 @@ export const capabilities: Capability[] = [
       const KEYS: Record<string, number> = {
         play: 126, pause: 127, toggle: 85, next: 87, prev: 88, previous: 88, stop: 86,
       };
-      const action = str(payload?.action, "toggle").toLowerCase();
+      const action = normalizeMediaAction(payload);
       const code = KEYS[action];
       if (!code) return { ok: false, error: `bilinmeyen eylem: ${action} (play|pause|toggle|next|prev|stop)` };
       const r = await runRish(`input keyevent ${code}`, 10000);
@@ -1038,9 +1055,12 @@ export const capabilities: Capability[] = [
       // ilkesi burada CAGIRANIN iddiasi icin de gecerli - baglam yalnizca
       // SUNUCUNUN kendi capability cagrisiyla okudugu GERCEK degerden gelir,
       // hicbir cagiranin soylediginden degil.
-      const system = str(payload?.system) || buildSystemPrompt(
+      const trustedContext = typeof payload?.[TRUSTED_LLM_CONTEXT] === "string"
+        ? payload[TRUSTED_LLM_CONTEXT] as string
+        : "";
+      const system = buildSystemPrompt(
         capabilities.map((c) => c.name),
-        await readLiveDeviceContext(),
+        trustedContext,
       );
       const history = Array.isArray(payload?.history) ? (payload.history as { role: string; content: string }[]) : [];
       const messages = [

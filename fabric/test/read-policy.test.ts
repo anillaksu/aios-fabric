@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { capabilityMap } from "../src/capabilities.ts";
-import { isReadExposed, readExposedNames } from "../src/read-policy.ts";
+import { executeReadOnly, isReadExposed, readExposedNames } from "../src/read-policy.ts";
 
 test("/read yalniz explicit readOnly ve risk:safe capability'leri acar", () => {
   assert.equal(isReadExposed("sensor.battery.read"), true);
@@ -21,4 +21,10 @@ test("/read yalniz explicit readOnly ve risk:safe capability'leri acar", () => {
   assert.equal(isReadExposed("sensor.location.read"), false);
   assert.equal(isReadExposed("script.run"), false);
   assert.equal(isReadExposed("boyle.bir.capability.yok"), false);
+});
+
+test("read facade policy disinda capability execute etmez", async () => {
+  const blocked = await executeReadOnly("torch.set", { enabled: true });
+  assert.equal(blocked.ok, false);
+  assert.match(String(blocked.error), /izinli degil/);
 });

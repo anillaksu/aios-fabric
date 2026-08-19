@@ -96,10 +96,9 @@ function savePeers(peers: Peer[]) {
 }
 
 const GATEWAY_URL = "http://127.0.0.1:8642/v1/chat/completions";
-// W1.8: sabit deger depoda duz metin duruyordu (git gecmisine girmisti).
-// Artik env'den okunuyor; env yoksa config.yaml'daki eski varsayilana duser
-// (geriye donuk uyum - operator FABRIC_GATEWAY_KEY ile degistirebilir).
-const GATEWAY_KEY = process.env.FABRIC_GATEWAY_KEY ?? "local-retro-os-9f2c";
+// Gateway sirri kaynakta varsayilan olamaz. Env yoksa serbest A2A metin
+// gorevi fail-closed biter; capability-formundaki isler dispatcher'a gider.
+const GATEWAY_KEY = process.env.FABRIC_GATEWAY_KEY ?? "";
 
 // TIMEOUT ZINCIRI (2026-08-17 W0.3): capability < envelope < UI olmali, yoksa
 // kullanici "zaman asimi" gorurken sunucudaki fetch sinirsiz asili kalir (B4).
@@ -246,14 +245,20 @@ export class A2AHub {
     };
   }
 
-  listPeers(): Peer[] {
-    return this.peers;
+  /** Telefon UI'si icin salt-okunur projection. Paylasilan peer tokeni
+   * asla API cevabina veya tarayiciya tasinmaz. */
+  listPeers(): Array<Omit<Peer, "token">> {
+    return this.peers.map(({ name, url, description }) => ({ name, url, description }));
   }
 
-  addPeer(peer: Peer) {
+  /** Yalnizca dispatcher/policy arkasindaki `a2a.peer.add` capability'si
+   * cagirir. Token process tarafinda kalir; listPeers() onu disari vermez. */
+  addPeer(peer: Peer): Omit<Peer, "token"> {
     this.peers = this.peers.filter((p) => p.name !== peer.name);
     this.peers.push(peer);
     savePeers(this.peers);
+    const { name, url, description } = peer;
+    return { name, url, description };
   }
 
   getTask(id: string): A2ATask | undefined {
@@ -419,6 +424,10 @@ export class A2AHub {
       return;
     }
 
+    if (!GATEWAY_KEY) {
+      this.setState(task, "failed", { error: "FABRIC_GATEWAY_KEY tanimli degil" });
+      return;
+    }
     try {
       // W3.3: bu fetch'te de timeout YOKTU - Hermes gateway takilirsa gelen
       // A2A gorevi sonsuza dek "working" kalirdi (dispatcher.ts'teki ayni

@@ -9,7 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { Journal } from "./journal.ts";
 import { reduce } from "./state.ts";
-import { capabilityMap } from "./capabilities.ts";
+import { capabilityMap, TRUSTED_LLM_CONTEXT } from "./capabilities.ts";
 import { UNDO } from "./undo.ts";
 import { SseHub } from "./sse.ts";
 import { isDebugTrajectoryEnabled } from "./debugtrajectory.ts";
@@ -21,6 +21,7 @@ export class Dispatcher {
   private state: FabricState;
   private journal: Journal;
   private sse: SseHub;
+  private trustedLlmContext?: () => Promise<string>;
 
   // IPTAL EDILENLER (2026-08-16'da eklendi).
   // DURUST SINIR: bir capability zaten calisiyorsa (orn. `script.run` bir
@@ -48,10 +49,16 @@ export class Dispatcher {
     return this.liveResults.has(taskId) ? this.liveResults.get(taskId) : undefined;
   }
 
-  constructor(journal: Journal, initialState: FabricState, sse: SseHub) {
+  constructor(
+    journal: Journal,
+    initialState: FabricState,
+    sse: SseHub,
+    options?: { trustedLlmContext?: () => Promise<string> },
+  ) {
     this.journal = journal;
     this.sse = sse;
     this.state = initialState;
+    this.trustedLlmContext = options?.trustedLlmContext;
   }
 
   getState(): FabricState {
@@ -382,7 +389,13 @@ export class Dispatcher {
         idempotencyKey: null,
       });
 
-      const result = await capability.execute(intent.payload);
+      // LLM'ye cihaz baglami yalniz dispatcher'in sunucu tarafindaki
+      // provider'i ile eklenir. Ag payload'i `context`/`system` yazsa bile
+      // Symbol anahtarli degeri taklit edemez ve capability onu okumaz.
+      const payload = intent.type === "llm.generate" && this.trustedLlmContext
+        ? { ...intent.payload, [TRUSTED_LLM_CONTEXT]: await this.trustedLlmContext() }
+        : intent.payload;
+      const result = await capability.execute(payload);
 
       // Calisirken iptal edilmis olabilir: sonucu state'e ISLEME, yoksa
       // kullanicinin iptal ettigi is "tamamlandi" diye geri gelir.

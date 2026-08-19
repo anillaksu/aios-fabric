@@ -16,9 +16,8 @@ import { isDebugTrajectoryEnabled, setDebugTrajectory } from "./debugtrajectory.
 import { listRules, addRule, removeRule, toggleRule, makeAutomationListener } from "./automations.ts";
 import { allKits, kitsOf, addKit, removeKit } from "./kits.ts";
 import { createEnvelope, makeEnvelopeRecorder } from "./envelope.ts";
-import { UI_HTML } from "./ui.ts";
 import { handleMcpRequest, requireMcpAuth, originAllowed } from "./mcp.ts";
-import { isReadExposed } from "./read-policy.ts";
+import { executeReadOnly, isReadExposed } from "./read-policy.ts";
 import type { Intent } from "./types.ts";
 import { logErr } from "./log.ts";
 import { readRuntimeStatus } from "./runtime-status.ts";
@@ -113,7 +112,38 @@ if (interruptedIds.length > 0) {
 console.log(`[fabric] journal'dan ${replayedEvents.length} event oynatildi, state yeniden insa edildi`);
 
 const sse = new SseHub();
-const dispatcher = new Dispatcher(journal, bootState, sse);
+
+/** LLM'nin kullanabilecegi cihaz baglami: ayni `/read` facade kurallarindan
+ * gecen, yalnizca basarili gercek okumalar. Basarisizlik uydurma veri degil,
+ * eksik baglam demektir. */
+async function readTrustedLlmContext(): Promise<string> {
+  const parts: string[] = [];
+  const safeRead = async (name: string) => {
+    try {
+      return await executeReadOnly(name);
+    } catch (err) {
+      // LLM calismaya devam eder; fakat eksik cihaz baglami sessizce
+      // "gercek" sayilmaz. Operator logu bunun nedenini gorur.
+      logErr(`server:trustedLlmContext:${name}`, err);
+      return { ok: false, error: "read basarisiz" };
+    }
+  };
+  const battery = await safeRead("sensor.battery.read");
+  if (battery.ok && battery.data && typeof battery.data === "object") {
+    const d = battery.data as { percentage?: number; level?: number; status?: string; temperature?: number };
+    const pct = d.percentage ?? d.level;
+    if (typeof pct === "number") parts.push(`pil %${pct}${d.status === "CHARGING" ? " (sarjda)" : ""}`);
+    if (typeof d.temperature === "number") parts.push(`${d.temperature}C`);
+  }
+  const wifi = await safeRead("wifi.info");
+  if (wifi.ok && wifi.data && typeof wifi.data === "object") {
+    const ssid = (wifi.data as { ssid?: string }).ssid;
+    if (ssid) parts.push(`wifi ${String(ssid).replace(/"/g, "")}`);
+  }
+  return parts.join(", ");
+}
+
+const dispatcher = new Dispatcher(journal, bootState, sse, { trustedLlmContext: readTrustedLlmContext });
 
 // ---------- Otomasyon motoru (2026-08-16'da eklendi) ----------
 // Kurallar journal akisini dinler ve eslesme olunca bir capability calistirir.
@@ -682,13 +712,6 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // ---------- Fabric kontrol paneli (debug/gelistirme) ----------
-    if (url.pathname === "/panel" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(UI_HTML);
-      return;
-    }
-
     // ---------- capability kesfi ----------
     if (url.pathname === "/capabilities" && req.method === "GET") {
       // W6.L: risk seviyesi de dondurulur - onbellek anahtari (prompt-cache.js)
@@ -804,11 +827,8 @@ const server = createServer(async (req, res) => {
         json(res, 403, { ok: false, error: `"${intent}" /read uzerinden izinli degil` });
         return;
       }
-      const cap = capabilityMap.get(intent);
-      // isReadExposed() capabilityMap varligini zaten dogrular.
-      if (!cap) throw new Error(`read policy capability bulunamadi: ${intent}`);
       const t0 = Date.now();
-      const result = await cap.execute(payload);
+      const result = await executeReadOnly(intent, payload);
       const ms = Date.now() - t0;
 
       // GOZLEM BOSLUGU DUZELTMESI (2026-08-16): okumalar bilerek journal'a
@@ -897,6 +917,10 @@ const server = createServer(async (req, res) => {
     // ---------- A2A: task durumu sorgula ----------
     const taskMatch = url.pathname.match(/^\/a2a\/tasks\/([a-f0-9-]+)$/);
     if (taskMatch && req.method === "GET") {
+      if (!requireA2AAuth(req)) {
+        json(res, 401, { error: "gecersiz veya eksik Bearer token" });
+        return;
+      }
       const task = a2a.getTask(taskMatch[1]);
       if (!task) {
         json(res, 404, { error: "task bulunamadi" });
@@ -906,25 +930,11 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // ---------- A2A: peer listesi / ekleme ----------
+    // ---------- A2A: peer listesi ----------
     if (url.pathname === "/a2a/peers" && req.method === "GET") {
       json(res, 200, a2a.listPeers());
       return;
     }
-    if (url.pathname === "/a2a/peers" && req.method === "POST") {
-      const body = await readBody(req);
-      const peer = JSON.parse(body || "{}") as { name?: string; url?: string; description?: string; token?: string };
-      if (!peer.name || !peer.url) {
-        json(res, 400, { error: "name ve url gerekli" });
-        return;
-      }
-      // W1.5: token da kaydedilebilsin - delegateToPeer bunu Authorization
-      // basligina koyar (bkz. a2a.ts).
-      a2a.addPeer({ name: peer.name, url: peer.url, description: peer.description, token: peer.token });
-      json(res, 200, { ok: true });
-      return;
-    }
-
     // ---------- A2A: baska bir peer'a delege et (bu Fabric'in DIŞ cikisi) ----------
     if (url.pathname === "/a2a/delegate" && req.method === "POST") {
       // Eski debug ucu dogrudan delegateToPeer cagiriyordu. B-13 sonrasi

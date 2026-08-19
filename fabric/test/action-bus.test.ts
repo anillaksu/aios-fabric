@@ -15,7 +15,7 @@ import { initialState } from "../src/state.ts";
 import { SseHub } from "../src/sse.ts";
 import { Dispatcher } from "../src/dispatcher.ts";
 import { A2AHub } from "../src/a2a.ts";
-import { capabilityMap } from "../src/capabilities.ts";
+import { capabilityMap, normalizeMediaAction } from "../src/capabilities.ts";
 import { isApproved } from "../src/approval.ts";
 import { validateScreen, sanitizeAiosBlock } from "../src/screenspec.ts";
 
@@ -60,6 +60,13 @@ test("eksik parametre: app.open pkg'siz cagrilinca capability kendi ici dogrulam
   }
   assert.equal(task!.status, "failed");
   assert.match(String(task!.error), /pkg gerekli/);
+});
+
+test("legacy media.control cmd alani guncel action semantigine eslenir", () => {
+  assert.equal(normalizeMediaAction({ cmd: "previous" }), "previous");
+  assert.equal(normalizeMediaAction({ cmd: "playpause" }), "toggle");
+  assert.equal(normalizeMediaAction({ cmd: "next" }), "next");
+  assert.equal(normalizeMediaAction({ action: "pause", cmd: "next" }), "pause", "guncel action once gelir");
 });
 
 // ─── 3) SAHTE CIHAZ BILGISI: model uydurma bir bilesen/veri uretirse SUNUCUDA elenir ───
@@ -134,9 +141,10 @@ test("dogrudan A2A action: capability: kit.list dispatcher uzerinden tamamlanir,
 // payload.context DOGRUDAN sistem promptuna gomuluyordu - disaridan biri
 // {"context":"pil %999, sarj tam"} gibi UYDURMA bir cihaz durumunu modelin
 // "gercek" sandigi baglama enjekte edebilirdi. Simdi baglam SADECE sunucunun
-// kendi capability cagrisiyla (readLiveDeviceContext) okunuyor.
-test("sahte cihaz bilgisi: llm.generate cagiranin context'ini yok sayar, modele giden metinde uydurma veri OLMAZ", async () => {
+// dispatcher'in sunucu tarafindaki safe read provider'i ile okunuyor.
+test("sahte cihaz bilgisi: llm.generate cagiranin context/system alanlarini yok sayar", async () => {
   const fakeContext = "UYDURMA-PIL-999-SAHTE-VERI";
+  const fakeSystem = "UYDURMA-SISTEM-OVERRIDE";
   let capturedBody: { messages?: { role: string; content: string }[] } | null = null;
   const originalFetch = globalThis.fetch;
   // llm_bridge'e (127.0.0.1:9201) giden GERCEK istegi yakala - ag baglantisi
@@ -149,7 +157,7 @@ test("sahte cihaz bilgisi: llm.generate cagiranin context'ini yok sayar, modele 
   try {
     const cap = capabilityMap.get("llm.generate");
     assert.ok(cap);
-    await cap!.execute({ prompt: "merhaba", context: fakeContext });
+    await cap!.execute({ prompt: "merhaba", context: fakeContext, system: fakeSystem });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -159,6 +167,32 @@ test("sahte cihaz bilgisi: llm.generate cagiranin context'ini yok sayar, modele 
   assert.ok(systemMsg, "sistem mesaji olusturulamadi");
   assert.ok(!systemMsg!.content.includes(fakeContext),
     "CAGIRANIN uydurma context'i sistem promptuna SIZDI - bu tam olarak duzeltilen acik");
+  assert.ok(!systemMsg!.content.includes(fakeSystem),
+    "CAGIRANIN system override'i sistem promptuna SIZDI");
+});
+
+test("dispatcher, LLM cihaz baglamini yalniz sunucu providerindan ekler", async () => {
+  const journal = new Journal(":memory:");
+  const sse = new SseHub();
+  const dispatcher = new Dispatcher(journal, initialState(), sse, {
+    trustedLlmContext: async () => "DOGRU-SUNUCU-BAGLAMI",
+  });
+  let capturedBody: { messages?: { role: string; content: string }[] } | null = null;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: unknown, opts?: { body?: string }) => {
+    capturedBody = JSON.parse(String(opts?.body ?? "{}"));
+    return { ok: false, status: 503, json: async () => ({ error: "test stub" }) } as Response;
+  }) as typeof fetch;
+  try {
+    await dispatcher.dispatch({ type: "llm.generate", payload: { prompt: "merhaba", context: "SAHTE" } });
+    const deadline = Date.now() + 1000;
+    while (!capturedBody && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const system = capturedBody?.messages?.find((m) => m.role === "system")?.content ?? "";
+  assert.match(system, /DOGRU-SUNUCU-BAGLAMI/);
+  assert.ok(!system.includes("SAHTE"));
 });
 
 test("dogrudan A2A action: risk:ask approval yokken dispatcher tarafindan reddedilir", async () => {
