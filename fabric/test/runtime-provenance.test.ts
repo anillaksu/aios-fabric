@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canonicalJson,
   createRootFormation,
   createRuntimeProvenanceEdge,
   createRuntimeWitness,
@@ -48,6 +49,17 @@ async function edgeFor(parent: any | null = null, taskId = "task-1") {
   return { parent, edge: await createRuntimeProvenanceEdge({ parent, witness }) };
 }
 
+function semanticProjection(bundle: { formations: any[]; provenanceEdges: any[] }) {
+  return {
+    formations: bundle.formations.map((formation) => ({
+      id: formation.id, contentId: formation.contentId, contextId: formation.contextId, witnessId: formation.witnessId,
+    })),
+    provenanceEdges: bundle.provenanceEdges.map((edge) => ({
+      id: edge.id, parentId: edge.parent.id, witnessId: edge.witness.id, resultDigest: edge.witness.resultDigest,
+    })),
+  };
+}
+
 test("chain break rejection: GENESIS ve exact previous event hash zorunludur", () => {
   const first = row("GENESIS");
   const firstHash = first.split("\t")[10];
@@ -59,6 +71,15 @@ test("duplicate witness idempotence: ayni immutable edge JOIN'de tek kalir", asy
   const { edge } = await edgeFor();
   const joined = await joinRuntimeProvenance([edge], [edge], [edge]);
   assert.equal(joined.length, 1);
+});
+
+test("same witness duplicate delivery: ayni canonical completion yeniden islenirse ayni tek edge elde edilir", async () => {
+  const parent = await createRootFormation(artifact);
+  const first = (await edgeFor(parent, "task-same")).edge;
+  const replay = (await edgeFor(parent, "task-same")).edge;
+  assert.equal(first.witness.id, replay.witness.id);
+  assert.equal(first.id, replay.id);
+  assert.equal((await joinRuntimeProvenance([first], [replay])).length, 1);
 });
 
 test("order independence: provenance edge JOIN siradan ve parantezlemeden bagimsizdir", async () => {
@@ -113,6 +134,43 @@ test("replay/export-import determinism: formation ve edge paketi exact parent il
   const portable = await exportFormationMemoryBundle([parent, parent], [edge, edge]);
   const replayed = await importFormationMemoryBundle([], [], portable);
   assert.deepEqual(replayed, { formations: portable.formations, provenanceEdges: portable.provenanceEdges });
+});
+
+test("iki replica harness: X→Y, Y→X, X duplicate ve Y duplicate ayni semantic projection verir", async () => {
+  const parent = await createRootFormation(artifact);
+  const x = (await edgeFor(parent, "task-x")).edge;
+  const y = (await edgeFor(parent, "task-y")).edge;
+  const replicaX = await exportFormationMemoryBundle([parent], [x]);
+  const replicaY = await exportFormationMemoryBundle([parent], [y]);
+
+  const xy = await importFormationMemoryBundle(replicaX.formations, replicaX.provenanceEdges, replicaY);
+  const yx = await importFormationMemoryBundle(replicaY.formations, replicaY.provenanceEdges, replicaX);
+  const xDuplicate = await importFormationMemoryBundle(xy.formations, xy.provenanceEdges, replicaX);
+  const yDuplicate = await importFormationMemoryBundle(yx.formations, yx.provenanceEdges, replicaY);
+
+  const expected = semanticProjection(xy);
+  assert.deepEqual(semanticProjection(yx), expected);
+  assert.deepEqual(semanticProjection(xDuplicate), expected);
+  assert.deepEqual(semanticProjection(yDuplicate), expected);
+});
+
+test("semantic projection esitligi ile canonical serialization hash esitligi ayri kanitlanir", async () => {
+  const parent = await createRootFormation(artifact);
+  const x = (await edgeFor(parent, "task-hash-x")).edge;
+  const y = (await edgeFor(parent, "task-hash-y")).edge;
+  const xy = await exportFormationMemoryBundle([parent], await joinRuntimeProvenance([x], [y]));
+  const yx = await exportFormationMemoryBundle([parent], await joinRuntimeProvenance([y], [x]));
+  const left = semanticProjection(xy);
+  const right = semanticProjection(yx);
+  assert.deepEqual(left, right);
+  assert.equal(hex(canonicalJson(left)), hex(canonicalJson(right)));
+});
+
+test("ayni immutable edge kimligiyle celiskili provenance iddiasi resolve edilmez, fail-closed reddedilir", async () => {
+  const { edge } = await edgeFor();
+  const conflicting = structuredClone(edge);
+  conflicting.witness.resultDigest = "sha256:" + "f".repeat(64);
+  await assert.rejects(() => joinRuntimeProvenance([edge], [conflicting]), /gecersiz runtime provenance edge/);
 });
 
 test("production call-site artifact context, dispatcher completion ve fail-closed shell verify zincirini tasir", () => {
