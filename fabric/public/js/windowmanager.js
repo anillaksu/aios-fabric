@@ -94,6 +94,16 @@ export class WindowManager {
     return true;
   }
 
+  /** Yuzey-ozel yerlesim ipucu. Execution degil, yalnizca kullanici tercihi. */
+  setLayout(id, layout) {
+    const w = this._windows.get(id);
+    if (!w || !layout || typeof layout !== "object") return false;
+    w.layout = { ...(w.layout || {}), ...layout };
+    this._persist();
+    this._emit();
+    return true;
+  }
+
   get focusedId() { return this._focusedId; }
 
   /** Izgara sirasi: sabitli once, sonra son odaklanma zamanina gore (en yeni once). */

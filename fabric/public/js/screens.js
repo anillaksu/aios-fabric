@@ -326,6 +326,7 @@ const OPERATOR_AREAS = [
     ["Keşfet", "Cihaz, ağ ve sistem işlevlerini bul", { tab: "komut" }],
   ] },
   { id: "workspace", icon: "square_stack_3d_up_fill", title: "ÇALIŞMA ALANI", subtitle: "Uygulamalar, artefaktlar ve pencereler", items: [
+    ["Sistem haritası", "Katmanları, yüzeyleri ve güvenli kontrol yollarını gör", { screen: "system-map" }],
     ["Uygulamalarım", "Kalıcı ApplicationEntry launcher'ları", { screen: "miniapps" }],
     ["Artefakt galerisi", "Yeniden kullanılabilir oluşumlar", { tab: "artifacts" }],
     ["Son kullanılanlar", "Ana ekrandaki kalıcı girişler", { tab: "home" }],
@@ -364,6 +365,35 @@ function operatorAction(target) {
   if (target.ref === "device") return { type: "ui.referenceDeviceStatus" };
   if (target.control) return { type: "ui.control" };
   return { type: "ui.goto", payload: target };
+}
+
+// AIOS katmanlarının deterministik, salt-gezinme projeksiyonu. Bu bir
+// capability registry veya agent talimat motoru değildir: listelenen her
+// düğüm mevcut bir UI hedefidir ve execution/policy yolunu değiştirmez.
+export function systemMapScreen() {
+  const layers = [
+    ["Çalışma Alanı", "HOME, son kullanılanlar ve sabit uygulamalar", "house_fill", { tab: "home" }],
+    ["Keşfet", "Cihaz, medya, ağ, sistem ve araçları ara", "magnifyingglass", { tab: "komut" }],
+    ["Uygulamalar", "Kalıcı ApplicationEntry launcher'ları", "app_badge", { screen: "miniapps" }],
+    ["Artefaktlar", "Yeniden kullanılabilir deklaratif oluşumlar", "square_stack_3d_up_fill", { tab: "artifacts" }],
+    ["Otomasyonlar", "Mevcut olay → kural → eylem akışları", "bolt_horizontal_circle", { screen: "automations" }],
+    ["Yönetim", "Runtime, bağlantılar ve görev geçmişi", "gearshape_fill", { screen: "management" }],
+    ["İzinler", "İnsan approval ve capability policy", "lock_fill", { control: true }],
+    ["Linhx", "İstek, inceleme ve yeni oluşum girişi", "sparkles", { tab: "hermes" }],
+    ["Android Köprüsü", "Telefon uygulamaları ve günlük araçlar", "iphone", { screen: "androidApps" }],
+  ];
+  return {
+    id: "system-map", title: "AIOS SİSTEM HARİTASI", subtitle: "Gerçek yüzeyler ve güvenli kontrol köprüleri",
+    sections: [
+      { type: "section", children: [{ type: "info-card", icon: "point_3_connected_trianglepath_dotted", title: "Deterministik yol haritası",
+        body: "Her düğüm var olan bir AIOS yüzeyine açılır. Bu harita yeni yetki, yeni execution yolu veya LLM authority oluşturmaz." }] },
+      { type: "section", title: "KATMANLAR", layout: "grid-2", children: layers.map(([title, subtitle, icon, target]) => ({
+        type: "tile", icon, name: title, meta: subtitle, tap: operatorAction(target),
+      })) },
+      { type: "section", title: "SINIR", children: [{ type: "info-card", icon: "lock", title: "Eylemler dispatcher’dan geçer",
+        body: "Harita yalnız keşif ve navigation sağlar. Capability çağrıları mevcut dispatcher, policy ve insan approval zincirini kullanır." }] },
+    ],
+  };
 }
 
 export function operatorDeckScreen(section = null) {

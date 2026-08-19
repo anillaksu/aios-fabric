@@ -467,6 +467,21 @@ dialog.aios-sheet .sheet-modal {
 }
 dialog.aios-sheet .sheet-modal-inner { padding-bottom: env(safe-area-inset-bottom); }
 
+/* Control Center'daki pencere yuzeyi secimi: tema gibi estetik degil,
+   WindowManager kayitlarinin nasil gorunecegine dair yerel tercih. */
+.workspace-surface-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.workspace-surface-choice {
+  min-height: 78px; padding: var(--sp-2); text-align: left; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text-primary);
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "icon name" "icon detail"; column-gap: var(--sp-2);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.workspace-surface-choice:active { transform: scale(.98); background: var(--surface-pressed); }
+.workspace-surface-choice[data-active="1"] { border-color: var(--primary); background: var(--primary-a); }
+.workspace-surface-choice i { grid-area: icon; color: var(--primary); font-size: 18px; align-self: start; }
+.workspace-surface-choice .name { grid-area: name; font-size: var(--fs-sm); font-weight: 650; overflow-wrap: anywhere; }
+.workspace-surface-choice .detail { grid-area: detail; margin-top: 2px; color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.25; overflow-wrap: anywhere; }
+
 /* ── genel yardimcilar ────────────────────────────────────── */
 .mono { font-family: var(--font-mono); }
 .dim  { color: var(--fg-mute); }

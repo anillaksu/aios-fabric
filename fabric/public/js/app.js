@@ -32,6 +32,7 @@ import { runViewTransition } from "./view-transitions.js";
 import { createRootFormation, verifyFormation } from "./formation-memory.js";
 import { clipboardAnalysisPrompt, clipboardTextFromResult } from "./clipboard-import.js";
 import { dockWindows } from "./workspace-dock.js";
+import { DEFAULT_WORKSPACE_SURFACE, WORKSPACE_SURFACES, canvasPosition, loadWorkspaceSurface, saveWorkspaceSurface } from "./workspace-surface.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -369,6 +370,22 @@ function loadTheme() {
   setTheme(THEMES.some((t) => t.id === id) ? id : "phosphor");
 }
 
+let workspaceSurface = DEFAULT_WORKSPACE_SURFACE;
+function syncSurfaceNav() {
+  document.querySelectorAll("#surface-nav [data-tab]").forEach((button) => {
+    button.dataset.active = button.dataset.tab === currentTab && !artifactOpenId && !secondary ? "1" : "0";
+  });
+}
+function setWorkspaceSurface(id, persist = true) {
+  workspaceSurface = persist ? saveWorkspaceSurface(id) : id;
+  document.documentElement.dataset.workspaceSurface = workspaceSurface;
+  syncSurfaceNav();
+  renderWindowDock();
+}
+function loadWorkspaceSurfacePreference() {
+  setWorkspaceSurface(loadWorkspaceSurface(), false);
+}
+
 /* ════════ ACTION DISPATCHER ════════ */
 let lastReceipt = null;
 const ctx = {
@@ -598,18 +615,32 @@ function updateBadges() {
 function renderWindowDock() {
   const dock = $("#windowdock");
   if (!dock) return;
+  const nodeHost = $("#window-nodes");
+  if (!nodeHost) return;
   const root = $("#linhx-root");
   if (root) root.classList.toggle("on", currentTab === "hermes" && !artifactOpenId && !secondary);
-  dock.querySelectorAll("[data-window-id]").forEach((node) => node.remove());
+  syncSurfaceNav();
+  nodeHost.querySelectorAll("[data-window-id]").forEach((node) => node.remove());
   const utility = $("#cc-open");
   const windows = dockWindows(wm.list(), new Set(artifacts.map((artifact) => artifact.id)));
   const visibleIds = new Set(windows.map((win) => win.id));
   for (const id of renderedDockWindowIds) if (!visibleIds.has(id)) renderedDockWindowIds.delete(id);
-  windows.forEach((win) => {
+  windows.forEach((win, index) => {
     const slot = document.createElement("div");
     slot.className = "window-slot" + (artifactOpenId === win.id ? " is-active" : "");
     slot.dataset.windowId = win.id;
     if (!renderedDockWindowIds.has(win.id)) slot.classList.add("is-entering");
+    if (workspaceSurface === "canvas") {
+      const point = canvasPosition(win, index);
+      slot.style.setProperty("--canvas-x", `${point.x}px`);
+      slot.style.setProperty("--canvas-y", `${point.y}px`);
+      const grip = document.createElement("span");
+      grip.className = "window-grip";
+      grip.textContent = "⋮⋮";
+      grip.setAttribute("aria-hidden", "true");
+      wireCanvasDrag(grip, slot, win, point);
+      slot.appendChild(grip);
+    }
     const b = document.createElement("button");
     b.className = "window-tab" + (artifactOpenId === win.id ? " on" : "");
     b.textContent = win.title || "Pencere";
@@ -625,10 +656,36 @@ function renderWindowDock() {
       closeDockWindow(win.id, slot);
     });
     slot.append(b, close);
-    dock.insertBefore(slot, utility);
+    nodeHost.appendChild(slot);
     renderedDockWindowIds.add(win.id);
-    if (win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }));
+    if (workspaceSurface !== "canvas" && win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }));
   });
+}
+
+function wireCanvasDrag(grip, slot, win, initial) {
+  let drag = null;
+  const move = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const x = Math.max(-96, Math.min(620, drag.x + event.clientX - drag.startX));
+    const y = Math.max(-20, Math.min(142, drag.y + event.clientY - drag.startY));
+    drag.current = { x, y };
+    slot.style.setProperty("--canvas-x", `${x}px`);
+    slot.style.setProperty("--canvas-y", `${y}px`);
+  };
+  const finish = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const point = drag.current || { x: drag.x, y: drag.y };
+    drag = null;
+    wm.setLayout(win.id, { canvas: point });
+  };
+  grip.addEventListener("pointerdown", (event) => {
+    event.preventDefault(); event.stopPropagation();
+    grip.setPointerCapture(event.pointerId);
+    drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: initial.x, y: initial.y, current: null };
+  });
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", finish);
+  grip.addEventListener("pointercancel", finish);
 }
 
 // Kapatmak yalniz WindowManager kaydini kaldirir: artifact, ApplicationEntry
@@ -656,6 +713,7 @@ async function paint() {
   if (secondary === "androidApps") return mountSecondary(host, validateScreen(SC.androidAppsScreen()));
   if (secondary === "tools") return mountSecondary(host, validateScreen(SC.toolsScreen()));
   if (secondary === "operator") return mountSecondary(host, validateScreen(SC.operatorDeckScreen(secondaryArg)));
+  if (secondary === "system-map") return mountSecondary(host, validateScreen(SC.systemMapScreen()));
   if (secondary === "agents")   return mountSecondary(host, validateScreen(SC.agentsScreen()));
   if (secondary === "capabilities") return mountSecondary(host, validateScreen(await SC.capabilitiesScreen()));
   if (secondary === "journal")     return mountSecondary(host, validateScreen(await SC.journalScreen(secondaryArg)));
@@ -1331,6 +1389,8 @@ function openControlCenter() {
       <div style="padding:0 16px 8px" id="cc-approvals"></div>
       <div style="padding:14px 16px 8px"><span class="k-micro">TEMA</span></div>
       <div style="padding:0 16px"><div class="theme-row" id="cc-themes"></div></div>
+      <div style="padding:14px 16px 8px"><span class="k-micro">ÇALIŞMA YÜZEYİ</span></div>
+      <div style="padding:0 16px" class="workspace-surface-row" id="cc-workspace-surfaces"></div>
       <div style="padding:14px 16px 4px"><span class="k-micro">SERVİSLER</span></div>
       <div style="padding:0 16px 16px" id="cc-services"></div>
       <div style="padding:0 16px 22px" class="c-btn-row">
@@ -1478,6 +1538,22 @@ function openControlCenter() {
     themeHost.appendChild(d);
   });
 
+  const workspaceHost = document.getElementById("cc-workspace-surfaces");
+  WORKSPACE_SURFACES.forEach((surface) => {
+    const button = el("button", "workspace-surface-choice");
+    button.type = "button";
+    button.dataset.active = workspaceSurface === surface.id ? "1" : "0";
+    button.setAttribute("aria-label", surface.title);
+    const icon = el("i", "icon f7-icons"); icon.textContent = surface.icon;
+    button.append(icon, el("span", "name", surface.title), el("span", "detail", surface.subtitle));
+    button.addEventListener("click", () => {
+      setWorkspaceSurface(surface.id);
+      workspaceHost.querySelectorAll(".workspace-surface-choice").forEach((node) => (node.dataset.active = node === button ? "1" : "0"));
+      toast(`Çalışma yüzeyi: ${surface.title}`);
+    });
+    workspaceHost.appendChild(button);
+  });
+
   // Burada capability varligini "online" diye gostermek yanlisti. Canli
   // servis olcumu yalniz /runtime-status kullanan Yonetim Merkezi'ndedir.
   document.getElementById("cc-services").appendChild(render({
@@ -1602,12 +1678,14 @@ function handleEntry() {
 
 /* ════════ ACILIS ════════ */
 export async function boot() {
-  loadTheme(); loadRecent(); await loadArtifacts(); await loadApplications();
+  loadTheme(); loadWorkspaceSurfacePreference(); loadRecent(); await loadArtifacts(); await loadApplications();
   requestPersistence(); // B-9 ile ayni riskin veri tarafi: Android baski altinda depoyu temizleyebilir
   // M-9: acilis senkronu artik loadArtifacts()'in kendi isi (sunucu birincil,
   // gerekirse onbellekten besler) - burada tekrar POST etmeye gerek yok.
 
   $("#linhx-root").addEventListener("click", () => goTab("hermes"));
+  document.querySelectorAll("#surface-nav [data-tab]").forEach((button) =>
+    button.addEventListener("click", () => goTab(button.dataset.tab)));
   window.addEventListener("popstate", (event) => {
     // Browser/Android geri hareketi yalnız bizim isimli state'imizi uygular;
     // başka origin ya da bozuk state fail-closed olarak HOME'a iner.

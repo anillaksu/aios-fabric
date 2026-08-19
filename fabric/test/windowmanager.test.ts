@@ -84,6 +84,18 @@ test("kalicilik: ayni depo ile yeni WindowManager onceki durumu geri yukler", ()
   assert.equal(wm2.focusedId, null);
 });
 
+test("setLayout: yuzey-ozel kanvas konumu kalicidir, artifact veya execution verisi degildir", () => {
+  const storage = memStorage();
+  const wm1 = new WindowManager(storage);
+  wm1.register({ id: "w1", title: "Pil" });
+  assert.equal(wm1.setLayout("w1", { canvas: { x: 84, y: 36 } }), true);
+  assert.equal(wm1.setLayout("yok", { canvas: { x: 1, y: 2 } }), false);
+
+  const wm2 = new WindowManager(storage);
+  assert.deepEqual(wm2.get("w1")?.layout, { canvas: { x: 84, y: 36 } });
+  assert.equal(wm2.get("w1")?.title, "Pil");
+});
+
 test("onChange: her mutasyonda dinleyicilere GUNCEL izgara sirasi + odak bildirilir", () => {
   const wm = new WindowManager(memStorage());
   const seen: Array<{ ids: string[]; focusedId: string | null }> = [];

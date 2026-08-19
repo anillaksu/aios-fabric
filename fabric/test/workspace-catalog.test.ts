@@ -6,7 +6,7 @@ import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWork
 // origin kabuğunu verip ekranı dinamik import ediyoruz. Katalog kendisi DOM/ağ
 // bağımsız kalır.
 globalThis.location = { origin: "http://localhost" } as Location;
-const { S, androidAppsScreen, discoverScreen, hermesEmptyScreen, homeScreen, operatorDeckScreen } = await import("../public/js/screens.js");
+const { S, androidAppsScreen, discoverScreen, hermesEmptyScreen, homeScreen, operatorDeckScreen, systemMapScreen } = await import("../public/js/screens.js");
 
 test("Phone Workspace katalogu kisa Turkce aramayi deterministik metadata ile bulur", () => {
   assert.equal(foldWorkspaceText("CİHAZ AĞI"), "cihaz agi");
@@ -99,4 +99,14 @@ test("Operator Deck klavyesiz altı gerçek AIOS alanını ve yalnız mevcut eyl
   assert.ok(rows.every((row) => row.action.type === "ui.goto"), "operator listesi yeni capability icat etmez");
   const security = operatorDeckScreen("security");
   assert.equal(security.sections[0].children[0].children[0].action.type, "ui.control");
+});
+
+test("Sistem Haritasi yalniz mevcut UI hedeflerine navigasyon projeksiyonudur", () => {
+  const map = systemMapScreen();
+  const layers = map.sections.find((section) => section.title === "KATMANLAR");
+  assert.ok(layers);
+  assert.ok(layers.children.length >= 8);
+  assert.ok(layers.children.every((tile) => tile.tap?.type === "ui.goto" || tile.tap?.type === "ui.control"));
+  assert.ok(layers.children.some((tile) => tile.name === "Android Köprüsü"));
+  assert.equal(JSON.stringify(map).includes("cap.execute"), false);
 });
