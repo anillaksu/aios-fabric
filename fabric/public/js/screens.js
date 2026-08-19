@@ -371,7 +371,7 @@ export function operatorDeckScreen(section = null) {
     return {
       id: "operator:" + selected.id, title: selected.title, subtitle: selected.subtitle,
       sections: [{ type: "section", title: "OPERATÖR MENÜSÜ", children: [{ type: "list", children: selected.items.map(([title, subtitle, target]) => ({
-        type: "list-row", icon: selected.icon, title, subtitle, trailing: "AÇ", action: operatorAction(target),
+        type: "list-row", icon: selected.icon, title, subtitle, action: operatorAction(target),
       })) }] }],
     };
   }
@@ -381,13 +381,13 @@ export function operatorDeckScreen(section = null) {
       { type: "section", children: [{ type: "info-card", icon: "bolt_fill", title: "NIGHT CITY · OWNER DECK",
         body: "Bu yüzey terminal emülasyonu değildir. Yalnız gerçek AIOS ekranlarını, policy zincirini değiştirmeden dokunmatik olarak açar." }] },
       { type: "section", title: "SİSTEM KATMANLARI", layout: "grid-2", children: OPERATOR_AREAS.map((area) => ({
-        type: "tile", name: area.title, value: "AÇ", meta: area.subtitle,
+        type: "tile", icon: area.icon, name: area.title, meta: area.subtitle,
         tap: { type: "ui.goto", payload: { screen: "operator", filter: area.id } },
       })) },
       { type: "section", title: "HIZLI ERİŞİM", children: [{ type: "button-row", children: [
-        { type: "button", label: "HOME", variant: "ghost", action: { type: "ui.goto", payload: { tab: "home" } } },
-        { type: "button", label: "KEŞFET", variant: "primary", action: { type: "ui.goto", payload: { tab: "komut" } } },
-        { type: "button", label: "LINHX", variant: "ghost", action: { type: "ui.goto", payload: { tab: "hermes" } } },
+        { type: "button", label: "Ana ekran", icon: "house_fill", iconOnly: true, variant: "ghost", action: { type: "ui.goto", payload: { tab: "home" } } },
+        { type: "button", label: "Keşfet", icon: "magnifyingglass", iconOnly: true, variant: "primary", action: { type: "ui.goto", payload: { tab: "komut" } } },
+        { type: "button", label: "Linhx", icon: "sparkles", iconOnly: true, variant: "ghost", action: { type: "ui.goto", payload: { tab: "hermes" } } },
       ] }] },
     ],
   };

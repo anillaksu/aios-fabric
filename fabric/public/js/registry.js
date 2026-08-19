@@ -5,7 +5,7 @@
    Kurallar:
      · Her component (spec, ctx) => HTMLElement dondurur
      · Ham renk/olcu YAZMAZ - sadece css/tokens.css degiskenleri
-     · Ikon sistemi TEK: Framework7 Icons (emoji KARISTIRILMAZ)
+     · Ikon sistemi TEK: yerel kanonik ikon seti (emoji KARISTIRILMAZ)
      · Zorunlu durumlar data-state ile: idle pressed loading pending
        success error disabled offline stale
    Bu sette OLMAYAN bir gorsel uretilemez. Tasarim butunlugu boyle korunur.
@@ -168,7 +168,14 @@ function Tile(spec, ctx) {
   applyState(n, spec.state);
 
   const head = el("div", "head");
-  head.appendChild(el("span", "dot"));
+  if (spec.icon) {
+    const mark = icon(spec.icon);
+    mark.classList.add("tile-icon");
+    mark.setAttribute("aria-hidden", "true");
+    head.appendChild(mark);
+  } else {
+    head.appendChild(el("span", "dot"));
+  }
   head.appendChild(el("span", "name", spec.name || ""));
   n.appendChild(head);
 
@@ -458,7 +465,21 @@ function ActionReceipt(spec, ctx) {
 
 /** Button / ButtonRow */
 function Button(spec, ctx) {
-  const b = el("button", "c-btn", spec.label || "");
+  const b = el("button", "c-btn");
+  if (spec.icon) {
+    const mark = icon(spec.icon);
+    mark.setAttribute("aria-hidden", "true");
+    b.appendChild(mark);
+  }
+  if (spec.label) {
+    const label = el("span", "btn-label", spec.label);
+    b.appendChild(label);
+    b.setAttribute("aria-label", spec.label);
+  }
+  if (spec.iconOnly) {
+    b.classList.add("icon-only");
+    b.title = spec.label || "Eylem";
+  }
   if (spec.variant) b.dataset.variant = spec.variant;
   applyState(b, spec.state);
   wireAction(b, spec.action, ctx);

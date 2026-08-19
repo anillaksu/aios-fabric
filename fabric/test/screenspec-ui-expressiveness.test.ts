@@ -53,6 +53,20 @@ test("stack ve scroll-region sinirli alanlari disinda deger kabul etmez", () => 
   assert.deepEqual(badStackClient!.sections, []);
 });
 
+test("ikon-düğme görünürde metni tekrar etmez ama erişilebilir label'ını contract'ta korur", () => {
+  const candidate = { id: "icon-button", title: "İkon", sections: [{ type: "section", children: [{
+    type: "button", label: "Ana ekran", icon: "house_fill", iconOnly: true,
+    action: { type: "ui.goto", payload: { tab: "home" } },
+  }] }] };
+  const serverButton = validateServer(candidate)?.sections[0]?.children?.[0];
+  const clientButton = validateClient(candidate)?.sections[0]?.children?.[0];
+  for (const button of [serverButton, clientButton]) {
+    assert.equal(button?.iconOnly, true);
+    assert.equal(button?.label, "Ana ekran");
+    assert.equal(button?.icon, "house_fill");
+  }
+});
+
 test("meetsUiRequirements dogal dil degil, yalniz belirtilen yapisal gereksinimleri kontrol eder", () => {
   assert.equal(meetsUiRequirements(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS), true);
   assert.equal(meetsUiRequirements(SCROLLABLE_SOUND_PANEL, ["capability:script.run"]), false);

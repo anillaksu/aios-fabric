@@ -266,7 +266,7 @@ function removeApplication(id) {
 function editApplication(entry) {
   const title = window.prompt("Uygulama adı", entry.title || "Uygulama");
   if (title === null) return false;
-  const icon = window.prompt("Framework7 ikon adı", entry.icon || "square_grid_2x2_fill");
+  const icon = window.prompt("İkon adı", entry.icon || "square_grid_2x2_fill");
   if (icon === null) return false;
   const result = updateApplicationEntry(applications, entry.id, { title, icon });
   if (!result.changed) return false;

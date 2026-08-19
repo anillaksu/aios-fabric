@@ -205,6 +205,7 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 
 /* ── TILE (state + ana action) — HA Tile Card modeli ───────── */
 .c-tile .head { display: flex; align-items: center; gap: var(--sp-2); }
+.c-tile .tile-icon { color: var(--primary); font-size: 18px; flex: 0 0 auto; }
 .c-tile .dot {
   width: 8px; height: 8px; border-radius: var(--r-pill);
   background: var(--idle); flex: 0 0 auto;
@@ -349,6 +350,8 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .c-btn[data-variant="ghost"]   { background: transparent; border-color: var(--line-mid); color: var(--fg-dim); }
 .c-btn[data-state="disabled"] { opacity: .4; pointer-events: none; }
 .c-btn[data-state="loading"] { color: transparent; position: relative; pointer-events: none; }
+.c-btn.icon-only { width: var(--touch-target); min-width: var(--touch-target); height: var(--touch-target); padding: 0; }
+.c-btn.icon-only .btn-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .c-btn[data-state="loading"]::after {
   content: ""; position: absolute; width: 13px; height: 13px; border-radius: 50%;
   border: 2px solid var(--fg-mute); border-top-color: var(--primary);

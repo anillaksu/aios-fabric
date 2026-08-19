@@ -57,7 +57,7 @@ const SCALAR_KEYS = [
   "icon", "tone", "state", "status", "source", "role", "detail", "trailing",
   "pkg", "actionLabel", "variant", "layout", "executor", "elapsed", "height",
 ];
-const BOOL_KEYS = ["on", "online", "toggles", "pulse", "mono", "undo"];
+const BOOL_KEYS = ["on", "online", "toggles", "pulse", "mono", "undo", "iconOnly"];
 const NUM_KEYS = ["progress", "rows"];
 
 function finiteNumber(value: unknown): value is number {

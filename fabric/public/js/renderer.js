@@ -48,7 +48,7 @@ export function validateSpec(spec, depth = 0) {
   SCALARS.forEach((k) => {
     if (spec[k] != null && (typeof spec[k] === "string" || typeof spec[k] === "number")) clean[k] = spec[k];
   });
-  ["on", "online", "toggles", "pulse", "mono", "undo"].forEach((k) => {
+  ["on", "online", "toggles", "pulse", "mono", "undo", "iconOnly"].forEach((k) => {
     if (typeof spec[k] === "boolean") clean[k] = spec[k];
   });
   ["progress", "rows", "min", "max", "step", "maxHeight", "gap"].forEach((k) => {
