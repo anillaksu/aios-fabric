@@ -71,6 +71,7 @@
   }
   #windowdock::-webkit-scrollbar { display: none; }
   #window-nodes { display: contents; }
+  #window-context { display: none; }
   #surface-nav { display: none; }
   .window-slot { flex: 0 0 auto; display: flex; align-items: stretch; min-height: 42px; scroll-snap-align: center; }
   .window-tab {
@@ -109,20 +110,33 @@
   /* ── WORKSPACE SURFACE PROFILES ─────────────────────────────
      Ayni WindowManager kayitlari cizilir; profil yeni state veya execution
      yolu acmaz. Adlar AIOS'a aittir, herhangi bir platform taklidi degildir. */
-  :root[data-workspace-surface="stack"] #windowdock { gap: 0; padding-inline: var(--sp-2); }
-  :root[data-workspace-surface="stack"] .window-slot { margin-left: -8px; }
-  :root[data-workspace-surface="stack"] .window-slot:first-child { margin-left: 0; }
-  :root[data-workspace-surface="stack"] .window-tab { min-width: 128px; box-shadow: -5px 0 14px rgba(0,0,0,.22); }
-  :root[data-workspace-surface="stack"] .window-slot.is-active { z-index: 2; }
+  :root[data-workspace-surface="stack"] #windowdock {
+    position: relative; gap: var(--sp-2); padding: 34px var(--sp-2) var(--sp-2);
+  }
+  :root[data-workspace-surface="stack"] #window-context {
+    display: block; position: absolute; top: 8px; left: var(--sp-3); right: var(--sp-3);
+    color: var(--fg-mute); font-family: var(--font-mono); font-size: var(--fs-micro);
+    letter-spacing: var(--ls-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  :root[data-workspace-surface="stack"] #window-nodes { display: flex; gap: var(--sp-2); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  :root[data-workspace-surface="stack"] #window-nodes::-webkit-scrollbar { display: none; }
+  :root[data-workspace-surface="stack"] .window-slot { min-width: 84px; max-width: 112px; }
+  :root[data-workspace-surface="stack"] .window-slot.is-active { min-width: min(58vw, 250px); order: -1; }
+  :root[data-workspace-surface="stack"] .window-tab { width: 100%; min-height: 48px; padding: 8px; border-radius: var(--r-md); }
+  :root[data-workspace-surface="stack"] .window-slot.is-active .window-tab { border-color: var(--primary); background: var(--primary-a); color: var(--primary); }
+  :root[data-workspace-surface="stack"] .window-close { display: none; }
+  :root[data-workspace-surface="stack"] .window-slot.is-active .window-close { display: block; min-height: 48px; }
 
   :root[data-workspace-surface="cards"] #windowdock { padding-inline: var(--sp-4); gap: var(--sp-3); }
-  :root[data-workspace-surface="cards"] .window-slot { min-width: min(68vw, 264px); }
+  :root[data-workspace-surface="cards"] #window-nodes { display: flex; gap: var(--sp-3); overflow-x: auto; scroll-snap-type: x mandatory; min-width: 0; scrollbar-width: none; }
+  :root[data-workspace-surface="cards"] #window-nodes::-webkit-scrollbar { display: none; }
+  :root[data-workspace-surface="cards"] .window-slot { min-width: min(74vw, 294px); scroll-snap-align: center; }
   :root[data-workspace-surface="cards"] .window-tab { width: 100%; min-height: 56px; padding: var(--sp-3); border-radius: var(--r-lg) 0 0 var(--r-lg); }
   :root[data-workspace-surface="cards"] .window-close { min-height: 56px; border-radius: 0 var(--r-lg) var(--r-lg) 0; }
 
   :root[data-workspace-surface="classic"] #surface-nav,
   :root[data-workspace-surface="gesture"] #surface-nav {
-    flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, 1fr);
+    flex: 0 0 auto; display: grid; grid-template-columns: repeat(6, 1fr);
     min-height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--s1); border-top: 1px solid var(--line);
   }
@@ -135,7 +149,7 @@
   #surface-nav span { font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--ls-micro); }
   #surface-nav button[data-active="1"] { color: var(--primary); background: var(--primary-a); }
   :root[data-workspace-surface="classic"] #windowdock { display: none; }
-  :root[data-workspace-surface="gesture"] #windowdock { min-height: 50px; padding-block: 4px; }
+  :root[data-workspace-surface="gesture"] #windowdock { min-height: 48px; padding-block: 4px; }
   :root[data-workspace-surface="gesture"] #linhx-root,
   :root[data-workspace-surface="gesture"] .window-close { display: none; }
   :root[data-workspace-surface="gesture"] .window-tab { min-width: 88px; padding-inline: 9px; border-radius: var(--r-pill); }
@@ -143,24 +157,28 @@
   :root[data-workspace-surface="gesture"] #cc-open::before { content:"☷"; font-size: 18px; }
 
   :root[data-workspace-surface="canvas"] #windowdock {
-    min-height: 214px; align-items: stretch; padding: var(--sp-2); gap: var(--sp-2);
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(300px, 56dvh);
+    min-height: 0; height: min(62dvh, 640px); align-items: stretch; overflow: hidden; padding: var(--sp-2); gap: var(--sp-2);
     background: linear-gradient(135deg, var(--s1), var(--s2));
   }
   :root[data-workspace-surface="canvas"] #linhx-root,
-  :root[data-workspace-surface="canvas"] #cc-open { align-self: flex-end; z-index: 3; }
+  :root[data-workspace-surface="canvas"] #cc-open { align-self: center; z-index: 3; }
+  :root[data-workspace-surface="canvas"] #linhx-root { grid-column: 1; grid-row: 1; justify-self: start; }
+  :root[data-workspace-surface="canvas"] #cc-open { grid-column: 2; grid-row: 1; }
   :root[data-workspace-surface="canvas"] #window-nodes {
-    display: block; position: relative; flex: 0 0 720px; height: 190px;
+    display: block; grid-column: 1 / -1; grid-row: 2; position: relative; width: 100%; height: 100%; overflow: auto;
     border: 1px dashed var(--line-hi); border-radius: var(--r-lg);
     background-image: radial-gradient(var(--line-hi) 1px, transparent 1px); background-size: 18px 18px;
   }
+  :root[data-workspace-surface="canvas"] #window-nodes::before { content: ""; display: block; width: 1120px; height: 720px; }
   :root[data-workspace-surface="canvas"] .window-slot {
-    position: absolute; left: 0; top: 0; min-width: 156px; max-width: 214px;
+    position: absolute; left: 0; top: 0; min-width: 156px; max-width: 244px;
     transform: translate(var(--canvas-x, 0px), var(--canvas-y, 0px));
     transition: box-shadow var(--t-fast) var(--ease); touch-action: none;
   }
   :root[data-workspace-surface="canvas"] .window-tab { min-width: 112px; padding: 8px 10px 8px 6px; }
   :root[data-workspace-surface="canvas"] .window-grip {
-    display: grid; place-items: center; width: 30px; border: 1px solid var(--line-mid); border-right: 0;
+    display: grid; place-items: center; width: 34px; border: 1px solid var(--line-mid); border-right: 0;
     border-radius: var(--r-md) 0 0 var(--r-md); background: var(--s3); color: var(--fg-mute); cursor: grab;
   }
   :root[data-workspace-surface="canvas"] .window-slot:has(.window-grip:active) { z-index: 4; box-shadow: var(--atmo-glow); }
@@ -186,14 +204,16 @@
 
     <nav id="surface-nav" aria-label="AIOS bölümleri">
       <button data-tab="home" aria-label="Ana çalışma alanı"><i class="icon f7-icons">house_fill</i><span>HOME</span></button>
-      <button data-tab="komut" aria-label="Keşfet"><i class="icon f7-icons">magnifyingglass</i><span>KEŞFET</span></button>
+      <button data-tab="komut" aria-label="Keşfet"><i class="icon f7-icons">search</i><span>KEŞFET</span></button>
       <button data-tab="artifacts" aria-label="Artefaktlar"><i class="icon f7-icons">square_stack_3d_up_fill</i><span>ARTEFAKT</span></button>
       <button data-tab="activity" aria-label="Aktif görevler"><i class="icon f7-icons">list_bullet</i><span>AKTİF</span></button>
       <button data-tab="hermes" aria-label="Linhx"><i class="icon f7-icons">sparkles</i><span>LINHX</span></button>
+      <button data-control="1" aria-label="Kontrol merkezi"><i class="icon f7-icons">gearshape_fill</i><span>KONTROL</span></button>
     </nav>
     <div id="windowdock" aria-label="Çalışma pencereleri">
       <button class="window-tab on" id="linhx-root">Linhx</button>
       <div id="window-nodes"></div>
+      <div id="window-context" aria-live="polite"></div>
       <button class="window-tab utility" id="cc-open" aria-label="Kontrol merkezi">Kontrol</button>
     </div>
   </div>

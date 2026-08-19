@@ -616,13 +616,24 @@ function renderWindowDock() {
   const dock = $("#windowdock");
   if (!dock) return;
   const nodeHost = $("#window-nodes");
+  const context = $("#window-context");
   if (!nodeHost) return;
   const root = $("#linhx-root");
   if (root) root.classList.toggle("on", currentTab === "hermes" && !artifactOpenId && !secondary);
   syncSurfaceNav();
   nodeHost.querySelectorAll("[data-window-id]").forEach((node) => node.remove());
   const utility = $("#cc-open");
-  const windows = dockWindows(wm.list(), new Set(artifacts.map((artifact) => artifact.id)));
+  let windows = dockWindows(wm.list(), new Set(artifacts.map((artifact) => artifact.id)));
+  // Katmanli profilin ilk karti her zaman aktif penceredir. Bu yalniz
+  // gorunur projeksiyondur; WindowManager sirasi ve kayitlari degismez.
+  if (workspaceSurface === "stack" && artifactOpenId) {
+    windows = [...windows].sort((a, b) => (a.id === artifactOpenId ? -1 : b.id === artifactOpenId ? 1 : 0));
+  }
+  if (context) {
+    const activeIndex = windows.findIndex((win) => win.id === artifactOpenId);
+    const active = activeIndex >= 0 ? windows[activeIndex] : null;
+    context.textContent = active ? `AKTİF ${activeIndex + 1}/${windows.length} · ${active.title || "Pencere"}` : `${windows.length} AÇIK PENCERE · bir pencere seç`;
+  }
   const visibleIds = new Set(windows.map((win) => win.id));
   for (const id of renderedDockWindowIds) if (!visibleIds.has(id)) renderedDockWindowIds.delete(id);
   windows.forEach((win, index) => {
@@ -660,14 +671,37 @@ function renderWindowDock() {
     renderedDockWindowIds.add(win.id);
     if (workspaceSurface !== "canvas" && win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }));
   });
+  if (workspaceSurface === "cards") wireCardsScroll(nodeHost, windows);
+}
+
+function wireCardsScroll(nodeHost, windows) {
+  nodeHost._cardsScrollAbort?.abort();
+  const abort = new AbortController();
+  nodeHost._cardsScrollAbort = abort;
+  let timer = null;
+  const selectNearest = () => {
+    const slots = [...nodeHost.querySelectorAll("[data-window-id]")];
+    if (!slots.length) return;
+    const center = nodeHost.scrollLeft + nodeHost.clientWidth / 2;
+    let nearest = null;
+    for (const slot of slots) {
+      const distance = Math.abs(slot.offsetLeft + slot.offsetWidth / 2 - center);
+      if (!nearest || distance < nearest.distance) nearest = { id: slot.dataset.windowId, distance };
+    }
+    if (nearest?.id && nearest.id !== artifactOpenId && windows.some((win) => win.id === nearest.id)) openArtifact(nearest.id);
+  };
+  nodeHost.addEventListener("scroll", () => {
+    clearTimeout(timer);
+    timer = setTimeout(selectNearest, 100);
+  }, { passive: true, signal: abort.signal });
 }
 
 function wireCanvasDrag(grip, slot, win, initial) {
   let drag = null;
   const move = (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
-    const x = Math.max(-96, Math.min(620, drag.x + event.clientX - drag.startX));
-    const y = Math.max(-20, Math.min(142, drag.y + event.clientY - drag.startY));
+    const x = Math.max(0, Math.min(960, drag.x + event.clientX - drag.startX));
+    const y = Math.max(0, Math.min(620, drag.y + event.clientY - drag.startY));
     drag.current = { x, y };
     slot.style.setProperty("--canvas-x", `${x}px`);
     slot.style.setProperty("--canvas-y", `${y}px`);
@@ -1686,6 +1720,7 @@ export async function boot() {
   $("#linhx-root").addEventListener("click", () => goTab("hermes"));
   document.querySelectorAll("#surface-nav [data-tab]").forEach((button) =>
     button.addEventListener("click", () => goTab(button.dataset.tab)));
+  document.querySelector("#surface-nav [data-control]")?.addEventListener("click", () => openControlCenter());
   window.addEventListener("popstate", (event) => {
     // Browser/Android geri hareketi yalnız bizim isimli state'imizi uygular;
     // başka origin ya da bozuk state fail-closed olarak HOME'a iner.
