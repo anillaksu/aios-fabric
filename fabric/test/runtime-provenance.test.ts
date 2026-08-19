@@ -82,6 +82,18 @@ test("same witness duplicate delivery: ayni canonical completion yeniden islenir
   assert.equal((await joinRuntimeProvenance([first], [replay])).length, 1);
 });
 
+test("reuse derived degildir: ayni exact root farkli execution baglamlarinda yeniden kullanilir, child formation uretilmez", async () => {
+  const parent = await createRootFormation(artifact);
+  const first = (await edgeFor(parent, "task-reuse-a")).edge;
+  const second = (await edgeFor(parent, "task-reuse-b")).edge;
+  const bundle = await exportFormationMemoryBundle([parent], [first, second]);
+  assert.equal(bundle.formations.length, 1);
+  assert.equal(bundle.formations[0].id, parent.id);
+  assert.equal(bundle.provenanceEdges.length, 2);
+  assert.notEqual(first.id, second.id);
+  assert.equal(first.parent.id, second.parent.id);
+});
+
 test("order independence: provenance edge JOIN siradan ve parantezlemeden bagimsizdir", async () => {
   const parent = await createRootFormation(artifact);
   const a = (await edgeFor(parent, "task-a")).edge;
