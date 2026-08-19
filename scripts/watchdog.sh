@@ -66,5 +66,13 @@ while true; do
   # 4) Wake-lock'u canli tut (Android'in surecleri oldurmesini zorlastirir)
   termux-wake-lock 2>/dev/null
 
+  # Tanı koymadan önce kanıt: normal döngüde yalnız süreç örneği değişmişse
+  # ledger'a yazar. Watchdog öldürülürse sonraki boot/manuel snapshot aradaki
+  # süreksizliği gösterir; Android nedenini uydurmaz.
+  if [ -x "$HOME/aios-runtime-ledger.sh" ]; then
+    "$HOME/aios-runtime-ledger.sh" observe watchdog-cycle >> "$HOME/aios-runtime-ledger.stdout.log" 2>&1 \
+      || echo "$(date): runtime ledger observe failed" >> "$LOG"
+  fi
+
   sleep 45
 done

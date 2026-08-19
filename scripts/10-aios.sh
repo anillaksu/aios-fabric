@@ -76,3 +76,8 @@ sleep 12
   done
   echo
 } >> "$LOG" 2>&1
+
+if [ -x "$HOME/aios-runtime-ledger.sh" ]; then
+  "$HOME/aios-runtime-ledger.sh" snapshot boot-complete >> "$LOG" 2>&1 \
+    || echo "runtime ledger snapshot failed" >> "$LOG"
+fi

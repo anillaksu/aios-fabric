@@ -134,6 +134,10 @@ if [ "$ready" -eq 1 ]; then
   termux-toast "AI-OS hazir" 2>/dev/null
   ink '38;5;84' '\nAIOS HAZIR · Yerel çalışma alanı doğrulandı.'
   show_status
+  if [ -x "$HOME/aios-runtime-ledger.sh" ]; then
+    "$HOME/aios-runtime-ledger.sh" snapshot stack-ready >> "$HOME/aios-runtime-ledger.stdout.log" 2>&1 \
+      || printf '%s runtime ledger stack-ready snapshot failed\n' "$(date)" >> "$HOME/aios-runtime-ledger.stdout.log"
+  fi
   printf '\n'
   ink '38;5;213' '╭─ OPERATOR HANDOFF ─────────────────────────╮'
   printf '  PWA: http://localhost:9300\n'

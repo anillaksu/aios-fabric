@@ -1787,7 +1787,10 @@ export async function boot() {
     wasOnline = online;
   });
 
-  read("wakelock.acquire").catch((err) => logClientError("boot.wakelock", err));
+  // /read yalnız safe+readOnly facade'ıdır; wakelock yan-etki üretir. Bu
+  // yüzden boot acquisition mevcut UI → dispatcher → policy zincirinden
+  // geçmelidir. Başarısızlık dispatcher/journal kanıtında görünür kalır.
+  ctx.dispatch({ type: "wakelock.acquire" }).catch((err) => logClientError("boot.wakelock", err));
   handleEntry();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch((err) => logClientError("boot.serviceWorkerRegister", err));
 }

@@ -51,7 +51,8 @@ screen() {
   printf '\n'; line
   printf '%b [1]%b Canlı durumu yenile       %b[2]%b Son loglar\n' "$cyan" "$reset" "$cyan" "$reset"
   printf '%b [3]%b Stack güvenli yeniden başlat %b[4]%b AIOS PWA aç\n' "$cyan" "$reset" "$cyan" "$reset"
-  printf '%b [5]%b Gateway anahtarını kur      %b[6]%b Çıkış\n' "$cyan" "$reset" "$cyan" "$reset"
+  printf '%b [5]%b Gateway anahtarını kur      %b[6]%b Hashli süreç izi\n' "$cyan" "$reset" "$cyan" "$reset"
+  printf '%b [7]%b Bağlantı köprüsü (SSH)      %b[8]%b Çıkış\n' "$cyan" "$reset" "$cyan" "$reset"
   line
   printf '%bSeçim › %b' "$lime" "$reset"
 }
@@ -84,6 +85,35 @@ open_pwa() {
   sleep 1
 }
 
+runtime_ledger() {
+  clear 2>/dev/null || true
+  title 'AIOS // HASHLİ SÜREÇ İZİ'
+  line
+  if [ ! -x "$HOME/aios-runtime-ledger.sh" ]; then
+    printf '%bRuntime Ledger henüz dağıtılmamış.%b\n' "$red" "$reset"
+  else
+    "$HOME/aios-runtime-ledger.sh" snapshot admin-console
+    printf '\n%bSon olaylar%b\n' "$pink" "$reset"
+    "$HOME/aios-runtime-ledger.sh" tail 12
+    printf '\n'
+    "$HOME/aios-runtime-ledger.sh" verify
+  fi
+  wait_key
+}
+
+connectivity_bridge() {
+  clear 2>/dev/null || true
+  title 'AIOS // BAĞLANTI KÖPRÜSÜ'
+  line
+  if [ ! -x "$HOME/aios-connectivity-bridge.sh" ]; then
+    printf '%bBağlantı Köprüsü henüz dağıtılmamış.%b\n' "$red" "$reset"
+  else
+    "$HOME/aios-connectivity-bridge.sh"
+    printf '%bSSH + AIOS bağlantı denetimi tamamlandı; log: %s/aios-connectivity.log%b\n' "$lime" "$HOME" "$reset"
+  fi
+  wait_key
+}
+
 while true; do
   screen
   IFS= read -r choice || exit 0
@@ -93,7 +123,9 @@ while true; do
     3) restart_stack ;;
     4) open_pwa ;;
     5) bash "$HOME/provision-fabric-gateway-key.sh"; wait_key ;;
-    6|q|Q) clear 2>/dev/null || true; printf '%bAIOS operator console kapatıldı.%b\n' "$dim" "$reset"; exit 0 ;;
+    6) runtime_ledger ;;
+    7) connectivity_bridge ;;
+    8|q|Q) clear 2>/dev/null || true; printf '%bAIOS operator console kapatıldı.%b\n' "$dim" "$reset"; exit 0 ;;
     *) printf '%bGeçersiz seçim.%b\n' "$red" "$reset"; sleep 1 ;;
   esac
 done

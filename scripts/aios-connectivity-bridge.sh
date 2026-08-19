@@ -7,6 +7,13 @@ set -u
 AIOS_HOME="$HOME"
 LOG="$AIOS_HOME/aios-connectivity.log"
 note() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+ssh_listening() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | grep -q ':8022 '
+  else
+    pgrep -f 'runsv sshd|/libexec/sshd' >/dev/null 2>&1
+  fi
+}
 
 if ! command -v sshd >/dev/null 2>&1; then
   note "ERROR sshd komutu bulunamadı"
@@ -14,7 +21,7 @@ if ! command -v sshd >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! ss -ltn 2>/dev/null | grep -q ':8022 '; then
+if ! ssh_listening; then
   if sshd >>"$LOG" 2>&1; then note "sshd başlatıldı"; else
     note "ERROR sshd başlatılamadı"
     termux-toast "AIOS: SSH başlatılamadı" 2>/dev/null || true
@@ -27,6 +34,10 @@ fi
 if ! curl -fsS --max-time 3 http://127.0.0.1:9300/ >/dev/null 2>&1; then
   note "Fabric offline; AIOS stack başlatılıyor"
   "$AIOS_HOME/start_hermes_os.sh" --no-open >>"$LOG" 2>&1 || exit 1
+fi
+
+if [ -x "$AIOS_HOME/aios-runtime-ledger.sh" ]; then
+  "$AIOS_HOME/aios-runtime-ledger.sh" snapshot connectivity-bridge >>"$LOG" 2>&1 || note "ERROR runtime ledger snapshot"
 fi
 
 termux-toast "AIOS bağlantı köprüsü hazır" 2>/dev/null || true
