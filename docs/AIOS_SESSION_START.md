@@ -12,11 +12,14 @@ hafızası — DOĞRULAMA KAYNAĞI DEĞİLDİR. Aşağıdaki sırayla ilerle.
 ## 1. Oku (bu sırayla, önceki adım sonrakini doğrulamadan geçme)
 
 1. `docs/AIOS_HANDOFF_CURRENT.md` — özet/index, buradan başla
-2. `docs/CHECKLIST.md` — **tek doğruluk kaynağı**, madde bazlı durum
-3. `docs/MIMARI_TEMEL.md` — mimari ilkeler değişmediyse atla, değiştiyse oku
-4. `docs/STANDARTLAR.md` — S-maddeleriyle çalışacaksan oku
-5. en son `docs/OTURUM_*.md` (dosya adı tarihe göre en büyük olan) — o günün ham kronolojisi
-6. `git status` + `git rev-parse HEAD` + `git log --oneline -10`
+2. `docs/AIOS_DETERMINISTIC_HANDOVER.md` — source-of-truth sırası ve devir algoritması
+3. `docs/PRODUCT_GAP_REGISTER.md` — açık ürün borcu; hiçbir kayıt sessizce kaybolmaz
+4. `docs/CHECKLIST.md` — madde bazlı kanıt durumu
+5. `docs/MIMARI_TEMEL.md` — mimari ilkeler değişmediyse atla, değiştiyse oku
+6. `docs/STANDARTLAR.md` — S-maddeleriyle çalışacaksan oku
+7. en son `docs/OTURUM_*.md` (dosya adı tarihe göre en büyük olan) — o günün ham kronolojisi
+8. Platform/bağlantı işi varsa `docs/CROSS_PLATFORM_BOOTSTRAP.md` + `docs/NODE_DISTRIBUTION_TARGET.md`
+9. `git status` + `git rev-parse HEAD` + `git log --oneline -40`
 
 **Çelişki bulursan:** kod/repository kanıtı kazanır, anlatı kaybeder.
 Çelişkiyi kullanıcıya raporla, kendi başına "düzelt" ve sessizce geç.
@@ -57,6 +60,7 @@ Oturum sonunda üçü de güncel olmalı:
 - `docs/CHECKLIST.md` (madde durumları)
 - `docs/AIOS_HANDOFF_CURRENT.md` (CURRENT FACTS / OPEN DECISIONS / BLOCKED
   ITEMS / OPERATIONAL RISKS / NEXT SAFE ACTION bölümleri)
+- `docs/PRODUCT_GAP_REGISTER.md` (açık/ilerleyen/kapanan gap kayıtları)
 - `docs/OTURUM_YYYY-MM-DD.md` (o günün kaydı; varsa aynı günün dosyasına ekle)
 
 Commit at, mesaj neyin neden değiştiğini anlatsın (owner "detaylı yaz" dedi).

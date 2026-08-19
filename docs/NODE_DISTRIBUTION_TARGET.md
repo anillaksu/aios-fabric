@@ -4,6 +4,11 @@ Bu belge bir yayın/paketleme iddiası değildir. Dağıtım öncesi her makinen
 aynı kanıt zinciriyle değerlendirilmesi için mevcut koddan türetilmiş sınırı
 anlatır.
 
+Sıfırdan checkout, Windows/Ubuntu/Termux rol ayrımı, environment değişkenleri
+ve fail-closed setup doctor için kanonik runbook:
+[`CROSS_PLATFORM_BOOTSTRAP.md`](CROSS_PLATFORM_BOOTSTRAP.md). Bu belge node
+ürün sınırını; runbook ise kurulum/admission adımlarını taşır.
+
 ## Bugün çalışan taşınabilir çekirdek
 
 `fabric/bin/aios.mjs`, Node **22.6+** üzerinde çalışan, salt-okunur bir CLI

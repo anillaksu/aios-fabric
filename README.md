@@ -1,7 +1,10 @@
-# AI-OS Fabric — kanonik depo
+# AI-OS Fabric — kanonik kaynak depo
 
-Telefon (Xiaomi 13 Lite / Termux) üzerinde çalışan AI-OS ve PC tarafındaki
-A2A ajanının **tek doğruluk kaynağı**.
+AIOS Phone Workspace, deterministic capability runtime ve Formation Memory
+kaynak deposu. Repository bugün üç rolü ayırır: portable **observer CLI**,
+Windows odaklı **PC A2A peer** ve **Android/Termux device runtime**. Bunlar
+aynı capability seti değildir; güncel destek matrisi için
+[`docs/CROSS_PLATFORM_BOOTSTRAP.md`](docs/CROSS_PLATFORM_BOOTSTRAP.md) okunur.
 
 ## Neden bu depo var (2026-08-17)
 
@@ -15,10 +18,12 @@ Ayrıca `Desktop/Telefon_AI_Agent_Session_2026-08-16/fabric/` altında
 denetim yaparken o klasörü okudu ve haklı olarak "masaüstü v0.1, telefon v0.3,
 hangisi kanonik?" diye sordu. Bu depo o soruyu ortadan kaldırıyor.
 
-## Kanoniklik kuralı
+## Kanoniklik ve devir kuralı
 
-**Telefondaki `~/fabric` canlı sistemdir; bu depo onun birebir aynısıdır.**
-İlk commit, telefondan çekilip `md5` ile doğrulanarak oluşturuldu (17/17 aynı).
+**Repository değişikliğin kaynağıdır; telefon deployment hedefidir.** Telefon
+ile eşitlik yalnız `scripts/deploy-to-phone.sh --check` md5 çıktısıyla
+kanıtlanır. Çalışma ağacı kirliyse HEAD, deployment veya belge tek başına
+kanonik gerçek değildir.
 
 Bundan sonra akış tek yönlü:
 ```
@@ -26,6 +31,20 @@ bu depoda düzenle → telefona deploy → md5 doğrula → commit
 ```
 Telefonda doğrudan düzenleme yapılırsa depo geride kalır; o durumda önce
 `scripts/sync-from-phone.sh` ile geri çekilmeli.
+
+## İlk doğrulama
+
+```text
+node --version                     # >= 22.6
+cd fabric && npm test && npm run build
+node ./bin/aios-setup-doctor.mjs --role observer
+```
+
+Kapsamlı rol bazlı kurulum, bağlantı değişkenleri ve kabul matrisi:
+
+- [`docs/CROSS_PLATFORM_BOOTSTRAP.md`](docs/CROSS_PLATFORM_BOOTSTRAP.md)
+- [`docs/AIOS_DETERMINISTIC_HANDOVER.md`](docs/AIOS_DETERMINISTIC_HANDOVER.md)
+- [`docs/PRODUCT_GAP_REGISTER.md`](docs/PRODUCT_GAP_REGISTER.md)
 
 ## Yapı
 
@@ -47,12 +66,9 @@ Gerekçe: bu projede `node --check` geçip çalışma zamanında patlayan dosya 
 kapatılmamış parantez de, kabuk tırnak çakışması da yaşandı. Üçü de yalnızca
 3. adımda yakalanırdı.
 
-## Cihazlar
+## Bağlantı
 
-| Cihaz | Adres | Rol |
-|---|---|---|
-| Telefon | `100.75.177.88:9300` | AI-OS, 38 capability, gerçek model (gpt-5.6-luna) |
-| PC ajanı | `100.109.236.30:9310` | A2A araç ajanı, dil modeli yok |
-| PC Hermes | — | Gerçek model + terminal/tarayıcı/MCP araçları |
-
-İkisi de **A2A v1.0 JSON-RPC** konuşur (özel biçim yok).
+Endpoint, host veya token değerleri kaynakta paylaşılmaz. Observer `AIOS_URL`
+veya `--url`; Fabric/PC agent ise sırasıyla `FABRIC_SELF_URL` ve
+`PC_AGENT_SELF_URL` ile açıkça yapılandırılır. A2A v1.0 JSON-RPC kullanılır;
+yeni wire protocol yoktur.

@@ -8,7 +8,10 @@ bir önceki ajanın anlatımına GÜVENME, aşağıdaki kaynakları kendin doğr
 3. `docs/STANDARTLAR.md` — hangi açık standarda dayanıyoruz
 4. en son `docs/OTURUM_*.md` — o günün ham kronolojisi
 5. `docs/ARASTIRMA_ARSIVI.md` — kanıtlı oluşumların yeniden kullanım indeksi
-6. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
+6. `docs/PRODUCT_GAP_REGISTER.md` — açık ürün borcu ve kapanış kanıtı
+7. `docs/AIOS_DETERMINISTIC_HANDOVER.md` — agent-bağımsız devir algoritması
+8. `docs/CROSS_PLATFORM_BOOTSTRAP.md` — rol-bazlı fresh checkout ve bağlantı sınırı
+9. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
 
 Bu dosya bir **özet/index**'tir, birincil kaynak değil. Çelişki bulursan
 "§ Bilinen belge kaymaları" bölümüne ekle, üstteki dosyaları elle düzeltme
@@ -17,6 +20,10 @@ zorunluluğun yok (ama düzeltirsen burada da güncelle).
 `ARASTIRMA_ARSIVI.md` de bir durum kaynağı değildir: owner kararı, commit/test
 ve cihaz canlı kanıtını başka bağlamda bulunabilir kılan bir indeksdir. Bir
 kartın kanıt seviyesi checklist/commit ile çelişirse kaynak kanıt kazanır.
+
+> **Devir kuralı (2026-08-19):** Bu handoff tek başına çalışma belleği değildir.
+> Yeni ajan önce `AIOS_DETERMINISTIC_HANDOVER.md` algoritmasını uygular, sonra
+> bu dosyadaki iddiaları HEAD, worktree, test ve canlı kanıtla çapraz doğrular.
 
 ---
 

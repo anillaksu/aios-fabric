@@ -9,6 +9,8 @@ Bu arşiv **tek doğruluk kaynağı değildir**. Madde bazlı durum için
 `CHECKLIST.md`, mimari ilke için `MIMARI_TEMEL.md`, güncel çalışma bağlamı için
 `AIOS_HANDOFF_CURRENT.md`, ham kronoloji için `OTURUM_YYYY-MM-DD.md` ve gerçek
 uygulama için git/kod kazanır. Arşiv, bu kanıtları bağlayan erişim katmanıdır.
+Agent-bağımsız yeniden temellendirme sırası ve açık ürün borcu için sırasıyla
+`AIOS_DETERMINISTIC_HANDOVER.md` ve `PRODUCT_GAP_REGISTER.md` okunur.
 
 ## 1. Oluşum kartı
 
