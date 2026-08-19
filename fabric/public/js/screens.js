@@ -98,7 +98,7 @@ export function homeScreen(artifacts = [], applications = []) {
       type: "section", title: "SABİTLENEN",
       children: pinned.map((a) => ({
         type: "action-card", icon: "pin_fill", title: a.title,
-        subtitle: a.prompt ? a.prompt.slice(0, 50) : "canlı panel",
+        subtitle: a.prompt || "canlı panel",
         action: { type: "ui.artifact", payload: { id: a.id } },
       })),
     });
@@ -448,11 +448,11 @@ function taskCard(t, actions = []) {
 
   const bits = [whyHappened(t)];
   // Ham ifade capability adindan farkliysa "ne dedim / ne anladi" degerlidir.
-  if (t.goal && t.goal !== t.type) bits.push("\"" + String(t.goal).slice(0, 40) + "\" → " + t.type);
+  if (t.goal && t.goal !== t.type) bits.push("\"" + String(t.goal) + "\" → " + t.type);
   if (by) bits.push(by + " yorumladı");
   if (t.stage && t.status === "running") bits.push(t.stage);
   if (t.attempts > 1) bits.push(t.attempts + ". deneme");
-  if (t.error) bits.push("hata: " + String(t.error).slice(0, 60));
+  if (t.error) bits.push("hata: " + String(t.error));
 
   // GERI AL: yalnizca tamamlanmis ve GERCEKTEN geri alinabilir isler icin.
   // Geri alinamayan bir ise sahte buton koymak guveni bozar.
@@ -738,7 +738,7 @@ export async function journalScreen(filter) {
           icon: bad ? "xmark_circle" : "circle_fill",
           tone: bad ? "error" : undefined,
           title: e.type + (p.intent ? " · " + p.intent : ""),
-          subtitle: String(detail).slice(0, 90),
+          subtitle: String(detail),
           trailing: new Date(e.ts).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
         };
       }),
@@ -921,7 +921,7 @@ export function miniAppsScreen(artifacts = []) {
     type: "section", title: "MİNİ UYGULAMALAR · " + pinned.length,
     children: pinned.length ? [{ type: "list", children: pinned.map((a) => ({
       type: "list-row", icon: "square_grid_2x2_fill", title: a.title || "Artefakt",
-      subtitle: (a.prompt || "").slice(0, 70),
+      subtitle: a.prompt || "",
       trailing: new Date(a.createdAt).toLocaleDateString("tr-TR"),
       action: { type: "ui.artifact", payload: { id: a.id } },
     })) }] : [{ type: "empty-state", icon: "square_grid_2x2",

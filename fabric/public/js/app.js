@@ -502,7 +502,7 @@ function syncComposer() {
   const inp = $("#input");
   inp.placeholder =
     fillTarget              ? "Bu pencere için ne üretilsin?" :
-    currentTab === "hermes" ? "Hermes'e yaz…" :
+    currentTab === "hermes" ? "Linhx'e yaz…" :
     currentTab === "komut"  ? "Uygulama, araç veya özellik ara…" :
                               "Ne yapmak istiyorsun?";
   if (currentTab !== "komut" && inp.value !== "" && query === inp.value) { /* koru */ }
@@ -628,7 +628,9 @@ function artifactCard(a) {
   row.appendChild(i);
   const g = el("div", "c-grow");
   g.appendChild(el("div", "c-title", a.title));
-  g.appendChild(el("div", "c-sub", a.prompt ? a.prompt.slice(0, 60) : ""));
+  // Prompt kullanicinin olusum baglamidir; fiziksel olarak kesilirse kartin
+  // ne ise yaradigi anlasilmaz. Ortak text-wrap kurali tam metni tasirmadan gosterir.
+  g.appendChild(el("div", "c-sub", a.prompt || ""));
   row.appendChild(g);
   row.appendChild(el("span", "art-when", when(a.createdAt)));
   n.appendChild(row);
@@ -973,7 +975,7 @@ const chat = [];
 function paintHermes() {
   const host = $("#screen");
   host.innerHTML = "";
-  host.appendChild(pageHead("Hermes", "oluştur, sürdür, birlikte ilerle"));
+  host.appendChild(pageHead("Linhx", "oluştur, sürdür, birlikte ilerle"));
 
   const wrap = el("div", "c-section");
   const body = el("div", "body");

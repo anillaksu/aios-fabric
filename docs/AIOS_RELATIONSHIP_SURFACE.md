@@ -6,10 +6,17 @@ dönüştürür. Hedef yapay bir kişilik veya sahte hatıra değildir. Hedef,
 kullanıcının **gerçek tercihleri, gerçekleştirdiği işler ve doğrulanmış
 oluşumları** üzerinden geri yansıma yapan kalıcı bir ilişki deneyimidir.
 
-Görünen ad, ayrı bir owner kararıdır. Bu kayıtta geçici teknik ad
-**İlişki Yüzeyi**dir; eski `Hermes` adı gateway/model uygulaması için teknik
-kimlik olarak kalabilir, ancak kullanıcı yüzeyinin adı kabul edilmeden
-değiştirilmez.
+## Görünen kimlik kararı — 2026-08-19
+
+Kullanıcıdaki ilişki, devamlılık ve yeni oluşum yüzeyinin kanonik adı
+**Linhx**'tir. `Hermes` yalnız model/gateway/servis altyapısının teknik adı
+olarak kalır; kullanıcı bunun için Hermes adına veya teknik model adına maruz
+kalmaz. Bu ad değişimi execution, capability, policy ya da A2A kimliğini
+değiştirmez.
+
+Linhx bir rol yapma ya da kullanıcıdan gizli psikolojik profil değildir:
+gösterdiği her devamlılık işareti mevcut artifact, ApplicationEntry, journal
+ve kullanıcının açık seçimiyle doğrulanabilir olmalıdır.
 
 ## Koddan doğrulanan başlangıç
 

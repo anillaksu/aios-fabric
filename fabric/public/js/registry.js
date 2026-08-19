@@ -38,7 +38,14 @@ const applyState = (node, state) => { node.dataset.state = state || "idle"; retu
 function wireAction(node, action, ctx, opts = {}) {
   if (!action) return node;
   node.dataset.tap = "1";
-  node.addEventListener("click", async (e) => {
+  // Kart/satir native <button> degilse de tek, erisilebilir bir eylemdir:
+  // dokunma, Enter ve Bosluk ayni dispatcher zincirini kullanir.
+  if (node.tagName !== "BUTTON") {
+    node.setAttribute("role", "button");
+    node.tabIndex = 0;
+    if (!node.getAttribute("aria-label")) node.setAttribute("aria-label", node.textContent?.trim() || "Eylem");
+  }
+  const invoke = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (node.dataset.state === "loading" || node.dataset.state === "disabled") return;
@@ -52,7 +59,13 @@ function wireAction(node, action, ctx, opts = {}) {
       applyState(node, "error");
       setTimeout(() => applyState(node, "idle"), 1800);
     }
-  });
+  };
+  node.addEventListener("click", invoke);
+  if (node.tagName !== "BUTTON") {
+    node.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") invoke(e);
+    });
+  }
   return node;
 }
 
@@ -285,6 +298,9 @@ function AgentCard(spec, ctx) {
 /** AppTile — Android uygulamasi (launcher) */
 function AppTile(spec, ctx) {
   const n = el("div", "c-app");
+  n.setAttribute("role", "button");
+  n.tabIndex = 0;
+  n.setAttribute("aria-label", `${spec.name || spec.pkg || "Uygulama"} aç`);
   // GERCEK ikon: Fabric /appicon/<pkg> ile sunuyor (once APK, sonra ag).
   // Harf-avatar altta durur, ikon yuklenince ustunu kapatir.
   //
@@ -313,7 +329,9 @@ function AppTile(spec, ctx) {
   }
   n.appendChild(ic);
   n.appendChild(el("div", "nm", spec.name || spec.pkg || ""));
-  n.addEventListener("click", (e) => { e.preventDefault(); ctx.dispatch(spec.action || { type: "app.open", payload: { pkg: spec.pkg } }); });
+  const open = (e) => { e.preventDefault(); ctx.dispatch(spec.action || { type: "app.open", payload: { pkg: spec.pkg } }); };
+  n.addEventListener("click", open);
+  n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") open(e); });
   if (spec.longPress) {
     let timer = null;
     const start = () => { timer = setTimeout(() => ctx.dispatch(spec.longPress), 480); };
@@ -340,7 +358,13 @@ function ListRow(spec, ctx) {
   n.appendChild(g);
   if (spec.chip) n.appendChild(StatusChip(spec.chip, ctx));
   else if (spec.trailing) n.appendChild(el("div", "trail", spec.trailing));
-  if (spec.action) wireAction(n, spec.action, ctx);
+  if (spec.action) {
+    const chev = icon("chevron_right");
+    chev.classList.add("nav-affordance");
+    chev.setAttribute("aria-hidden", "true");
+    n.appendChild(chev);
+    wireAction(n, spec.action, ctx);
+  }
   return n;
 }
 
