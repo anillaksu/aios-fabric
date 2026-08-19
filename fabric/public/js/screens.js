@@ -301,6 +301,98 @@ export function toolsScreen() {
   };
 }
 
+/* ══════════════ OPERATOR DECK ══════════════
+   Termux:Widget'in shell'i dokunmatik bir UI toolkit'i DEGILDIR. Bu ekran,
+   widget'in acabilecegi tam ekran PWA operator yuzeyidir: yeni capability ya
+   da yetki yaratmaz, yalniz zaten var olan gercek AIOS yuzeylerini bir araya
+   getirir. `section` secilince ayni kartlarin kullanis amacina gore derin
+   listesi acilir; geri davranisi normal browser/AIOS history'dir. */
+const OPERATOR_AREAS = [
+  { id: "runtime", icon: "bolt_horizontal_circle", title: "CANLI SİSTEM", subtitle: "Servisler, bağlantı ve canlı durum", items: [
+    ["Yönetim merkezi", "Runtime özeti ve yönetim yüzeyi", { screen: "management" }],
+    ["Bağlantılar", "Fabric, Gateway ve A2A ayrıntıları", { screen: "connections" }],
+    ["Görev akışı", "Aktif işler ve sonuçlar", { tab: "activity" }],
+    ["Olay geçmişi", "Journal içindeki izler", { screen: "history" }],
+    ["Otomasyonlar", "Gerçek olay → kural → eylem", { screen: "automations" }],
+    ["AIOS ana ekran", "Günlük çalışma alanına dön", { tab: "home" }],
+  ] },
+  { id: "device", icon: "iphone", title: "CİHAZ", subtitle: "Telefon, uygulamalar ve günlük araçlar", items: [
+    ["Cihaz Durum Merkezi", "Gerçek pil, Wi-Fi ve uygulama verisi", { ref: "device" }],
+    ["Telefon uygulamaları", "Cihazdaki uygulamaları aç", { screen: "androidApps" }],
+    ["Hızlı araçlar", "Fener ve titreşim gibi mevcut eylemler", { screen: "tools" }],
+    ["Sistem ayarları", "Tema, Shizuku ve wake-lock", { screen: "settings" }],
+    ["Capabilities", "Kullanılabilir yetenek ve risk sınıfları", { screen: "capabilities" }],
+    ["Keşfet", "Cihaz, ağ ve sistem işlevlerini bul", { tab: "komut" }],
+  ] },
+  { id: "workspace", icon: "square_stack_3d_up_fill", title: "ÇALIŞMA ALANI", subtitle: "Uygulamalar, artefaktlar ve pencereler", items: [
+    ["Uygulamalarım", "Kalıcı ApplicationEntry launcher'ları", { screen: "miniapps" }],
+    ["Artefakt galerisi", "Yeniden kullanılabilir oluşumlar", { tab: "artifacts" }],
+    ["Son kullanılanlar", "Ana ekrandaki kalıcı girişler", { tab: "home" }],
+    ["Yeni pencere", "Artefakt üretim alanına git", { tab: "artifacts" }],
+    ["Kaydırılabilir Ses", "Doğrulanmış medya referans paneli", { ref: "sound" }],
+    ["Cihaz paneli", "Doğrulanmış cihaz referansını aç", { ref: "device" }],
+  ] },
+  { id: "security", icon: "lock_fill", title: "GÜVENLİK", subtitle: "İnsan onayı, policy ve gözlemlenebilirlik", items: [
+    ["İzinler", "Geçerli insan approval kayıtları", { control: true }],
+    ["Capability policy", "Risk sınıfları ve sınırlar", { screen: "capabilities" }],
+    ["Görevler ve hatalar", "Başarısız eylemler ve tekrar deneme", { tab: "activity" }],
+    ["Olay günlüğü", "Yürütme kanıtlarını incele", { screen: "journal" }],
+    ["Bağlantılar", "Peer ve yerel servis görünümü", { screen: "connections" }],
+    ["Yönetim özeti", "Approval ve runtime birlikte", { screen: "management" }],
+  ] },
+  { id: "linhx", icon: "sparkles", title: "LINHX", subtitle: "Yazı, ses ve oluşturma girişleri", items: [
+    ["Linhx'e yaz", "Doğrudan konuşma yüzeyini aç", { tab: "hermes" }],
+    ["Sesli komut", "Hermes ekranında mikrofona dokun", { tab: "hermes" }],
+    ["Yeni mini uygulama", "İstekten kalıcı artifact üret", { screen: "miniapps" }],
+    ["Ajanlar", "Mevcut AIOS/A2A ajan görünümü", { screen: "agents" }],
+    ["Akış geçmişi", "Önceki niyet ve sonuçlara dön", { screen: "history" }],
+    ["Keşfet", "Var olan işlevi önce bul", { tab: "komut" }],
+  ] },
+  { id: "recovery", icon: "wrench_fill", title: "BAKIM", subtitle: "Sorun ayırma ve güvenli geri dönüş", items: [
+    ["Canlı runtime", "Servis durumlarını yeniden oku", { screen: "management" }],
+    ["Hata akışları", "Başarısız görevleri incele", { tab: "activity" }],
+    ["Otomasyon kuralları", "Etkin kuralları yönet", { screen: "automations" }],
+    ["Sistem ayarları", "Wake-lock ve Shizuku durumu", { screen: "settings" }],
+    ["Bağlantılar", "Gateway ve peer ayrıntıları", { screen: "connections" }],
+    ["Ana çalışma alanı", "Günlük kullanıma dön", { tab: "home" }],
+  ] },
+];
+
+function operatorAction(target) {
+  if (target.ref === "sound") return { type: "ui.referenceSoundPanel" };
+  if (target.ref === "device") return { type: "ui.referenceDeviceStatus" };
+  if (target.control) return { type: "ui.control" };
+  return { type: "ui.goto", payload: target };
+}
+
+export function operatorDeckScreen(section = null) {
+  const selected = OPERATOR_AREAS.find((area) => area.id === section);
+  if (selected) {
+    return {
+      id: "operator:" + selected.id, title: selected.title, subtitle: selected.subtitle,
+      sections: [{ type: "section", title: "OPERATÖR MENÜSÜ", children: [{ type: "list", children: selected.items.map(([title, subtitle, target]) => ({
+        type: "list-row", icon: selected.icon, title, subtitle, trailing: "AÇ", action: operatorAction(target),
+      })) }] }],
+    };
+  }
+  return {
+    id: "operator", title: "AIOS OPERATOR", subtitle: "Telefonun dokunmatik yönetim yüzeyi",
+    sections: [
+      { type: "section", children: [{ type: "info-card", icon: "bolt_fill", title: "NIGHT CITY · OWNER DECK",
+        body: "Bu yüzey terminal emülasyonu değildir. Yalnız gerçek AIOS ekranlarını, policy zincirini değiştirmeden dokunmatik olarak açar." }] },
+      { type: "section", title: "SİSTEM KATMANLARI", layout: "grid-2", children: OPERATOR_AREAS.map((area) => ({
+        type: "tile", name: area.title, value: "AÇ", meta: area.subtitle,
+        tap: { type: "ui.goto", payload: { screen: "operator", filter: area.id } },
+      })) },
+      { type: "section", title: "HIZLI ERİŞİM", children: [{ type: "button-row", children: [
+        { type: "button", label: "HOME", variant: "ghost", action: { type: "ui.goto", payload: { tab: "home" } } },
+        { type: "button", label: "KEŞFET", variant: "primary", action: { type: "ui.goto", payload: { tab: "komut" } } },
+        { type: "button", label: "LINHX", variant: "ghost", action: { type: "ui.goto", payload: { tab: "hermes" } } },
+      ] }] },
+    ],
+  };
+}
+
 /* ══════════════ HERMES BOŞ EKRANI ══════════════
    "Bos siyah alan" YOK: son artefaktlar + hizli komutlar + aktif isler.  */
 export function hermesEmptyScreen(artifacts = [], applications = []) {
@@ -342,6 +434,22 @@ export function hermesEmptyScreen(artifacts = [], applications = []) {
       continuity.pinnedArtifacts.map((artifact) => ({ type: "list-row", icon: "pin_fill", title: artifact.title || "Artefakt",
         subtitle: "Kalıcı iş", action: { type: "ui.artifact", payload: { id: artifact.id } } })) }] });
   }
+
+  // Linhx sohbetin tek zorunlu kapisi degil: kullanicinin mevcut, sifir-token
+  // calisma yuzeylerine dogrudan donus noktasi. Bu hedefler yeni nesne veya
+  // execution yolu yaratmaz; mevcut navigation hedeflerini gorunur kilar.
+  sections.push({
+    type: "section", title: "ÇALIŞMA ALANIN", children: [{ type: "list", children: [
+      { type: "list-row", icon: "square_grid_2x2", title: "Keşfet", subtitle: "Cihaz, medya, ağ ve sistem işlevlerini bul",
+        action: { type: "ui.goto", payload: { tab: "komut" } } },
+      { type: "list-row", icon: "app_badge", title: "Uygulamaların", subtitle: `${applications.length} kalıcı launcher girişi`,
+        action: { type: "ui.goto", payload: { screen: "miniapps" } } },
+      { type: "list-row", icon: "square_stack_3d_up_fill", title: "Artefaktların", subtitle: `${artifacts.length} yeniden kullanılabilir oluşum`,
+        action: { type: "ui.goto", payload: { tab: "artifacts" } } },
+      { type: "list-row", icon: "list_bullet", title: "Görevler", subtitle: "Çalışan işler, sonuçlar ve yeniden deneme",
+        action: { type: "ui.goto", payload: { tab: "activity" } } },
+    ] }],
+  });
 
   sections.push({
     type: "section", title: "BİRLİKTE OLUŞTUR",
@@ -651,7 +759,7 @@ export function agentsScreen() {
       { type: "section", title: "AÇIKLAMA", children: [{
         type: "info-card", icon: "info_circle",
         title: "A2A delegasyonu",
-        body: "Uzak ajanlar Tailscale üzerinden Agent Card ile tanışır. Peer eklemek için Fabric paneli: /panel",
+        body: "Uzak ajanlar Agent Card ile tanışır. Peer kaydi bu telefon yuzeyinden yonetilmez.",
       }] },
     ],
   };
@@ -775,7 +883,7 @@ export async function connectionsScreen() {
       type: "list-row", icon: "antenna_radiowaves_left_right",
       title: p.name || "peer", subtitle: p.description || "", trailing: p.url,
     })) }] : [{ type: "empty-state", icon: "antenna_radiowaves_left_right",
-                title: "Peer yok", detail: "Peer eklemek için Fabric paneli: /panel" }],
+                title: "Peer yok", detail: "Bu telefon yuzeyinde peer ekleme kapali." }],
   });
 
   sections.push({

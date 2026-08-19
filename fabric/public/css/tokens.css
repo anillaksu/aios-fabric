@@ -88,6 +88,16 @@
   --shadow: 0 1px 2px rgba(0,0,0,.4);
   --shadow-up: 0 -4px 18px rgba(0,0,0,.45);
 
+  /* ── Atmosfer: dekoratif katman, bilgi hiyerarsisi degil ──
+     TUM dark temalar ayni gece-sehir dilini tokenlarla alir. Component'ler
+     bu renklere dogrudan baglanmaz; okunabilirlik her zaman surface/text
+     tokenlarindan gelir. */
+  --atmo-sky-a: rgba(56, 189, 248, .13);
+  --atmo-sky-b: rgba(74, 222, 128, .08);
+  --atmo-grid: rgba(143, 169, 184, .055);
+  --atmo-scan: rgba(220, 238, 227, .018);
+  --atmo-glow: 0 0 28px rgba(74, 222, 128, .10);
+
   /* ── Hareket: hizli, mekanik, 120-220ms ── */
   --t-fast: 120ms;
   --t-base: 160ms;

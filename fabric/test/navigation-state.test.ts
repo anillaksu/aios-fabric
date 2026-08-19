@@ -8,7 +8,7 @@ test("navigation state yalniz bilinen tab ve sinirli secondary/artifact alanlari
     tab: "komut", screen: "discover", arg: "Cihaz", artifactId: null, index: 3,
   });
   assert.deepEqual(nav.normalizeNavigation({ tab: "bilinmeyen", screen: "../../x", arg: "x".repeat(81), artifactId: "bad/id", index: -1 }), {
-    tab: "home", screen: null, arg: null, artifactId: null, index: 0,
+    tab: "hermes", screen: null, arg: null, artifactId: null, index: 0,
   });
 });
 

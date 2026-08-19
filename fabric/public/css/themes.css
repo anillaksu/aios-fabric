@@ -14,6 +14,7 @@
   --primary:#4ADE80; --primary-d:#22C55E; --primary-a:rgba(74,222,128,.13);
   --info:#38BDF8; --info-a:rgba(56,189,248,.13);
   --fg:#DCEEE3; --fg-dim:#8FA9B8; --fg-mute:#5B7787; --fg-invert:#060B10;
+  --atmo-sky-a:rgba(56,189,248,.13); --atmo-sky-b:rgba(74,222,128,.08); --atmo-glow:0 0 28px rgba(74,222,128,.10);
 }
 
 /* ── AMBER · eski CRT / turuncu fosfor ── */
@@ -25,6 +26,7 @@
   --warn:#FB923C; --warn-a:rgba(251,146,60,.13);
   --fg:#F5E6C8; --fg-dim:#BFA47A; --fg-mute:#8A7350; --fg-invert:#0C0906;
   --f7-theme-color:#FBBF24; --f7-theme-color-rgb:251,191,36;
+  --atmo-sky-a:rgba(251,146,60,.13); --atmo-sky-b:rgba(251,191,36,.08); --atmo-glow:0 0 28px rgba(251,191,36,.10);
 }
 
 /* ── ICE · soguk mavi, klinik ── */
@@ -35,6 +37,7 @@
   --info:#818CF8; --info-a:rgba(129,140,248,.13);
   --fg:#DBEAFE; --fg-dim:#93B4D8; --fg-mute:#5E7FA6; --fg-invert:#060A12;
   --f7-theme-color:#38BDF8; --f7-theme-color-rgb:56,189,248;
+  --atmo-sky-a:rgba(56,189,248,.16); --atmo-sky-b:rgba(129,140,248,.09); --atmo-glow:0 0 28px rgba(56,189,248,.12);
 }
 
 /* ── SYNTH · mor/pembe retro-futurist ── */
@@ -45,6 +48,19 @@
   --info:#F472B6; --info-a:rgba(244,114,182,.14);
   --fg:#EDE4FF; --fg-dim:#B4A2D6; --fg-mute:#7E6BA6; --fg-invert:#0A0714;
   --f7-theme-color:#C084FC; --f7-theme-color-rgb:192,132,252;
+  --atmo-sky-a:rgba(244,114,182,.14); --atmo-sky-b:rgba(192,132,252,.10); --atmo-glow:0 0 30px rgba(192,132,252,.13);
+}
+
+/* ── NIGHT CITY · koyu sokak/neon operasyon yüzeyi ── */
+:root[data-theme="nightcity"] {
+  --bg:#05050B; --s1:#0B0B17; --s2:#141426; --s3:#20203A;
+  --line:#252543; --line-mid:#3C3C68; --line-hi:#6262A2;
+  --primary:#22D3EE; --primary-d:#0891B2; --primary-a:rgba(34,211,238,.14);
+  --info:#F472B6; --info-a:rgba(244,114,182,.14);
+  --warn:#FBBF24; --warn-a:rgba(251,191,36,.13);
+  --fg:#F1F5FF; --fg-dim:#B5B8DD; --fg-mute:#777BAA; --fg-invert:#05050B;
+  --atmo-sky-a:rgba(244,114,182,.17); --atmo-sky-b:rgba(34,211,238,.12); --atmo-grid:rgba(132,120,255,.085); --atmo-scan:rgba(241,245,255,.022); --atmo-glow:0 0 34px rgba(34,211,238,.15);
+  --f7-theme-color:#22D3EE; --f7-theme-color-rgb:34,211,238;
 }
 
 /* ── PAPER · acik tema (gunduz/gunes altinda) ── */
@@ -60,10 +76,11 @@
   --f7-theme-color:#15803D; --f7-theme-color-rgb:21,128,61;
   --f7-page-bg-color:#F4F6F5; --f7-bars-bg-color:#FFFFFF;
   --f7-text-color:#14201B; --f7-bars-text-color:#14201B;
+  --atmo-sky-a:transparent; --atmo-sky-b:transparent; --atmo-grid:rgba(20,32,27,.025); --atmo-scan:transparent; --atmo-glow:none;
 }
 
 /* Tema secici (Control Center icinde) */
-.theme-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-2); }
+.theme-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(42px, 1fr)); gap: var(--sp-2); }
 .theme-dot {
   height: 44px; border-radius: var(--r-md); cursor: pointer;
   border: 2px solid var(--line); position: relative; overflow: hidden;

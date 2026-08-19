@@ -25,7 +25,11 @@ if [ -r "$FABRIC_ENV" ]; then
 fi
 
 PROVISIONED=0
-[ "${1:-}" = "--provisioned" ] && PROVISIONED=1
+NO_OPEN=0
+for arg in "$@"; do
+  [ "$arg" = "--provisioned" ] && PROVISIONED=1
+  [ "$arg" = "--no-open" ] && NO_OPEN=1
+done
 
 ink() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
 stage() { printf '\033[38;5;81m[%s]\033[0m %-42s' "$1" "$2"; }
@@ -130,11 +134,20 @@ if [ "$ready" -eq 1 ]; then
   termux-toast "AI-OS hazir" 2>/dev/null
   ink '38;5;84' '\nAIOS HAZIR · Yerel çalışma alanı doğrulandı.'
   show_status
-  printf '\nYonetim Merkezi aciliyor...\n'
+  printf '\n'
+  ink '38;5;213' '╭─ OPERATOR HANDOFF ─────────────────────────╮'
+  printf '  PWA: http://localhost:9300\n'
+  printf '  Yönetim konsolu: Termux:Widget → aios-admin-console\n'
+  ink '38;5;213' '╰────────────────────────────────────────────╯'
   # Widget operator girisidir; gunluk PWA simgesi HOME'u acar. Burada dogrudan
   # gercek servis/gorev/izin yuzeyine gideriz, kucuk sabit terminal menusuyle
   # sahte bir yonetim modeli kurmayiz.
-  open_aios "http://localhost:9300?tab=komut&screen=management"
+  if [ "$NO_OPEN" -eq 0 ]; then
+    printf '\nYonetim Merkezi aciliyor...\n'
+    open_aios "http://localhost:9300?tab=komut&screen=management"
+  else
+    printf '\nPWA otomatik açılmadı (--no-open).\n'
+  fi
 else
   echo "$(date): Fabric 9300 17sn icinde hazir olmadi; UI acilmadi" >> "$HOME/aios-launcher.log"
   termux-toast "AI-OS henuz hazir degil" 2>/dev/null

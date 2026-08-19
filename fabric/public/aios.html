@@ -58,48 +58,55 @@
   }
   #input:focus { border-color: var(--primary); }
 
-  /* ── TABBAR ── */
-  #tabbar {
-    flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, 1fr);
+  /* ── WORKSPACE DOCK ──
+     Sabit kategori tablari degil: Linhx + kullanicinin acik pencereleri.
+     Pencere kaydi WindowManager'dan gelir; kategori kesfi Linhx'in icindedir. */
+  #windowdock {
+    flex: 0 0 auto; display: flex; align-items: center; gap: var(--sp-2);
+    overflow-x: auto; overscroll-behavior-x: contain;
     background: var(--s1); border-top: 1px solid var(--line);
-    height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    min-height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px));
+    padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
+    scrollbar-width: none;
   }
-  .aios-tab {
-    background: none; border: none; color: var(--fg-mute); cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; position: relative; transition: color var(--t-base) var(--ease);
+  #windowdock::-webkit-scrollbar { display: none; }
+  .window-slot { flex: 0 0 auto; display: flex; align-items: stretch; min-height: 42px; }
+  .window-tab {
+    flex: 0 0 auto; min-height: 42px; padding: 7px 12px;
+    border-radius: var(--r-md); border: 1px solid var(--line-mid); background: var(--s2);
+    color: var(--fg-dim); cursor: pointer; font-family: var(--font-ui); font-size: var(--fs-sm);
+    white-space: normal; overflow-wrap: anywhere; text-align: left; line-height: 1.2;
   }
-  .aios-tab i { font-size: 20px; transition: transform var(--t-base) var(--ease); }
-  .aios-tab span { font-family: var(--font-mono); font-size: var(--fs-micro); letter-spacing: var(--ls-micro); }
-  .aios-tab.on { color: var(--primary); }
-  .aios-tab.on i { transform: translateY(-1px); }
-  .aios-tab.on::before { content: ""; position: absolute; top: 0; left: 20%; right: 20%; height: 2px; background: var(--primary); }
-  .aios-tab .badge {
-    position: absolute; top: 6px; right: 22%; min-width: 15px; height: 15px;
-    border-radius: var(--r-pill); background: var(--info); color: var(--fg-invert);
-    font-family: var(--font-mono); font-size: 9px; display: none;
-    align-items: center; justify-content: center; padding: 0 4px;
+  .window-tab.on { color: var(--primary); border-color: var(--primary); background: var(--primary-a); }
+  .window-tab.utility { margin-left: auto; max-width: none; }
+  .window-close {
+    width: 34px; min-height: 42px; padding: 0; border: 1px solid var(--line-mid); border-left: 0;
+    border-radius: 0 var(--r-md) var(--r-md) 0; background: var(--s2); color: var(--fg-dim);
+    cursor: pointer; font-size: 18px; line-height: 1;
   }
-  .aios-tab .badge.on { display: flex; }
+  .window-slot .window-tab { border-radius: var(--r-md) 0 0 var(--r-md); }
+  .window-slot.is-active .window-close { color: var(--primary); border-color: var(--primary); background: var(--primary-a); }
+  .window-slot.is-entering { animation: window-dock-enter var(--t-normal) var(--ease) both; }
+  .window-slot.is-closing { pointer-events: none; animation: window-dock-exit var(--t-fast) var(--ease) both; }
+  @keyframes window-dock-enter { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes window-dock-exit { to { opacity: 0; transform: translateY(8px) scale(.96); } }
+  @media (prefers-reduced-motion: reduce) { .window-slot.is-entering, .window-slot.is-closing { animation: none; } }
 
-  /* Klavye acikken tabbar gizlenir - composer ekranin dibinde kalir */
-  body.kb #tabbar { display: none; }
+  /* Klavye acikken dock gizlenir - composer ekranin dibinde kalir */
+  body.kb #windowdock { display: none; }
   body.kb #composer { padding-bottom: var(--sp-2); }
+
+  /* Operator Deck bir terminal kopyasi degil, dokunmatik tam AIOS yuzeyidir.
+     Geri dugmesi sayfa basliginda kalir; composer/dock bu odakli yönetim
+     akisini daraltmaz. */
+  body.operator-mode #composer,
+  body.operator-mode #windowdock { display: none; }
+  body.operator-mode #screen { overscroll-behavior-y: contain; }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="shell">
-
-    <!-- micro status: INPUT DEGIL, sadece durum + Control Center -->
-    <div class="aios-status" id="statusbar">
-      <span id="st-clock">--:--</span>
-      <span id="st-fabric">○ FABRIC</span>
-      <span class="spacer"></span>
-      <span id="st-bat">BAT —</span>
-      <button id="cc-open" class="st-btn" aria-label="Control Center"><i class="icon f7-icons">slider_horizontal_3</i></button>
-    </div>
 
     <div id="screen"></div>
 
@@ -110,12 +117,9 @@
       <button class="cbtn primary" id="send" aria-label="Gönder"><i class="icon f7-icons">arrow_up</i></button>
     </div>
 
-    <div id="tabbar">
-      <button class="aios-tab on" data-tab="home"><i class="icon f7-icons">house_fill</i><span>HOME</span></button>
-      <button class="aios-tab" data-tab="komut"><i class="icon f7-icons">search</i><span>KEŞFET</span></button>
-      <button class="aios-tab" data-tab="artifacts"><i class="icon f7-icons">square_stack_3d_up_fill</i><span>ARTEFAKT</span><span class="badge" id="b-art"></span></button>
-      <button class="aios-tab" data-tab="activity"><i class="icon f7-icons">list_bullet</i><span>AKTİF</span><span class="badge" id="b-act"></span></button>
-      <button class="aios-tab" data-tab="hermes"><i class="icon f7-icons">sparkles</i><span>LINHX</span></button>
+    <div id="windowdock" aria-label="Çalışma pencereleri">
+      <button class="window-tab on" id="linhx-root">Linhx</button>
+      <button class="window-tab utility" id="cc-open" aria-label="Kontrol merkezi">Kontrol</button>
     </div>
   </div>
 </div>

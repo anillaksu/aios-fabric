@@ -17,7 +17,7 @@ import { validateScreen, mount, setAllowedActions } from "./renderer.js";
 import * as SC from "./screens.js";
 import { UI_META_ACTIONS } from "./ui-actions.js";
 import { WindowManager } from "./windowmanager.js";
-import { admitArtifact, capabilitySetVersion } from "./artifact-contract.js";
+import { admitArtifact, capabilitySetVersion, reconcileArtifactContract } from "./artifact-contract.js";
 import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume, DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_ID, DEVICE_STATUS_PANEL_REQUIREMENTS, deviceStatusWithLiveData } from "./reference-artifacts.js";
 import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
@@ -29,6 +29,8 @@ import { hasMeaningfulData } from "./dispatch-utils.js";
 import { normalizeNavigation, toHistoryState, isSameNavigation } from "./navigation-state.js";
 import { runViewTransition } from "./view-transitions.js";
 import { createRootFormation, verifyFormation } from "./formation-memory.js";
+import { clipboardAnalysisPrompt, clipboardTextFromResult } from "./clipboard-import.js";
+import { dockWindows } from "./workspace-dock.js";
 
 // W6.K: LLM ciktisinin ayiklanmasi/dogrulanmasi (JSON.parse + validateScreen +
 // admitArtifact) artik ayri bir Worker'da kosar - izole, terminate() edilebilir,
@@ -41,6 +43,7 @@ const S = SC.S;
 
 /* ════════ TOAST/SHEET (Framework7 kaldirildi, native <dialog>/Popover) ════════ */
 let toastHost = null;
+let pendingApprovalAction = null;
 function showToast(text, err) {
   if (!toastHost) {
     toastHost = el("div", "native-toast");
@@ -72,7 +75,48 @@ function createSheet(html) {
     destroy: () => dlg.remove(),
   };
 }
-let currentTab = "home";
+
+// risk:ask reddi bir "bozuk eylem" degil, bilincli insan onayi siniridir.
+// Model/artefact buradan onay veremez; yuzey yalniz insani mevcut Control
+// Center'a goturur. Kullanici onaydan sonra eylemi kendisi yeniden baslatir.
+function openApprovalRequired(capability, action) {
+  pendingApprovalAction = action || null;
+  const sheet = createSheet(`
+    <div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner">
+      <div style="padding:18px 16px 8px" class="k-micro">İNSAN ONAYI GEREKİYOR</div>
+      <div style="padding:0 16px 12px" class="c-title">${capability}</div>
+      <div style="padding:0 16px 18px" class="c-sub">Bu eylem cihazdaki hassas bir kaynağa erişir. Çalıştırılmadı. İzni yalnız sen Control Center'dan verebilirsin.</div>
+      <div style="padding:0 16px 22px" class="c-btn-row"><button class="c-btn" data-variant="ghost" id="approval-cancel">VAZGEÇ</button><button class="c-btn" data-variant="primary" id="approval-open">İZİNLERİ AÇ</button></div>
+    </div></div>`);
+  sheet.open();
+  document.getElementById("approval-cancel")?.addEventListener("click", () => { pendingApprovalAction = null; sheet.close(); });
+  document.getElementById("approval-open")?.addEventListener("click", () => { sheet.close(); openControlCenter(); });
+}
+
+// Pano sonucu hassas olabilir. Dispatcher sonucu istemciye teslim edebilse de
+// onu chat'e veya modele otomatik koymayiz. Kullanici tam metni gorur ve her
+// aktarim icin ayri, bilincli onay verir.
+function openClipboardImport(data) {
+  const source = clipboardTextFromResult(data);
+  if (!source) { toast("Panoda aktarılabilir metin yok", true); return; }
+  const sheet = createSheet(`
+    <div class="sheet-modal" style="height:min(82dvh,760px)"><div class="sheet-modal-inner" style="display:flex;flex-direction:column;height:100%">
+      <div style="padding:18px 16px 8px" class="k-micro">PANO İÇERİĞİ · ${source.length} KARAKTER</div>
+      <div style="padding:0 16px 12px" class="c-title">Linhx'e gönderilsin mi?</div>
+      <div style="padding:0 16px 12px" class="c-sub">İçerik yalnız bu onaydan sonra analiz için Linhx'e gönderilir. Parola veya kişisel veri içeriyorsa gönderme.</div>
+      <pre class="c-body mono" id="clipboard-preview" style="margin:0 16px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;flex:1;min-height:96px"></pre>
+      <div style="padding:16px" class="c-btn-row"><button class="c-btn" data-variant="ghost" id="clipboard-cancel">GÖNDERME</button><button class="c-btn" data-variant="primary" id="clipboard-send">LINHX'E GÖNDER</button></div>
+    </div></div>`);
+  sheet.open();
+  const preview = document.getElementById("clipboard-preview");
+  if (preview) preview.textContent = source;
+  document.getElementById("clipboard-cancel")?.addEventListener("click", () => sheet.close());
+  document.getElementById("clipboard-send")?.addEventListener("click", async () => {
+    sheet.close();
+    await ask(clipboardAnalysisPrompt(source));
+  });
+}
+let currentTab = "hermes";
 let secondary = null;
 let secondaryArg = null;   // ikincil ekrana parametre (orn. journal tur filtresi)
 let artifactOpenId = null;
@@ -107,6 +151,10 @@ let applicationsLoadError = null;
 // (register/focus/unfocus). Icerik hala mevcut artifactBlock()/render() ile
 // cizilir - YENI URETIM YOK, yalnizca ac/kapa durumu WindowManager'a tasindi.
 const wm = new WindowManager();
+// Dock sadece WindowManager'daki gercek pencere kayitlarini yansitir. Bu set
+// yeni eklenen kaydi onceki cizimden ayirir; her refresh'te animasyon tekrar
+// baslamaz.
+const renderedDockWindowIds = new Set();
 
 // M-9 (2026-08-18, owner istegi): depolama yonu ters cevrildi. Fabric zaten
 // Termux'un kendi sureci - sinirsiz erisimli dosya sistemi var. Tarayicinin
@@ -257,12 +305,12 @@ function addArtifact(spec, prompt, contract, id) {
 }
 const findArtifact = (id) => artifacts.find((a) => a.id === id);
 
-async function ensureRootFormation(artifact) {
+async function ensureRootFormation(artifact, { persist = true } = {}) {
   try {
     if (artifact?.formation && await verifyFormation(artifact.formation)) return artifact.formation;
     const formation = await createRootFormation(artifact);
     artifact.formation = formation;
-    await saveArtifacts();
+    if (persist) await saveArtifacts();
     return formation;
   } catch (err) {
     // Artefaktin mevcut davranisi identity hesap hatasiyla bozulmaz; hata
@@ -272,12 +320,38 @@ async function ensureRootFormation(artifact) {
   }
 }
 
+// Legacy artifact'lerde contract alaninin action agacini eksik tasidigi
+// bulundu. Spec veya kullanici verisi degismez: yalniz ScreenSpec'ten
+// deterministik turetilen capability listesi yazilir. Registry surumu tek
+// basina degisirse tarihsel formation'a dokunulmaz; yalniz action kumesiyle
+// celiski varsa eksik formation projection'i yeniden kurulur.
+async function reconcileLegacyArtifactContracts() {
+  const repaired = [];
+  for (const artifact of artifacts) {
+    const result = reconcileArtifactContract(artifact, { knownCapabilities: capabilityNames, versionStamp: capVersion });
+    if (!result.ok) {
+      logClientError("artifactContract.reconcile", new Error(`${artifact.id}: ${result.reason}`));
+      continue;
+    }
+    if (!result.changed) continue;
+    artifact.capabilities = result.contract.capabilities;
+    artifact.version = result.contract.version;
+    artifact.formation = null;
+    repaired.push(artifact);
+  }
+  if (!repaired.length) return;
+  for (const artifact of repaired) await ensureRootFormation(artifact, { persist: false });
+  await saveArtifacts();
+  console.info(`[fabric:artifact-contract] ${repaired.length} legacy artifact contract reconciled`);
+}
+
 /* ════════ TEMALAR ════════ */
 const THEMES = [
   { id: "phosphor", short: "PHS", bg: "#070B10", primary: "#4ADE80" },
   { id: "amber",    short: "AMB", bg: "#0C0906", primary: "#FBBF24" },
   { id: "ice",      short: "ICE", bg: "#060A12", primary: "#38BDF8" },
   { id: "synth",    short: "SYN", bg: "#0A0714", primary: "#C084FC" },
+  { id: "nightcity", short: "NCT", bg: "#05050B", primary: "#22D3EE" },
   { id: "paper",    short: "PPR", bg: "#F4F6F5", primary: "#15803D" },
 ];
 const currentTheme = () => document.documentElement.dataset.theme || "phosphor";
@@ -372,7 +446,9 @@ const ctx = {
 
     if (type === "app.open" && res.ok && payload && payload.pkg) rememberRecent(payload.pkg);
 
-    if (type === "script.run") {
+    if (type === "clipboard.get" && res.ok) {
+      openClipboardImport(res.data);
+    } else if (type === "script.run") {
       const out = res.ok ? String((res.data && res.data.stdout) || "(çıktı yok)") : String(res.error || "hata");
       chat.push({ role: "agent", spec: {
         type: "action-receipt", state: res.ok ? "success" : "error",
@@ -408,7 +484,10 @@ const ctx = {
       steps: [{ name: type, change: payload && payload.pkg ? payload.pkg : undefined, ms }],
       executor: "device/local",
     };
-    if (!res.ok && type !== "script.run") toast(String(res.error || "hata").slice(0, 90), true);
+    if (!res.ok && type !== "script.run") {
+      if (/onay gerektirir/i.test(String(res.error || ""))) openApprovalRequired(type, action);
+      else toast(String(res.error || "hata").slice(0, 90), true);
+    }
     return res;
   },
 };
@@ -471,9 +550,10 @@ function applyNavigation(next, historyMode = null) {
   if (artifactOpenId && artifactOpenId !== nav.artifactId) wm.unfocus();
   currentTab = nav.tab; secondary = nav.screen; secondaryArg = nav.arg;
   artifactOpenId = nav.artifactId; navigationIndex = nav.index;
+  document.body.classList.toggle("operator-mode", secondary === "operator");
   if (historyMode === "push") history.pushState(toHistoryState(nav), "");
   if (historyMode === "replace") history.replaceState(toHistoryState(nav), "");
-  document.querySelectorAll(".aios-tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === currentTab));
+  renderWindowDock();
   syncComposer();
   const kind = historyMode === "push" ? "push" : historyMode === null ? "pop" : "tab";
   runViewTransition({ kind, render: () => { paint(); } });
@@ -495,7 +575,7 @@ function goSecondary(screen, arg = null) {
 function goBack() {
   if (navigationIndex > 0) { history.back(); return; }
   if (artifactOpenId) wm.unfocus();
-  if (secondary || artifactOpenId || currentTab !== "home") applyNavigation({ tab: "home", index: 0 }, "replace");
+  if (secondary || artifactOpenId || currentTab !== "hermes") applyNavigation({ tab: "hermes", index: 0 }, "replace");
 }
 
 function syncComposer() {
@@ -509,12 +589,61 @@ function syncComposer() {
 }
 
 function updateBadges() {
-  const art = $("#b-art"), act = $("#b-act");
-  const running = S.tasks.filter((t) => ["running", "optimistic", "pending"].includes(t.status)).length;
-  art.textContent = artifacts.length ? String(artifacts.length) : "";
-  art.classList.toggle("on", artifacts.length > 0);
-  act.textContent = running ? String(running) : "";
-  act.classList.toggle("on", running > 0);
+  renderWindowDock();
+}
+
+/* Eski sabit kategori tablari yerine yalniz Linhx ve gercekten acilmis
+   WindowManager pencereleri gorunur. Bu saf istemci navigasyonudur. */
+function renderWindowDock() {
+  const dock = $("#windowdock");
+  if (!dock) return;
+  const root = $("#linhx-root");
+  if (root) root.classList.toggle("on", currentTab === "hermes" && !artifactOpenId && !secondary);
+  dock.querySelectorAll("[data-window-id]").forEach((node) => node.remove());
+  const utility = $("#cc-open");
+  const windows = dockWindows(wm.list(), new Set(artifacts.map((artifact) => artifact.id)));
+  const visibleIds = new Set(windows.map((win) => win.id));
+  for (const id of renderedDockWindowIds) if (!visibleIds.has(id)) renderedDockWindowIds.delete(id);
+  windows.forEach((win) => {
+    const slot = document.createElement("div");
+    slot.className = "window-slot" + (artifactOpenId === win.id ? " is-active" : "");
+    slot.dataset.windowId = win.id;
+    if (!renderedDockWindowIds.has(win.id)) slot.classList.add("is-entering");
+    const b = document.createElement("button");
+    b.className = "window-tab" + (artifactOpenId === win.id ? " on" : "");
+    b.textContent = win.title || "Pencere";
+    b.setAttribute("aria-label", `${win.title || "Pencere"} penceresini aç`);
+    b.addEventListener("click", () => openArtifact(win.id));
+    const close = document.createElement("button");
+    close.className = "window-close";
+    close.type = "button";
+    close.textContent = "×";
+    close.setAttribute("aria-label", `${win.title || "Pencere"} penceresini kapat`);
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeDockWindow(win.id, slot);
+    });
+    slot.append(b, close);
+    dock.insertBefore(slot, utility);
+    renderedDockWindowIds.add(win.id);
+  });
+}
+
+// Kapatmak yalniz WindowManager kaydini kaldirir: artifact, ApplicationEntry
+// ve onun kalici spec'i oldugu yerde kalir. Boyylece launcher/formation ile
+// calisma penceresi birbirine donusmez.
+function closeDockWindow(id, slot) {
+  if (!wm.get(id)) return;
+  const finish = () => {
+    if (artifactOpenId === id) applyNavigation({ tab: "hermes", index: 0 }, "replace");
+    wm.remove(id);
+  };
+  if (slot && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    slot.classList.add("is-closing");
+    setTimeout(finish, 150);
+    return;
+  }
+  finish();
 }
 
 /* ════════ CIZIM ════════ */
@@ -524,6 +653,7 @@ async function paint() {
   if (secondary === "discover") return mountSecondary(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications), secondaryArg)));
   if (secondary === "androidApps") return mountSecondary(host, validateScreen(SC.androidAppsScreen()));
   if (secondary === "tools") return mountSecondary(host, validateScreen(SC.toolsScreen()));
+  if (secondary === "operator") return mountSecondary(host, validateScreen(SC.operatorDeckScreen(secondaryArg)));
   if (secondary === "agents")   return mountSecondary(host, validateScreen(SC.agentsScreen()));
   if (secondary === "capabilities") return mountSecondary(host, validateScreen(await SC.capabilitiesScreen()));
   if (secondary === "journal")     return mountSecondary(host, validateScreen(await SC.journalScreen(secondaryArg)));
@@ -1306,6 +1436,16 @@ function openControlCenter() {
           if (r && r.ok) {
             state[cap] = { capability: cap, status: granted ? "revoked" : "granted" };
             toast(granted ? `"${cap}" onayı geri alındı` : `"${cap}" onaylandı`);
+            // Kullanici once eylemi secti, sonra insan onayini BILINCLI olarak
+            // verdi. Yalniz ayni capability'nin bekleyen UI eylemi bir kez
+            // yeniden dispatcher'a gider; A2A/model/MCP burada asla devam
+            // ettiremez ve onay geri alinirsa pending kayit calismaz.
+            const pending = !granted && pendingApprovalAction?.type === cap ? pendingApprovalAction : null;
+            pendingApprovalAction = null;
+            if (pending) {
+              sheet.close();
+              void ctx.dispatch(pending);
+            }
           } else {
             toast("İşlem başarısız", true);
           }
@@ -1437,19 +1577,9 @@ async function refresh() {
   const st = await getJSON("/state");
   if (st && st.tasks) S.tasks = Object.values(st.tasks);
   if (st && st.recentEvents) S.activity = st.recentEvents;
-  paintStatus(); updateBadges();
+  updateBadges();
   if (["home", "activity"].includes(currentTab) || secondary === "device") paint();
 }
-function paintStatus() {
-  const b = S.battery;
-  const p = b ? (b.percentage ?? b.level ?? 0) : null;
-  $("#st-clock").textContent = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  $("#st-bat").textContent = p == null ? "BAT —" : "BAT " + p + "%";
-  $("#st-bat").style.color = p == null ? "" : p < 15 ? "var(--error)" : p < 35 ? "var(--warn)" : "";
-  $("#st-fabric").textContent = S.services.fabric ? "● FABRIC" : "○ FABRIC";
-  $("#st-fabric").style.color = S.services.fabric ? "var(--primary)" : "var(--error)";
-}
-
 /* ════════ SHARE TARGET / SHORTCUTS ════════ */
 function handleEntry() {
   const u = new URL(location.href);
@@ -1472,8 +1602,7 @@ export async function boot() {
   // M-9: acilis senkronu artik loadArtifacts()'in kendi isi (sunucu birincil,
   // gerekirse onbellekten besler) - burada tekrar POST etmeye gerek yok.
 
-  document.querySelectorAll(".aios-tab").forEach((b) =>
-    b.addEventListener("click", () => goTab(b.dataset.tab)));
+  $("#linhx-root").addEventListener("click", () => goTab("hermes"));
   window.addEventListener("popstate", (event) => {
     // Browser/Android geri hareketi yalnız bizim isimli state'imizi uygular;
     // başka origin ya da bozuk state fail-closed olarak HOME'a iner.
@@ -1508,16 +1637,17 @@ export async function boot() {
   ACTIONABLE = new Set(caps.filter((c) => c.class === "REFLEX" || c.class === "AGENT").map((c) => c.name));
   setAllowedActions([...capabilityNames, ...UI_META_ACTIONS]);
   capVersion = await capabilitySetVersion(capabilityNames);
+  await reconcileLegacyArtifactContracts();
   S.services.llm = capabilityNames.includes("llm.generate");
   S.services.gateway = true;
   S.peers = (await getJSON("/a2a/peers")) || [];
 
-  goTab("home");
+  wm.onChange(() => renderWindowDock());
+  goTab("hermes");
   await refresh();
 
   refreshAndroidApps();
 
-  setInterval(paintStatus, 20000);
   setInterval(refresh, 45000);
   // W3.4/W3.5: SSE yalnizca CANLI goruntuleme - baglanti koptuysa (ekran
   // kilidi, ag kaybı) araya giren olaylar SSE'den asla tekrar gelmez. Onceden
@@ -1532,7 +1662,7 @@ export async function boot() {
     if (currentTab === "activity") paint();
   }, (online) => {
     S.services.fabric = online;
-    paintStatus();
+    renderWindowDock();
     if (online && !wasOnline) refresh();
     wasOnline = online;
   });

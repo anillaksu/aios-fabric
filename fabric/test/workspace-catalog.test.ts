@@ -6,7 +6,7 @@ import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWork
 // origin kabuğunu verip ekranı dinamik import ediyoruz. Katalog kendisi DOM/ağ
 // bağımsız kalır.
 globalThis.location = { origin: "http://localhost" } as Location;
-const { S, androidAppsScreen, discoverScreen, hermesEmptyScreen, homeScreen } = await import("../public/js/screens.js");
+const { S, androidAppsScreen, discoverScreen, hermesEmptyScreen, homeScreen, operatorDeckScreen } = await import("../public/js/screens.js");
 
 test("Phone Workspace katalogu kisa Turkce aramayi deterministik metadata ile bulur", () => {
   assert.equal(foldWorkspaceText("CİHAZ AĞI"), "cihaz agi");
@@ -67,4 +67,16 @@ test("iliski yuzeyi yalniz kalici uygulama/artefakt ve task izlerinden devam nok
   const now = surface.sections.find((section) => section.title === "ŞU AN");
   assert.equal(now.children[0].children[0].trailing, "HATA");
   assert.ok(surface.sections.some((section) => section.title === "BİRLİKTE OLUŞTUR"));
+});
+
+test("Operator Deck klavyesiz altı gerçek AIOS alanını ve yalnız mevcut eylemleri projekte eder", () => {
+  const root = operatorDeckScreen();
+  const areas = root.sections.find((section) => section.title === "SİSTEM KATMANLARI");
+  assert.equal(areas.children.length, 6);
+  const runtime = operatorDeckScreen("runtime");
+  const rows = runtime.sections[0].children[0].children;
+  assert.equal(rows.length, 6);
+  assert.ok(rows.every((row) => row.action.type === "ui.goto"), "operator listesi yeni capability icat etmez");
+  const security = operatorDeckScreen("security");
+  assert.equal(security.sections[0].children[0].children[0].action.type, "ui.control");
 });

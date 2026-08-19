@@ -11,6 +11,26 @@
 /* ── SHELL ────────────────────────────────────────────────── */
 body { background: var(--bg); color: var(--text-primary); font-family: var(--font-ui); }
 
+/* Ortak Night City atmosferi: grafik zemin yalnız shell'e aittir; kart ve
+   metin kontrastini bozmadan derinlik verir. PWA/telefon/masaustu ayni CSS
+   standardini kullanir, harici image/animation paketi yoktur. */
+#shell { position: relative; isolation: isolate; background: var(--bg); }
+#shell::before {
+  content:""; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(90% 44% at 100% 0%, var(--atmo-sky-a), transparent 68%),
+    radial-gradient(70% 36% at 0% 100%, var(--atmo-sky-b), transparent 72%),
+    linear-gradient(90deg, var(--atmo-grid) 1px, transparent 1px),
+    linear-gradient(var(--atmo-grid) 1px, transparent 1px),
+    repeating-linear-gradient(0deg, var(--atmo-scan) 0 1px, transparent 1px 5px);
+  background-size:auto, auto, 36px 36px, 36px 36px, auto;
+}
+.c-card, .c-rowitem, .c-metric, .c-btn.primary, .window-tab.on { box-shadow: var(--atmo-glow); }
+
+@media (prefers-reduced-motion: reduce) {
+  #shell::before { background-image: none; }
+}
+
 /* Klavye ve ekran okuyucu kullananlar icin her etkileşimli kontrol ayni
    gorunur focus sinirini tasir; renk her temada --focus tokenindan gelir. */
 :where(button, input, textarea, select, [tabindex]):focus-visible {

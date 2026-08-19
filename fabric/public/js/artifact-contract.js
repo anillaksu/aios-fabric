@@ -35,12 +35,18 @@ export function usedActionTypes(screen) {
   const out = new Set();
   const walk = (node) => {
     if (!node || typeof node !== "object") return;
-    if (node.action && typeof node.action.type === "string") out.add(node.action.type);
+    ["action", "tap", "longPress", "details"].forEach((key) => {
+      if (node[key] && typeof node[key].type === "string") out.add(node[key].type);
+    });
     if (Array.isArray(node.actions)) {
-      node.actions.forEach((a) => { if (a && typeof a.type === "string") out.add(a.type); });
+      node.actions.forEach((a) => {
+        if (a && typeof a.type === "string") out.add(a.type);
+        if (a && a.action && typeof a.action.type === "string") out.add(a.action.type);
+      });
     }
-    if (Array.isArray(node.sections)) node.sections.forEach(walk);
-    if (Array.isArray(node.children)) node.children.forEach(walk);
+    ["sections", "children", "rows", "buttons"].forEach((key) => {
+      if (Array.isArray(node[key])) node[key].forEach(walk);
+    });
   };
   walk(screen);
   return [...out];
@@ -77,5 +83,24 @@ export function admitArtifact(screen, { knownCapabilities, versionStamp, provena
       version: versionStamp,
       provenance,
     },
+  };
+}
+
+/** Eski kayitlarin capability listesi ScreenSpec action agacindan eksik
+ * yazilmis olabilir. Bu denetim spec/prompt/provenance'i degistirmez; yalniz
+ * gercek action kumesi ile kayitli contract'in eslesip eslesmedigini soyler. */
+export function reconcileArtifactContract(artifact, options) {
+  const admitted = admitArtifact(artifact?.spec, {
+    knownCapabilities: options.knownCapabilities,
+    versionStamp: options.versionStamp,
+    provenance: artifact?.provenance || "hermes",
+  });
+  if (!admitted.ok) return { ok: false, changed: false, reason: admitted.reason };
+  const actual = [...new Set(artifact?.capabilities || [])].sort();
+  const expected = [...new Set(admitted.contract.capabilities || [])].sort();
+  return {
+    ok: true,
+    changed: actual.join("\u0000") !== expected.join("\u0000"),
+    contract: { ...admitted.contract, capabilities: expected },
   };
 }

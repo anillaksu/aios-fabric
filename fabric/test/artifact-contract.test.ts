@@ -11,7 +11,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { usedActionTypes, capabilitySetVersion, admitArtifact } from "../public/js/artifact-contract.js";
+import { usedActionTypes, capabilitySetVersion, admitArtifact, reconcileArtifactContract } from "../public/js/artifact-contract.js";
 
 const KNOWN = ["sensor.battery.read", "wifi.info", "torch.set"];
 
@@ -27,6 +27,28 @@ test("usedActionTypes: sections + children + actions dizisi ic ice taranir", () 
   };
   const used = usedActionTypes(screen);
   assert.deepEqual([...used].sort(), ["sensor.battery.read", "ui.goto", "wifi.info"]);
+});
+
+test("usedActionTypes: action/tap/longPress/details ve tum container yollarini toplar", () => {
+  const screen = {
+    type: "section", action: { type: "sensor.battery.read" },
+    children: [{ type: "list", rows: [{ type: "list-row", tap: { type: "wifi.info" }, longPress: { type: "torch.set" } }],
+      buttons: [{ type: "button", details: { type: "ui.goto" } }] }],
+    actions: [{ action: { type: "wifi.info" } }],
+  };
+  assert.deepEqual(usedActionTypes(screen).sort(), ["sensor.battery.read", "torch.set", "ui.goto", "wifi.info"]);
+});
+
+test("reconcileArtifactContract: eski eksik capability kaydini spec'ten deterministik turetir", () => {
+  const artifact = {
+    provenance: "seed", capabilities: [], version: "old",
+    spec: { title: "Wi-Fi", sections: [{ type: "button", action: { type: "wifi.info" } }] },
+  };
+  const r = reconcileArtifactContract(artifact, { knownCapabilities: KNOWN, versionStamp: "new" });
+  assert.equal(r.ok, true);
+  assert.equal(r.changed, true);
+  assert.deepEqual(r.contract.capabilities, ["wifi.info"]);
+  assert.equal(r.contract.provenance, "seed");
 });
 
 test("admitArtifact: yalnizca bilinen capability + UI meta-eylem kullanan spec kabul edilir", () => {

@@ -9,7 +9,7 @@ const TABS = new Set(["home", "komut", "artifacts", "activity", "hermes"]);
 
 export function normalizeNavigation(value) {
   const raw = value && value[NAVIGATION_KEY] ? value[NAVIGATION_KEY] : value;
-  const tab = TABS.has(raw?.tab) ? raw.tab : "home";
+  const tab = TABS.has(raw?.tab) ? raw.tab : "hermes";
   const screen = typeof raw?.screen === "string" && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(raw.screen) ? raw.screen : null;
   const arg = typeof raw?.arg === "string" && raw.arg.length <= 80 ? raw.arg : null;
   const artifactId = typeof raw?.artifactId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(raw.artifactId) ? raw.artifactId : null;

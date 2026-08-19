@@ -46,6 +46,18 @@ test("remove: pencere kaydi silinir; odaklanmis pencere kaldirilirsa odak da tem
   assert.equal(wm.focusedId, null);
 });
 
+test("remove: kalici artifact verisini degil yalniz pencere lifecycle kaydini temsil eder", () => {
+  const storage = memStorage();
+  const wm = new WindowManager(storage);
+  wm.register({ id: "artifact-1", title: "Kalıcı artefakt" });
+  wm.focus("artifact-1");
+
+  assert.equal(wm.remove("artifact-1"), true);
+  assert.equal(wm.get("artifact-1"), null);
+  assert.equal(wm.focusedId, null);
+  assert.deepEqual(storage.load(), { windows: [] });
+});
+
 test("pin: sabitli pencereler once gelir, sonra son odaklanmaya gore en yeni once", () => {
   const wm = new WindowManager(memStorage());
   wm.register({ id: "a", title: "A" });
