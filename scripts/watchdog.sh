@@ -24,6 +24,12 @@
 
 HOME=/data/data/com.termux/files/home
 export HOME
+FABRIC_ENV="$HOME/.config/aios/fabric.env"
+if [ -r "$FABRIC_ENV" ]; then
+  set -a
+  . "$FABRIC_ENV"
+  set +a
+fi
 LOG="$HOME/watchdog.log"
 
 while true; do

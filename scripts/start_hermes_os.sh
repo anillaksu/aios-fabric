@@ -14,6 +14,31 @@
 # baglam" sayilmaz; mikrofon ve PWA kurulumu orada CALISMAZ.
 HOME=/data/data/com.termux/files/home
 export HOME
+FABRIC_ENV="$HOME/.config/aios/fabric.env"
+# Yalnizca operator provisioning betiginin yazdigi 0600 env dosyasi okunur.
+# Dosya yoksa eski davranis korunur; yeni Fabric surumu ise A2A metin yolunu
+# fail-closed kapatir, sirri kaynakta varsaymaz.
+if [ -r "$FABRIC_ENV" ]; then
+  set -a
+  . "$FABRIC_ENV"
+  set +a
+fi
+
+PROVISIONED=0
+[ "${1:-}" = "--provisioned" ] && PROVISIONED=1
+
+ink() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
+stage() { printf '\033[38;5;81m[%s]\033[0m %-42s' "$1" "$2"; }
+ok() { ink '38;5;84' 'OK'; }
+warn() { ink '38;5;214' 'SINIRLI'; }
+wait_for() {
+  local tries="$1" check="$2" i=0
+  while [ "$i" -lt "$tries" ]; do
+    if eval "$check" >/dev/null 2>&1; then return 0; fi
+    i=$((i + 1)); sleep 1
+  done
+  return 1
+}
 
 show_status() {
   local fabric="OFFLINE" llm="OFFLINE" gateway="OFFLINE" watchdog="OFFLINE"
@@ -38,16 +63,18 @@ open_aios() {
 }
 
 clear 2>/dev/null || true
-printf '========================================\n'
-printf '           AIOS ADMIN TERMINALI\n'
-printf '========================================\n'
-printf 'Yerel servisler baslatiliyor...\n\n'
+ink '38;5;81' '╔══════════════════════════════════════════╗'
+ink '38;5;81' '║       🌃 AIOS · ADMIN BOOT CONSOLE ⚡      ║'
+ink '38;5;81' '╚══════════════════════════════════════════╝'
+[ "$PROVISIONED" -eq 1 ] && printf '  Güvenli gateway anahtarı eşlendi; doğrulanmış yeniden başlatma başlıyor.\n'
+printf '  Yerel servis ağı hazırlanıyor. Her aşama canlı kontrolle kapanır.\n\n'
 
-termux-toast "AI-OS baslatiliyor..." 2>/dev/null
+stage '01/06' '🔋 Cihaz çalışma kilidi alınıyor'
+if termux-wake-lock 2>/dev/null; then ok; else warn; fi
+termux-toast "AI-OS baslatiliyor..." 2>/dev/null || true
 
 # Android'in surecleri oldurmesini zorlastir (tekrarlayan OOM cokme dongusu)
-termux-wake-lock 2>/dev/null
-
+stage '02/06' '🧹 Önceki yerel süreçler kapatılıyor'
 pkill -9 -f 'hermes gateway run' 2>/dev/null
 pkill -9 -f 'uvicorn llm_bridge' 2>/dev/null
 pkill -9 -f 'src/server.ts' 2>/dev/null
@@ -56,25 +83,33 @@ pkill -9 -f watchdog.sh 2>/dev/null
 pkill -9 -f 'termux-x11' 2>/dev/null
 pkill -9 -f '/usr/lib/chromium/chrome' 2>/dev/null
 sleep 2
+ok
 
 # 1) Hermes gateway (8642) - A2A agent delegasyonu (Fabric'in /a2a yolu)
+stage '03/06' '🛰️  Hermes gateway başlatılıyor'
 nohup setsid proot-distro login ubuntu -- bash -c "cd /root/hermes-agent && source venv/bin/activate && hermes gateway run" > "$HOME/gateway.log" 2>&1 < /dev/null &
 disown
+if wait_for 12 "pgrep -f 'hermes-agent/venv/bin/hermes gateway run'"; then ok; else warn; fi
 
 # 2) LLM koprusu (9201) - Hermes'in Codex OAuth istemcisi sadece Python'da
+stage '04/06' '🧠 LLM bridge başlatılıyor'
 nohup setsid proot-distro login ubuntu -- bash -c "cd /root && source hermes-agent/venv/bin/activate && python3 -m uvicorn llm_bridge:app --host 127.0.0.1 --port 9201" > "$HOME/llm_bridge.log" 2>&1 < /dev/null &
 disown
+if wait_for 12 "pgrep -f '^python3 -m uvicorn llm_bridge'"; then ok; else warn; fi
 
 # 3) Fabric (9300) - TypeScript omurga + AI-OS arayuzu (PWA).
 # Termux'un KENDI Node'unda: capability'ler Termux:API binary'lerini ve
 # `am`/`pm`'i dogrudan cagiriyor (proot'ta rish/izinler bozuluyor).
+stage '05/06' '⬡  Fabric çalışma alanı başlatılıyor'
 nohup setsid bash -c "cd '$HOME/fabric' && node --experimental-strip-types src/server.ts" > "$HOME/fabric.log" 2>&1 < /dev/null &
 disown
-sleep 5
+if wait_for 12 "[ \"\$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 http://127.0.0.1:9300/)\" = 200 ]"; then ok; else warn; fi
 
 # 4) Watchdog
+stage '06/06' '◉  Süreç gözcüsü bağlanıyor'
 nohup bash "$HOME/watchdog.sh" > "$HOME/watchdog_stdout.log" 2>&1 < /dev/null &
 disown
+if wait_for 5 "pgrep -f '^bash $HOME/watchdog\\.sh$'"; then ok; else warn; fi
 
 # Widget komutu bir terminal islemi degil, AIOS baslaticisidir. Fabric gercekten
 # hazir olmadan tarayiciyi one getirmeyiz; aksi halde bos/baglanamiyor ekranini
@@ -93,7 +128,7 @@ done
 
 if [ "$ready" -eq 1 ]; then
   termux-toast "AI-OS hazir" 2>/dev/null
-  printf '\nAIOS hazir.\n'
+  ink '38;5;84' '\nAIOS HAZIR · Yerel çalışma alanı doğrulandı.'
   show_status
   printf '\nYonetim Merkezi aciliyor...\n'
   # Widget operator girisidir; gunluk PWA simgesi HOME'u acar. Burada dogrudan
