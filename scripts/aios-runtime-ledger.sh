@@ -90,13 +90,18 @@ write_state() {
 }
 
 verify_chain() {
-  local line timestamp reason role status pid start cmd source witness previous event payload expected n=0
+  local line timestamp reason role status pid start cmd source witness previous event payload expected expected_previous="GENESIS" n=0
   [ -r "$LEDGER" ] || { printf 'LEDGER_EMPTY\n'; return 1; }
   while IFS=$'\t' read -r timestamp reason role status pid start cmd source witness previous event; do
     [ -n "$event" ] || continue
+    [ "$previous" = "$expected_previous" ] || {
+      printf 'LEDGER_CHAIN_BREAK line=%s expected_previous=%s actual_previous=%s\n' "$((n + 1))" "$expected_previous" "$previous" >&2
+      return 1
+    }
     payload="$timestamp|$reason|$role|$status|$pid|$start|$cmd|$source|$witness|$previous"
     expected="$(hash_text "$payload")"
     [ "$event" = "$expected" ] || { printf 'LEDGER_INVALID line=%s\n' "$((n + 1))" >&2; return 1; }
+    expected_previous="$event"
     n=$((n + 1))
   done <"$LEDGER"
   printf 'LEDGER_OK events=%s\n' "$n"

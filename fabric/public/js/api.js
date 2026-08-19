@@ -71,6 +71,10 @@ export async function sendIntent(type, payload, opts = {}) {
     source: opts.source || "ui",
     raw: opts.raw || type,
     understood: { type, payload, by: opts.by || "deterministic" },
+    // Exact formation parent yalniz artifact renderer'inin olusturdugu
+    // baglamdan gelir. Bu bir authorization bilgisi degil; server yine kendi
+    // artifact deposundan exact parent'i dogrulamadan provenance yazmaz.
+    formationId: opts.formationId,
     wait: true,
     timeoutMs: ms,
   }, ms + 5000);

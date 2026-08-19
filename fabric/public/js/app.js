@@ -391,7 +391,7 @@ let lastReceipt = null;
 const ctx = {
   async dispatch(action) {
     if (!action || !action.type) return { ok: false, error: "eylem yok" };
-    const { type, payload } = action;
+    const { type, payload, formationId } = action;
 
     if (type === "ui.goto") {
       if (payload && payload.tab) goTab(payload.tab);
@@ -459,6 +459,7 @@ const ctx = {
       source: action.source || "ui",
       raw: action.raw || labelForAction(type, payload),
       timeoutMs: type === "script.run" ? 60000 : 35000,
+      formationId,
     });
     const ms = Math.round(performance.now() - t0);
 
@@ -526,6 +527,24 @@ async function openReferenceArtifact(spec, requirements, prompt) {
   const artifact = addArtifact(spec, prompt, contract.contract, spec.id);
   openArtifact(artifact.id);
   return { ok: true };
+}
+
+// Artifact action'lari exact root formation ile baglanir. Bu wrapper action
+// semantigini veya policy'yi degistirmez: eylem yine ctx.dispatch() ve
+// dispatcher uzerinden gider. Formation uretilemez/dogrulanamazsa capability
+// calismadan fail-closed doner; baslik/prompt/similarity ile esleme yoktur.
+function artifactCtx(artifact) {
+  return {
+    ...ctx,
+    async dispatch(action) {
+      if (!action || !action.type || String(action.type).startsWith("ui.") || action.type === "cap.test") {
+        return ctx.dispatch(action);
+      }
+      const formation = await ensureRootFormation(artifact);
+      if (!formation) return { ok: false, error: "Formation parent doğrulanamadı; eylem çalıştırılmadı" };
+      return ctx.dispatch({ ...action, formationId: formation.id });
+    },
+  };
 }
 
 /** Eylemi insan diline cevirir - zarfin "ham ifade" alani icin. */
@@ -873,7 +892,7 @@ function artifactBlock(a) {
 
   const inner = el("div", "artifact-body");
   (a.spec.sections || []).forEach((s) => {
-    const node = render(s, ctx);
+    const node = render(s, artifactCtx(a));
     if (node) inner.appendChild(node);
   });
   b.appendChild(inner);

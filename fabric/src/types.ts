@@ -16,6 +16,10 @@ export interface Intent {
     raw: string;         // kullanicinin HAM ifadesi
     by: string;          // anlamayi kim yapti: deterministic | llm | agent
     envelopeId: string;
+    /** Yalniz artifact action renderer'i tarafindan tasinan exact formation
+     * parent referansi. Yetki vermez; server artifact contract'tan yeniden
+     * dogrular, yoksa runtime provenance uretilmez. */
+    formationId?: string;
   };
 }
 

@@ -21,6 +21,7 @@ import { executeReadOnly, isReadExposed } from "./read-policy.ts";
 import type { Intent } from "./types.ts";
 import { logErr } from "./log.ts";
 import { readRuntimeStatus } from "./runtime-status.ts";
+import { recordCompletedRuntimeProvenance } from "./runtime-provenance.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 const AIOS_HTML_PATH = PUBLIC_DIR + "aios.html";
@@ -68,6 +69,12 @@ const HOME = process.env.HOME ?? "/data/data/com.termux/files/home";
 const JOURNAL_PATH = `${HOME}/fabric-journal.db`;
 const ARTIFACTS_PATH = `${HOME}/fabric-artifacts.json`;
 const APPLICATIONS_PATH = `${HOME}/fabric-applications.json`;
+// Root formation kayitlari artifact deposunda kalir; runtime witness edge'leri
+// ayri immutable koleksiyondur. Root'u sonradan mutate etmek formation
+// identity'sini bozardi.
+const RUNTIME_PROVENANCE_PATH = `${HOME}/fabric-runtime-provenance.json`;
+const RUNTIME_LEDGER_PATH = `${HOME}/aios-runtime-ledger.tsv`;
+const RUNTIME_LEDGER_SCRIPT = `${HOME}/aios-runtime-ledger.sh`;
 // Agent Card'da disariya duyurulan URL - uzak peer'lar (PC coding agent vb.)
 // bize BU adresten geri yazacak, o yuzden 127.0.0.1 degil Tailscale/LAN
 // adresi olmali. FABRIC_SELF_URL env ile override edilebilir (baska bir
@@ -143,7 +150,27 @@ async function readTrustedLlmContext(): Promise<string> {
   return parts.join(", ");
 }
 
-const dispatcher = new Dispatcher(journal, bootState, sse, { trustedLlmContext: readTrustedLlmContext });
+const dispatcher = new Dispatcher(journal, bootState, sse, {
+  trustedLlmContext: readTrustedLlmContext,
+  onTaskCompleted: async (completion) => {
+    try {
+      const recorded = await recordCompletedRuntimeProvenance({
+        completion,
+        artifactsPath: ARTIFACTS_PATH,
+        provenancePath: RUNTIME_PROVENANCE_PATH,
+        ledgerScriptPath: RUNTIME_LEDGER_SCRIPT,
+        ledgerPath: RUNTIME_LEDGER_PATH,
+      });
+      if (recorded.recorded) {
+        console.log(`[fabric:runtime-provenance] ${recorded.duplicate ? "replay" : "recorded"} ${recorded.edge.id}`);
+      }
+    } catch (err) {
+      // Provenance eksikligi completed task'i geri yazmaz; fakat sessizce
+      // "derived" iddiasi da uretmez. Operator bunu fabric.log'da gorur.
+      logErr("server:runtimeProvenance", err);
+    }
+  },
+});
 
 // ---------- Otomasyon motoru (2026-08-16'da eklendi) ----------
 // Kurallar journal akisini dinler ve eslesme olunca bir capability calistirir.
@@ -540,7 +567,7 @@ const server = createServer(async (req, res) => {
     // Her asama journal'a duser -> Intent DevTools bunu okur.
     if (url.pathname === "/envelope" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)) || "{}") as {
-        source?: string; raw?: string; correlationId?: string; wait?: boolean; timeoutMs?: number;
+        source?: string; raw?: string; correlationId?: string; wait?: boolean; timeoutMs?: number; formationId?: string;
         understood?: { type?: string; payload?: Record<string, unknown>; by?: string };
       };
       const env = createEnvelope({
@@ -579,7 +606,16 @@ const server = createServer(async (req, res) => {
         payload: realPayload,   // yurutmeye GERCEK deger gider (journal'daki kopya redakte)
         correlationId: env.correlationId,
         // Gorev karti "HEDEF / NE ANLADI / KIM YAPIYOR" alanlarini buradan doldurur.
-        origin: { source: env.source, raw: env.raw, by: env.understood.by, envelopeId: env.id },
+        origin: {
+          source: env.source,
+          raw: env.raw,
+          by: env.understood.by,
+          envelopeId: env.id,
+          // Bu deger execution yetkisi vermez. runtime-provenance modulu
+          // artifact deposundaki exact, verifyFormation() gecmis parent ile
+          // ayni degilse edge yazmayarak fail-closed kalir.
+          formationId: typeof body.formationId === "string" && body.formationId.length <= 256 ? body.formationId : undefined,
+        },
       } as Intent);
       env.taskId = r.taskId;
       envelopes.dispatched(env);

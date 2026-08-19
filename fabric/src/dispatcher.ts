@@ -22,6 +22,14 @@ export class Dispatcher {
   private journal: Journal;
   private sse: SseHub;
   private trustedLlmContext?: () => Promise<string>;
+  private onTaskCompleted?: (evidence: {
+    type: "task.completed";
+    taskId: string;
+    correlationId: string;
+    capability: string;
+    result: unknown;
+    formationId?: string;
+  }) => Promise<void> | void;
 
   // IPTAL EDILENLER (2026-08-16'da eklendi).
   // DURUST SINIR: bir capability zaten calisiyorsa (orn. `script.run` bir
@@ -53,12 +61,16 @@ export class Dispatcher {
     journal: Journal,
     initialState: FabricState,
     sse: SseHub,
-    options?: { trustedLlmContext?: () => Promise<string> },
+    options?: {
+      trustedLlmContext?: () => Promise<string>;
+      onTaskCompleted?: Dispatcher["onTaskCompleted"];
+    },
   ) {
     this.journal = journal;
     this.sse = sse;
     this.state = initialState;
     this.trustedLlmContext = options?.trustedLlmContext;
+    this.onTaskCompleted = options?.onTaskCompleted;
   }
 
   getState(): FabricState {
@@ -430,6 +442,20 @@ export class Dispatcher {
           payload: { taskId, result: journaled },
           idempotencyKey: null,
         });
+        // Runtime provenance execution'i veya task sonucunu DEGISTIRMEZ.
+        // Dispatcher journal'a completed event'ini yazdiktan sonra, yalniz
+        // redakte edilmis journal sonucuyla witness yazmayi dener. Hata
+        // gorunur kalir ama tamamlanmis capability'yi geriye donuk bozmaz.
+        if (this.onTaskCompleted) {
+          void Promise.resolve(this.onTaskCompleted({
+            type: "task.completed",
+            taskId,
+            correlationId,
+            capability: intent.type,
+            result: journaled,
+            formationId: intent.origin?.formationId,
+          })).catch((err) => logErr("dispatcher:runtimeProvenance", err));
+        }
         this.reconcile(intent, taskId, correlationId, result.data);
         return;
       }

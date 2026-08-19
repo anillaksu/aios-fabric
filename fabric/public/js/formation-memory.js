@@ -13,6 +13,8 @@
 
 export const FORMATION_SCHEMA = "aios.formation.v1";
 export const FORMATION_MEMORY_SCHEMA = "aios.formation-memory.v1";
+export const RUNTIME_WITNESS_SCHEMA = "aios.runtime-witness.v1";
+export const RUNTIME_PROVENANCE_EDGE_SCHEMA = "aios.runtime-provenance-edge.v1";
 
 function canonicalValue(value) {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
@@ -41,6 +43,18 @@ async function sha256(value) {
   const bytes = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isSha256Id(value) {
+  return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
+function isLedgerPreviousHash(value) {
+  return value === "GENESIS" || isSha256Id(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
 }
 
 function sortedStrings(values) {
@@ -225,3 +239,153 @@ export async function importFormationMemory(memory, portable) {
   return joinFormationMemory(memory, portable.formations);
 }
 
+/* ─── Runtime witness / immutable provenance edge ────────────────────────
+ * Runtime Ledger fiziksel surec kanitini, dispatcher ise execution kanitini
+ * tasir. Ikisi ayni sey degildir. Bu primitive yalniz bunlarin ikisi de
+ * dogrulandiginda bir formation'a immutable edge baglar; root formation asla
+ * degistirilmez ve ham capability sonucu saklanmaz.
+ */
+export async function createRuntimeWitness({ parentFormationId, completion, ledger }) {
+  if (!isNonEmptyString(parentFormationId)) throw new TypeError("exact parent formation gerekli");
+  if (!completion || completion.type !== "task.completed") throw new TypeError("yalniz task.completed runtime witness uretebilir");
+  if (!isNonEmptyString(completion.taskId) || !isNonEmptyString(completion.correlationId) || !isNonEmptyString(completion.capability)) {
+    throw new TypeError("completion task/correlation/capability gerekli");
+  }
+  if (!ledger || ledger.role !== "fabric" || !["started", "replaced", "stable"].includes(ledger.status)) {
+    throw new TypeError("yalniz mevcut fabric ledger checkpoint witness olabilir");
+  }
+  if (!isSha256Id(ledger.eventHash) || !isLedgerPreviousHash(ledger.previousHash)
+    || !isSha256Id(ledger.processWitness) || !isSha256Id(ledger.sourceHash)) {
+    throw new TypeError("ledger checkpoint hash zinciri eksik veya gecersiz");
+  }
+
+  // completion.result yalniz bu saf hesapta kullanilir; witness'a ham veri
+  // degil onun digest'i yazilir. Dispatcher hassas sonuc redaksiyonunu zaten
+  // completion'a uygulamis olmalidir.
+  const resultDigest = "sha256:" + await sha256(completion.result);
+  const body = {
+    schema: RUNTIME_WITNESS_SCHEMA,
+    parentFormationId,
+    taskId: completion.taskId,
+    correlationId: completion.correlationId,
+    capability: completion.capability,
+    resultDigest,
+    ledger: {
+      eventHash: ledger.eventHash,
+      previousHash: ledger.previousHash,
+      processWitness: ledger.processWitness,
+      sourceHash: ledger.sourceHash,
+    },
+  };
+  return { ...body, id: "runtime-witness:" + await sha256(body) };
+}
+
+export async function verifyRuntimeWitness(witness) {
+  try {
+    if (!witness || witness.schema !== RUNTIME_WITNESS_SCHEMA || !isNonEmptyString(witness.id)
+      || !isNonEmptyString(witness.parentFormationId) || !isNonEmptyString(witness.taskId)
+      || !isNonEmptyString(witness.correlationId) || !isNonEmptyString(witness.capability)
+      || !isSha256Id(witness.resultDigest)) return false;
+    const ledger = witness.ledger;
+    if (!ledger || !isSha256Id(ledger.eventHash) || !isLedgerPreviousHash(ledger.previousHash)
+      || !isSha256Id(ledger.processWitness) || !isSha256Id(ledger.sourceHash)) return false;
+    const body = {
+      schema: RUNTIME_WITNESS_SCHEMA,
+      parentFormationId: witness.parentFormationId,
+      taskId: witness.taskId,
+      correlationId: witness.correlationId,
+      capability: witness.capability,
+      resultDigest: witness.resultDigest,
+      ledger: {
+        eventHash: ledger.eventHash,
+        previousHash: ledger.previousHash,
+        processWitness: ledger.processWitness,
+        sourceHash: ledger.sourceHash,
+      },
+    };
+    return witness.id === "runtime-witness:" + await sha256(body);
+  } catch {
+    return false;
+  }
+}
+
+export async function createRuntimeProvenanceEdge({ parent, witness }) {
+  if (!(await verifyFormation(parent))) throw new TypeError("exact parent formation dogrulanamadi");
+  if (!(await verifyRuntimeWitness(witness))) throw new TypeError("runtime witness dogrulanamadi");
+  if (parent.id !== witness.parentFormationId) throw new TypeError("runtime witness exact parent ile eslesmiyor");
+  if (!parent.context.capabilities.includes(witness.capability)) {
+    throw new TypeError("runtime witness capability parent formation sozlesmesinde degil");
+  }
+  const parentRef = {
+    id: parent.id,
+    contentId: parent.contentId,
+    contextId: parent.contextId,
+    witnessId: parent.witnessId,
+  };
+  const body = { schema: RUNTIME_PROVENANCE_EDGE_SCHEMA, parent: parentRef, witness };
+  return { ...body, id: "provenance-edge:" + await sha256(body) };
+}
+
+export async function verifyRuntimeProvenanceEdge(edge, parent = null) {
+  try {
+    if (!edge || edge.schema !== RUNTIME_PROVENANCE_EDGE_SCHEMA || !isNonEmptyString(edge.id)
+      || !edge.parent || !(await verifyRuntimeWitness(edge.witness))) return false;
+    const parentRef = edge.parent;
+    if (![parentRef.id, parentRef.contentId, parentRef.contextId, parentRef.witnessId].every(isNonEmptyString)
+      || parentRef.id !== edge.witness.parentFormationId) return false;
+    const body = { schema: RUNTIME_PROVENANCE_EDGE_SCHEMA, parent: parentRef, witness: edge.witness };
+    if (edge.id !== "provenance-edge:" + await sha256(body)) return false;
+    if (!parent) return true;
+    return (await verifyFormation(parent))
+      && parent.id === parentRef.id
+      && parent.contentId === parentRef.contentId
+      && parent.contextId === parentRef.contextId
+      && parent.witnessId === parentRef.witnessId
+      && parent.context.capabilities.includes(edge.witness.capability);
+  } catch {
+    return false;
+  }
+}
+
+/** Immutable edge set-union: formation JOIN ile ayni cebirsel semantik. */
+export async function joinRuntimeProvenance(...collections) {
+  const byId = new Map();
+  for (const collection of collections) {
+    for (const edge of collection || []) {
+      if (!(await verifyRuntimeProvenanceEdge(edge))) throw new TypeError("gecersiz runtime provenance edge join edilemez");
+      const existing = byId.get(edge.id);
+      if (existing && canonicalJson(existing) !== canonicalJson(edge)) {
+        throw new TypeError("ayni provenance edge id farkli canonical kayitla birlesemez");
+      }
+      byId.set(edge.id, edge);
+    }
+  }
+  return [...byId.values()].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/** Formation ve edge'leri ayni portable pakette, exact parent kontroluyla tasir. */
+export async function exportFormationMemoryBundle(formations, provenanceEdges) {
+  const joinedFormations = await joinFormationMemory(formations);
+  const joinedEdges = await joinRuntimeProvenance(provenanceEdges);
+  const parents = new Map(joinedFormations.map((formation) => [formation.id, formation]));
+  for (const edge of joinedEdges) {
+    if (!(await verifyRuntimeProvenanceEdge(edge, parents.get(edge.parent.id)))) {
+      throw new TypeError("portable provenance edge exact parent olmadan export edilemez");
+    }
+  }
+  return { schema: FORMATION_MEMORY_SCHEMA, formations: joinedFormations, provenanceEdges: joinedEdges };
+}
+
+export async function importFormationMemoryBundle(formations, provenanceEdges, portable) {
+  if (!portable || portable.schema !== FORMATION_MEMORY_SCHEMA || !Array.isArray(portable.formations)
+    || !Array.isArray(portable.provenanceEdges)) throw new TypeError("gecersiz formation provenance paketi");
+  const joinedFormations = await joinFormationMemory(formations, portable.formations);
+  const joinedEdges = await joinRuntimeProvenance(provenanceEdges, portable.provenanceEdges);
+  const parents = new Map(joinedFormations.map((formation) => [formation.id, formation]));
+  for (const edge of joinedEdges) {
+    if (!(await verifyRuntimeProvenanceEdge(edge, parents.get(edge.parent.id)))) {
+      throw new TypeError("import provenance edge exact parent olmadan kabul edilemez");
+    }
+  }
+  return { formations: joinedFormations, provenanceEdges: joinedEdges };
+}
