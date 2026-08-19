@@ -347,3 +347,38 @@ Bu FACT yalnız gerçek dispatcher execution + provenance/portability kabulüdü
    açılmadı.
 2. B-9 ayrı operasyonel risktir: bir sonraki canlı test öncesi anlık sağlık
    yeniden kontrol edilir; bu risk otomatik ürün önceliğine dönüştürülmez.
+
+---
+
+## Portable CLI + Connectivity Bridge (2026-08-19)
+
+```text
+PORTABLE_CLI_COMMIT          = 55c4d62
+PORTABLE_CLI_PATH_FIX_COMMIT = 0cb9db9 -> 3b6c579
+```
+
+**FACT (dar kapsam):** `fabric/bin/aios.mjs`, Node 22+ bulunan Windows ve
+Termux üzerinde aynı `argv → stdout/stderr → exit-code` sözleşmesiyle yalnız
+okuma yapar: `status`, `capabilities`, `artifacts`, `formations`. Hiçbir
+capability çalıştırmaz; dispatcher/policy sınırını değiştirmez. Windows'tan
+Tailscale URL ile ve Termux'tan localhost ile alınan gerçek
+`aios --json formations` çıktılarının SHA-256 değeri aynıydı:
+`7c711043a31ecbab7a0e9f91ed29125db23d8659f62d3f758d7adb6ad1e0adac`.
+Yerel ve telefonda `npm test` **151/151**, `npm run build` **BUILD_OK** geçti.
+
+Bu **shell script taşınabilirliği** iddiası değildir: Termux:Widget, `am`,
+Termux:API, `rish` ve `sshd` Android adapter'ları olarak kalır. macOS/zsh ve
+genel Linux/bash aynı Node CLI sözleşmesinin hedefleridir, fakat bu oturumda
+canlı kabul kanıtları yoktur.
+
+**Connectivity Bridge düzeltmesi:** `ss`/`netstat` Android'de 8022'yi
+göstermese bile köprü artık önce `nc -z -w 1 127.0.0.1 8022` ile gerçek TCP
+dinleyicisini doğrular; başarıyı ancak bu kontrolden sonra yazar. Dinleyici
+yoksa mevcut runit `sshd` servisinden `sv up` ister ve sekiz saniye boyunca
+yeniden doğrular. Canlı widget çalıştırması `bridge_exit=0` ve
+`tcp_listener_exit=0` verdi; log `sshd zaten dinliyor` kaydetti.
+
+**Açık sınır:** canlı port hâlâ elle başlatılmış `sshd` tarafından tutulduğu
+için runit servisinin gerçek port kaybından sonra devralma kabulü bu oturumda
+sahnelenmedi. Bunu doğrulamak mevcut SSH oturumunu kesmeyi gerektirir; B-9
+survivability FACT'i değildir.
