@@ -9,7 +9,7 @@
 
 import { read, getJSON } from "./api.js";
 import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWorkspaceEntries } from "./workspace-catalog.js";
-import { recentApplications } from "./application-model.js";
+import { applicationIcon, recentApplications } from "./application-model.js";
 import { continuityProjection } from "./continuity-projection.js";
 
 /* ── paylasilan durum (shell tarafindan tazelenir) ── */
@@ -28,6 +28,7 @@ export const S = {
 
 const pct = (b) => (b ? (b.percentage ?? b.level ?? 0) : null);
 const batTone = (p) => (p == null ? "idle" : p < 15 ? "error" : p < 35 ? "warn" : "ok");
+const iconForApplication = (entry, artifacts) => applicationIcon(entry, (artifacts || []).find((artifact) => artifact?.id === entry?.artifactId));
 
 function greeting() {
   const h = new Date().getHours();
@@ -71,7 +72,7 @@ export function homeScreen(artifacts = [], applications = []) {
     sections.push({
       type: "section", title: "SON KULLANILAN UYGULAMALAR", layout: "grid-4",
       children: recentWorkspaceApps.map((app) => ({
-        type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        type: "app-tile", name: app.title || "Uygulama", icon: iconForApplication(app, artifacts),
         action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } },
       })),
     });
@@ -110,7 +111,7 @@ export function homeScreen(artifacts = [], applications = []) {
     sections.push({
       type: "section", title: "UYGULAMALAR", trailing: String(applications.length), layout: "grid-4",
       children: applications.map((app) => ({
-        type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        type: "app-tile", name: app.title || "Uygulama", icon: iconForApplication(app, artifacts),
         action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } },
       })),
     });
@@ -191,7 +192,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
     }
     if (category === "AIOS" && applications.length) {
       sections.push({ type: "section", title: "UYGULAMALARIM · " + applications.length, layout: "grid-4",
-        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: iconForApplication(app, artifacts),
           action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })) });
     }
     return { id: "discover:" + category, title: category, sections };
@@ -208,7 +209,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
     if (applications.length) {
       sections.push({
         type: "section", title: "UYGULAMALARIM", layout: "grid-4",
-        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+        children: applications.slice(0, 8).map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: iconForApplication(app, artifacts),
           action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })),
       });
     }
@@ -227,7 +228,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
 
   if (catalog.length) sections.push({ type: "section", title: "AIOS İŞLEVLERİ", children: catalog.map(card) });
   if (matchingApplications.length) sections.push({ type: "section", title: "UYGULAMALARIM", layout: "grid-4",
-    children: matchingApplications.map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: app.icon,
+    children: matchingApplications.map((app) => ({ type: "app-tile", name: app.title || "Uygulama", icon: iconForApplication(app, artifacts),
       action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } })) });
   if (matchingArtifacts.length) sections.push({ type: "section", title: "ARTEFAKTLAR", children: [{ type: "list", children: matchingArtifacts.slice(0, 8).map((artifact) => ({
     type: "list-row", icon: "square_stack_3d_up", title: artifact.title || "Artefakt", subtitle: artifact.prompt ? artifact.prompt.slice(0, 72) : "",
@@ -402,7 +403,7 @@ export function hermesEmptyScreen(artifacts = [], applications = []) {
   const continueWith = [];
   if (continuity.recentApplication) {
     const app = continuity.recentApplication;
-    continueWith.push({ type: "action-card", icon: app.icon || "square_grid_2x2_fill",
+    continueWith.push({ type: "action-card", icon: iconForApplication(app, artifacts),
       title: app.title || "Son uygulama", subtitle: "En son bunu açtın · kaldığın yerden devam et",
       action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } });
   }

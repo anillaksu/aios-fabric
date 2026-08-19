@@ -46,6 +46,20 @@ test("HOME son kullanilan ApplicationEntry'yi artifact'ten ayri launcher kimligi
   assert.deepEqual(recent.children[0].action.payload, { applicationId: "app1", artifactId: "artifact1" });
 });
 
+test("legacy ApplicationEntry eksik ikonu HOME, KESFET ve Linhx'te ayni artifact metadata'sindan alir", () => {
+  const artifacts = [{ id: "sound", title: "Ses", capabilities: ["volume.set"] }];
+  const apps = [{ id: "app1", artifactId: "sound", title: "Ses", icon: "square_grid_2x2_fill", lastOpenedAt: 10 }];
+  const home = homeScreen(artifacts, apps);
+  const homeApps = home.sections.find((section) => section.title === "UYGULAMALAR");
+  assert.equal(homeApps.children[0].icon, "speaker_2_fill");
+  const discover = discoverScreen("ses", [], artifacts, apps);
+  const discovered = discover.sections.find((section) => section.title === "UYGULAMALARIM");
+  assert.equal(discovered.children[0].icon, "speaker_2_fill");
+  const linhx = hermesEmptyScreen(artifacts, apps);
+  const continuation = linhx.sections.find((section) => section.title === "NEREDEN DEVAM EDELİM?");
+  assert.equal(continuation.children[0].icon, "speaker_2_fill");
+});
+
 test("telefon uygulamalari loading, empty ve error durumlarini ayirt eder ve retry UI action kullanir", () => {
   S.apps = [];
   S.appsLoadState = "loading";
