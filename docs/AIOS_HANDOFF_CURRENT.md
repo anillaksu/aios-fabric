@@ -53,6 +53,9 @@ W6_MEDIA_CONTROL_FACT_CODE_COMMIT = eaf2a64
 B13_READ_APP_LIST_COMMIT = d5644f6
 W6_PHONE_WORKSPACE_FACT_CODE_COMMIT = 6b97613
 W6_PHONE_WORKSPACE_NAVIGATION_FACT_CODE_COMMIT = c66e5da
+AGENT_SURFACE_TEST_VERIFIED_COMMIT = 8237ba9
+GATEWAY_PROVISIONING_FACT_COMMIT = a4b7b2d
+OPERATOR_DECK_TEST_VERIFIED_COMMIT = 385a7ed
 ```
 
 Bu iki commit ayrı tutulur: `/read` dar read facade'ı ile A2A insan-onayı
@@ -64,6 +67,13 @@ kabulü yoktur ve **FACT değildir**. Bu handoff dosyasını içeren commit kend
 hash'ini içeriğine doğru yazamaz; geçerli `CANONICAL_HEAD` her devralmada
 `git rev-parse HEAD` ile okunur ve bu dosyadaki önceki zincir ankrajlarıyla
 karşılaştırılır.
+
+`GATEWAY_PROVISIONING_FACT_COMMIT` için canlı zincir: owner'ın Termux:Widget
+başarısı, sır göstermeden `fabric.env` mode `600` ve authenticated Gateway
+`/v1/models` HTTP `200`. Bu operational FACT, B-9'un Android/MIUI altında
+uzun dönem süreç hayatta kalma garantisi değildir. `OPERATOR_DECK_TEST_VERIFIED_COMMIT`
+telefon dağıtımı/test kanıtı taşır; görsel kullanıcı kabulü gelene kadar FACT
+olarak okunmaz.
 
 `W6_UI_EXPRESSIVENESS_FACT_CODE_COMMIT`, yukarıdaki üç commit'in son kod
 ankrajıdır. FACT için ayrıca aşağıdaki canlı K5 kanıtı gerekir; bu kod zinciri
