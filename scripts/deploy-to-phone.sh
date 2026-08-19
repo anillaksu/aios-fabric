@@ -29,7 +29,7 @@ norm() { awk '{gsub(/^\*/,"",$2); print $1, $2}' | sort; }
 # HIC kanitlanmamisti. UI bastan yazilacaksa (W6) bu delik once kapanmali.
 # vendor/ ve icons/ ucuncu-parti/ikili varliklar: nadiren degisir, ayri
 # kuruluma birakildi (her deploy'da 1.5MB md5'lemek anlamsiz).
-REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/package.json fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json scripts/start_hermes_os.sh scripts/10-aios.sh scripts/watchdog.sh scripts/provision-fabric-gateway-key.sh scripts/aios-admin-console.sh scripts/aios-workspace-map.sh scripts/aios-connectivity-bridge.sh scripts/aios-runtime-ledger.sh"
+REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/bin/* fabric/scripts/* fabric/package.json fabric/public/js/* fabric/public/css/* fabric/public/aios.html fabric/public/sw.js fabric/public/manifest.json scripts/start_hermes_os.sh scripts/10-aios.sh scripts/watchdog.sh scripts/provision-fabric-gateway-key.sh scripts/aios-admin-console.sh scripts/aios-workspace-map.sh scripts/aios-connectivity-bridge.sh scripts/aios-runtime-ledger.sh"
 
 # Iki tarafta AYNI dosya listesi uzerinden md5 uretir (yol farki normalize).
 # 2026-08-17 BULUNDU: package.json bu listede hic yoktu - "test" script'i
@@ -37,10 +37,10 @@ REL_PATHS="fabric/src/*.ts fabric/test/*.test.ts fabric/package.json fabric/publ
 # yerine "Missing script" ile patladi. Dagitim BURADA dogru sekilde durdu
 # (sessizce gecmedi) ama kok neden buydu: dagitim kapsami TAM degildi.
 phone_md5() {
-    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum ~/start_hermes_os.sh | awk "{print \$1, \"launcher/root\"}"; md5sum ~/.shortcuts/start_hermes_os.sh | awk "{print \$1, \"launcher/widget\"}"; md5sum ~/watchdog.sh | awk "{print \$1, \"launcher/watchdog\"}"; md5sum ~/.termux/boot/10-aios.sh | awk "{print \$1, \"launcher/boot\"}"; md5sum ~/.shortcuts/provision-fabric-gateway-key.sh | awk "{print \$1, \"launcher/provision-widget\"}"; md5sum ~/.shortcuts/aios-admin-console.sh | awk "{print \$1, \"launcher/admin-widget\"}"; md5sum ~/.shortcuts/aios-workspace-map.sh | awk "{print \$1, \"launcher/workspace-map-widget\"}"; md5sum ~/.shortcuts/aios-connectivity-bridge.sh | awk "{print \$1, \"launcher/connectivity-widget\"}"; md5sum ~/.shortcuts/aios-runtime-ledger.sh | awk "{print \$1, \"launcher/runtime-ledger-widget\"}"' | norm
+    $SSH "$PHONE" 'cd ~/fabric && md5sum src/*.ts test/*.test.ts bin/* scripts/* package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum ~/start_hermes_os.sh | awk "{print \$1, \"launcher/root\"}"; md5sum ~/.shortcuts/start_hermes_os.sh | awk "{print \$1, \"launcher/widget\"}"; md5sum ~/watchdog.sh | awk "{print \$1, \"launcher/watchdog\"}"; md5sum ~/.termux/boot/10-aios.sh | awk "{print \$1, \"launcher/boot\"}"; md5sum ~/.shortcuts/provision-fabric-gateway-key.sh | awk "{print \$1, \"launcher/provision-widget\"}"; md5sum ~/.shortcuts/aios-admin-console.sh | awk "{print \$1, \"launcher/admin-widget\"}"; md5sum ~/.shortcuts/aios-workspace-map.sh | awk "{print \$1, \"launcher/workspace-map-widget\"}"; md5sum ~/.shortcuts/aios-connectivity-bridge.sh | awk "{print \$1, \"launcher/connectivity-widget\"}"; md5sum ~/.shortcuts/aios-runtime-ledger.sh | awk "{print \$1, \"launcher/runtime-ledger-widget\"}"' | norm
 }
 repo_md5() {
-    (cd "$REPO/fabric" && md5sum src/*.ts test/*.test.ts package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/root"}'; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/widget"}'; md5sum "$REPO/scripts/watchdog.sh" | awk '{print $1, "launcher/watchdog"}'; md5sum "$REPO/scripts/10-aios.sh" | awk '{print $1, "launcher/boot"}'; md5sum "$REPO/scripts/provision-fabric-gateway-key.sh" | awk '{print $1, "launcher/provision-widget"}'; md5sum "$REPO/scripts/aios-admin-console.sh" | awk '{print $1, "launcher/admin-widget"}'; md5sum "$REPO/scripts/aios-workspace-map.sh" | awk '{print $1, "launcher/workspace-map-widget"}'; md5sum "$REPO/scripts/aios-connectivity-bridge.sh" | awk '{print $1, "launcher/connectivity-widget"}'; md5sum "$REPO/scripts/aios-runtime-ledger.sh" | awk '{print $1, "launcher/runtime-ledger-widget"}') | norm
+    (cd "$REPO/fabric" && md5sum src/*.ts test/*.test.ts bin/* scripts/* package.json public/js/* public/css/* public/aios.html public/sw.js public/manifest.json 2>/dev/null; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/root"}'; md5sum "$REPO/scripts/start_hermes_os.sh" | awk '{print $1, "launcher/widget"}'; md5sum "$REPO/scripts/watchdog.sh" | awk '{print $1, "launcher/watchdog"}'; md5sum "$REPO/scripts/10-aios.sh" | awk '{print $1, "launcher/boot"}'; md5sum "$REPO/scripts/provision-fabric-gateway-key.sh" | awk '{print $1, "launcher/provision-widget"}'; md5sum "$REPO/scripts/aios-admin-console.sh" | awk '{print $1, "launcher/admin-widget"}'; md5sum "$REPO/scripts/aios-workspace-map.sh" | awk '{print $1, "launcher/workspace-map-widget"}'; md5sum "$REPO/scripts/aios-connectivity-bridge.sh" | awk '{print $1, "launcher/connectivity-widget"}'; md5sum "$REPO/scripts/aios-runtime-ledger.sh" | awk '{print $1, "launcher/runtime-ledger-widget"}') | norm
 }
 
 say "0) Telefona erisim"
@@ -63,12 +63,16 @@ if [ "${1:-}" = "--check" ]; then
 fi
 
 say "1) Yedek (telefonda)"
-$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css $D/test $D/shortcuts $D/boot && cp ~/fabric/src/*.ts ~/fabric/package.json ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json ~/start_hermes_os.sh ~/watchdog.sh ~/aios-runtime-ledger.sh $D/ 2>/dev/null; cp ~/.shortcuts/start_hermes_os.sh ~/.shortcuts/provision-fabric-gateway-key.sh ~/.shortcuts/aios-admin-console.sh ~/.shortcuts/aios-workspace-map.sh ~/.shortcuts/aios-connectivity-bridge.sh ~/.shortcuts/aios-runtime-ledger.sh $D/shortcuts/ 2>/dev/null; cp ~/.termux/boot/10-aios.sh $D/boot/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; cp ~/fabric/test/*.test.ts $D/test/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
+$SSH "$PHONE" 'D=~/backup-$(date +%Y%m%d-%H%M%S); mkdir -p $D/css $D/test $D/bin $D/scripts $D/shortcuts $D/boot && cp ~/fabric/src/*.ts ~/fabric/package.json ~/fabric/public/js/* ~/fabric/public/aios.html ~/fabric/public/sw.js ~/fabric/public/manifest.json ~/start_hermes_os.sh ~/watchdog.sh ~/aios-runtime-ledger.sh $D/ 2>/dev/null; cp ~/fabric/bin/* $D/bin/ 2>/dev/null; cp ~/fabric/scripts/* $D/scripts/ 2>/dev/null; cp ~/.shortcuts/start_hermes_os.sh ~/.shortcuts/provision-fabric-gateway-key.sh ~/.shortcuts/aios-admin-console.sh ~/.shortcuts/aios-workspace-map.sh ~/.shortcuts/aios-connectivity-bridge.sh ~/.shortcuts/aios-runtime-ledger.sh $D/shortcuts/ 2>/dev/null; cp ~/.termux/boot/10-aios.sh $D/boot/ 2>/dev/null; cp ~/fabric/public/css/* $D/css/ 2>/dev/null; cp ~/fabric/test/*.test.ts $D/test/ 2>/dev/null; echo "$D ($(find $D -type f | wc -l) dosya)"'
 
 say "2) Dagit"
 $SCP "$REPO"/fabric/src/*.ts          "$PHONE":'~/fabric/src/'        >/dev/null || fail "src kopyalanamadi"
 $SSH "$PHONE" 'mkdir -p ~/fabric/test' || fail "test dizini olusturulamadi"
 $SCP "$REPO"/fabric/test/*.test.ts    "$PHONE":'~/fabric/test/'       >/dev/null || fail "test kopyalanamadi"
+$SSH "$PHONE" 'mkdir -p ~/fabric/bin' || fail "bin dizini olusturulamadi"
+$SCP "$REPO"/fabric/bin/*             "$PHONE":'~/fabric/bin/'        >/dev/null || fail "cli kopyalanamadi"
+$SSH "$PHONE" 'mkdir -p ~/fabric/scripts' || fail "build script dizini olusturulamadi"
+$SCP "$REPO"/fabric/scripts/*         "$PHONE":'~/fabric/scripts/'    >/dev/null || fail "build script kopyalanamadi"
 $SCP "$REPO"/fabric/package.json      "$PHONE":'~/fabric/'            >/dev/null || fail "package.json kopyalanamadi"
 $SCP "$REPO"/fabric/public/js/*       "$PHONE":'~/fabric/public/js/'  >/dev/null || fail "js kopyalanamadi"
 $SCP "$REPO"/fabric/public/css/*      "$PHONE":'~/fabric/public/css/' >/dev/null || fail "css kopyalanamadi"
@@ -105,6 +109,8 @@ clean_extra() {
     fi
 }
 clean_extra '~/fabric/src' "$REPO/fabric/src" '*.ts'
+clean_extra '~/fabric/bin' "$REPO/fabric/bin" '*'
+clean_extra '~/fabric/scripts' "$REPO/fabric/scripts" '*'
 clean_extra '~/fabric/public/js' "$REPO/fabric/public/js" '*'
 clean_extra '~/fabric/public/css' "$REPO/fabric/public/css" '*'
 echo "(temiz - fazla dosya kalmadi)"

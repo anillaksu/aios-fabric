@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "description": "TypeScript orchestration/state spine - REFLEX/THOUGHT/AGENT dispatch, SQLite WAL journal, optimistic UI, A2A delegation.",
+  "bin": {
+    "aios": "bin/aios.mjs"
+  },
   "engines": {
     "node": ">=22.6"
   },
   "scripts": {
     "start": "node --experimental-strip-types src/server.ts",
-    "build": "for f in src/*.ts; do node --experimental-strip-types --check \"$f\" || exit 1; done; node --check public/js/app.js && node --check public/js/api.js && echo BUILD_OK",
+    "build": "node scripts/build-check.mjs",
     "test": "node --experimental-strip-types --test test/*.test.ts"
   }
 }
