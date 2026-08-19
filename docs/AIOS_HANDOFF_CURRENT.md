@@ -382,3 +382,20 @@ yeniden doğrular. Canlı widget çalıştırması `bridge_exit=0` ve
 için runit servisinin gerçek port kaybından sonra devralma kabulü bu oturumda
 sahnelenmedi. Bunu doğrulamak mevcut SSH oturumunu kesmeyi gerektirir; B-9
 survivability FACT'i değildir.
+
+---
+
+## Node admission / dağıtım sınırı (2026-08-19)
+
+`289dad3` ile CLI'ya `aios node doctor` eklendi. Bu, mevcut A2A Agent Card,
+`/runtime-status` ve `/capabilities` için sıralı salt-okunur admission
+kontrolüdür; eksik herhangi bir kontrol exit `3` ile fail-closed döner ve
+node/peer/approval/capability kaydı yapmaz. Windows x64 ve gerçek Termux
+Android/arm64 üzerinde canlı geçti; ikisinde de Node `26.4.0`, A2A `1.0`,
+4 runtime servisi ve 39 capability gözlendi. Yerel ve telefon testleri
+**153/153**, BUILD_OK geçti.
+
+Tam başlatma, roller ve gerçek eksik matris:
+`docs/NODE_DISTRIBUTION_TARGET.md`. Bu FACT yalnız observer/admission CLI
+katmanıdır. Linux/macOS/Windows'a aynı Termux native capability'lerinin
+kopyalandığı veya public/global node dağıtımının hazır olduğu anlamına gelmez.
