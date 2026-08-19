@@ -67,6 +67,16 @@ export function homeScreen(artifacts = [], applications = []) {
     })),
   });
 
+  // Arama gerektirmeyen günlük yönetim köprüleri: mevcut yüzeylere saf
+  // navigation sağlar; capability/authority veya yeni servis yaratmaz.
+  sections.push({
+    type: "section", title: "HIZLI ERİŞİM", children: [{ type: "list", children: [
+      { type: "list-row", icon: "point_3_connected_trianglepath_dotted", title: "AIOS Sistem Haritası", subtitle: "Tüm gerçek katmanlara tek görünür giriş", action: { type: "ui.goto", payload: { screen: "system-map" } } },
+      { type: "list-row", icon: "gearshape_fill", title: "Yönetim Merkezi", subtitle: "Canlı servisler, bağlantılar ve görevler", action: { type: "ui.goto", payload: { screen: "management" } } },
+      { type: "list-row", icon: "iphone", title: "Telefon Uygulamaları", subtitle: "Android uygulamalarını doğrudan aç", action: { type: "ui.goto", payload: { screen: "androidApps" } } },
+    ] }],
+  });
+
   const recentWorkspaceApps = recentApplications(applications, 4);
   if (recentWorkspaceApps.length) {
     sections.push({
@@ -251,7 +261,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
     sections.push({ type: "section", title: "TELEFON UYGULAMALARI", children: [{ type: "error-state", icon: "wifi_exclamationmark", title: "Uygulama listesi alınamadı", detail: "Listeyi yeniden deneyebilirsin.", actionLabel: "TEKRAR DENE", action: { type: "ui.refreshApps" } }] });
   }
   if (!catalog.length && !matchingApplications.length && !matchingArtifacts.length && !apps.length && !caps.length) {
-    sections.push({ type: "section", title: "SONUÇ", children: [{ type: "empty-state", icon: "magnifyingglass", title: "Eşleşme bulunamadı", detail: "Yerel katalogda bu adla bir işlev yok. İstersen Hermes'e sorabilirsin." }] });
+    sections.push({ type: "section", title: "SONUÇ", children: [{ type: "empty-state", icon: "search", title: "Eşleşme bulunamadı", detail: "Yerel katalogda bu adla bir işlev yok. İstersen Hermes'e sorabilirsin." }] });
   }
   if (caps.length) {
     sections.push({ type: "section", title: "CAPABILITY",
@@ -373,7 +383,7 @@ function operatorAction(target) {
 export function systemMapScreen() {
   const layers = [
     ["Çalışma Alanı", "HOME, son kullanılanlar ve sabit uygulamalar", "house_fill", { tab: "home" }],
-    ["Keşfet", "Cihaz, medya, ağ, sistem ve araçları ara", "magnifyingglass", { tab: "komut" }],
+    ["Keşfet", "Cihaz, medya, ağ, sistem ve araçları ara", "search", { tab: "komut" }],
     ["Uygulamalar", "Kalıcı ApplicationEntry launcher'ları", "app_badge", { screen: "miniapps" }],
     ["Artefaktlar", "Yeniden kullanılabilir deklaratif oluşumlar", "square_stack_3d_up_fill", { tab: "artifacts" }],
     ["Otomasyonlar", "Mevcut olay → kural → eylem akışları", "bolt_horizontal_circle", { screen: "automations" }],
@@ -417,7 +427,7 @@ export function operatorDeckScreen(section = null) {
       })) },
       { type: "section", title: "HIZLI ERİŞİM", children: [{ type: "button-row", children: [
         { type: "button", label: "Ana ekran", icon: "house_fill", iconOnly: true, variant: "ghost", action: { type: "ui.goto", payload: { tab: "home" } } },
-        { type: "button", label: "Keşfet", icon: "magnifyingglass", iconOnly: true, variant: "primary", action: { type: "ui.goto", payload: { tab: "komut" } } },
+        { type: "button", label: "Keşfet", icon: "search", iconOnly: true, variant: "primary", action: { type: "ui.goto", payload: { tab: "komut" } } },
         { type: "button", label: "Linhx", icon: "sparkles", iconOnly: true, variant: "ghost", action: { type: "ui.goto", payload: { tab: "hermes" } } },
       ] }] },
     ],
@@ -485,7 +495,7 @@ export function hermesEmptyScreen(artifacts = [], applications = []) {
   sections.push({
     type: "section", title: "BİRLİKTE OLUŞTUR",
     children: [{ type: "list", children: [
-      { type: "list-row", icon: "magnifyingglass", title: "Mevcut bir işlevi bul", subtitle: "Önce Keşfet'te var olanı aç",
+      { type: "list-row", icon: "search", title: "Mevcut bir işlevi bul", subtitle: "Önce Keşfet'te var olanı aç",
         action: { type: "ui.goto", payload: { tab: "komut" } } },
       { type: "list-row", icon: "square_pencil", title: "Yeni bir işlev iste", subtitle: "İhtiyacını yaz; oluşan artefakt kalıcılaşabilir",
         action: { type: "ui.ask", payload: { q: "Bana günlük kullanacağım yeni bir AIOS uygulaması oluştur" } } },

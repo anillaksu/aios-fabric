@@ -1431,6 +1431,7 @@ function openControlCenter() {
         <button class="c-btn" data-variant="ghost" id="cc-device" style="flex:1">DEVICE</button>
         <button class="c-btn" data-variant="ghost" id="cc-agents" style="flex:1">AGENTS</button>
         <button class="c-btn" data-variant="ghost" id="cc-caps" style="flex:1">CAPS</button>
+        <button class="c-btn" data-variant="ghost" id="cc-map" style="flex:1">HARİTA</button>
       </div>
     </div></div>`;
   const sheet = createSheet(html);
@@ -1601,6 +1602,7 @@ function openControlCenter() {
   document.getElementById("cc-device").onclick = () => go("device");
   document.getElementById("cc-agents").onclick = () => go("agents");
   document.getElementById("cc-caps").onclick = () => go("capabilities");
+  document.getElementById("cc-map").onclick = () => go("system-map");
   sheet.on("closed", () => sheet.destroy());
 }
 

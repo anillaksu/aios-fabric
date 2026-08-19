@@ -38,6 +38,14 @@ test("HOME ve KESFET ayni kategori metadata'sini kullanir; nesneler birbirine do
   assert.equal(entriesForCategory("Uygulamalar")[0].action.payload.screen, "androidApps");
 });
 
+test("HOME arama gerektirmeden sistem haritasi, yonetim ve Android koprusune giris verir", () => {
+  const home = homeScreen([], []);
+  const quick = home.sections.find((section) => section.title === "HIZLI ERİŞİM");
+  const rows = quick.children[0].children;
+  assert.deepEqual(rows.map((row) => row.title), ["AIOS Sistem Haritası", "Yönetim Merkezi", "Telefon Uygulamaları"]);
+  assert.equal(rows[0].action.payload.screen, "system-map");
+});
+
 test("HOME son kullanilan ApplicationEntry'yi artifact'ten ayri launcher kimligiyle gosterir", () => {
   const apps = [{ id: "app1", artifactId: "artifact1", title: "Cihaz Durum Merkezi", icon: "gauge", position: 0, lastOpenedAt: 100 }];
   const home = homeScreen([], apps);
