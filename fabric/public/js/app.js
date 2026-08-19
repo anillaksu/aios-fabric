@@ -973,14 +973,14 @@ const chat = [];
 function paintHermes() {
   const host = $("#screen");
   host.innerHTML = "";
-  host.appendChild(pageHead("Hermes", "gpt-5.6-luna"));
+  host.appendChild(pageHead("Hermes", "oluştur, sürdür, birlikte ilerle"));
 
   const wrap = el("div", "c-section");
   const body = el("div", "body");
 
   if (!chat.length) {
     // Bos ekran DEGIL: son artefaktlar + hizli komutlar + aktif isler
-    const suggestions = SC.hermesEmptyScreen(artifacts);
+    const suggestions = SC.hermesEmptyScreen(artifacts, orderedApplications(applications));
     suggestions.sections.forEach((s) => {
       const node = render(s, ctx);
       if (node) body.appendChild(node);

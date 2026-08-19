@@ -6,7 +6,7 @@ import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWork
 // origin kabuğunu verip ekranı dinamik import ediyoruz. Katalog kendisi DOM/ağ
 // bağımsız kalır.
 globalThis.location = { origin: "http://localhost" } as Location;
-const { S, androidAppsScreen, discoverScreen, homeScreen } = await import("../public/js/screens.js");
+const { S, androidAppsScreen, discoverScreen, hermesEmptyScreen, homeScreen } = await import("../public/js/screens.js");
 
 test("Phone Workspace katalogu kisa Turkce aramayi deterministik metadata ile bulur", () => {
   assert.equal(foldWorkspaceText("CİHAZ AĞI"), "cihaz agi");
@@ -54,4 +54,17 @@ test("telefon uygulamalari loading, empty ve error durumlarini ayirt eder ve ret
   const empty = androidAppsScreen().sections[0].children[0];
   assert.equal(empty.type, "empty-state");
   assert.equal(empty.action.type, "ui.refreshApps");
+});
+
+test("iliski yuzeyi yalniz kalici uygulama/artefakt ve task izlerinden devam noktasi cikarir", () => {
+  S.tasks = [{ id: "t1", type: "volume.set", status: "failed", error: "izin yok" }];
+  const surface = hermesEmptyScreen(
+    [{ id: "artifact-1", title: "Ses", createdAt: 5, pinned: true }],
+    [{ id: "app-1", artifactId: "artifact-1", title: "Medya", icon: "music_note", lastOpenedAt: 9 }],
+  );
+  const continueSection = surface.sections.find((section) => section.title === "NEREDEN DEVAM EDELİM?");
+  assert.equal(continueSection.children[0].action.type, "ui.application");
+  const now = surface.sections.find((section) => section.title === "ŞU AN");
+  assert.equal(now.children[0].children[0].trailing, "HATA");
+  assert.ok(surface.sections.some((section) => section.title === "BİRLİKTE OLUŞTUR"));
 });

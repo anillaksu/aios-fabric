@@ -10,6 +10,7 @@
 import { read, getJSON } from "./api.js";
 import { WORKSPACE_CATEGORIES, entriesForCategory, foldWorkspaceText, searchWorkspaceEntries } from "./workspace-catalog.js";
 import { recentApplications } from "./application-model.js";
+import { continuityProjection } from "./continuity-projection.js";
 
 /* ── paylasilan durum (shell tarafindan tazelenir) ── */
 export const S = {
@@ -302,42 +303,58 @@ export function toolsScreen() {
 
 /* ══════════════ HERMES BOŞ EKRANI ══════════════
    "Bos siyah alan" YOK: son artefaktlar + hizli komutlar + aktif isler.  */
-export function hermesEmptyScreen(artifacts = []) {
+export function hermesEmptyScreen(artifacts = [], applications = []) {
   const sections = [];
-  const running = S.tasks.filter((t) => ["running", "optimistic", "pending"].includes(t.status));
+  const continuity = continuityProjection({ artifacts, applications, tasks: S.tasks });
 
-  if (running.length) {
+  const continueWith = [];
+  if (continuity.recentApplication) {
+    const app = continuity.recentApplication;
+    continueWith.push({ type: "action-card", icon: app.icon || "square_grid_2x2_fill",
+      title: app.title || "Son uygulama", subtitle: "En son bunu açtın · kaldığın yerden devam et",
+      action: { type: "ui.application", payload: { applicationId: app.id, artifactId: app.artifactId } } });
+  }
+  if (continuity.recentArtifact && (!continuity.recentApplication || continuity.recentArtifact.id !== continuity.recentApplication.artifactId)) {
+    const artifact = continuity.recentArtifact;
+    continueWith.push({ type: "action-card", icon: "square_stack_3d_up_fill", title: artifact.title || "Son artefakt",
+      subtitle: "Son oluşturulan iş · aç ve sürdür", action: { type: "ui.artifact", payload: { id: artifact.id } } });
+  }
+  if (continueWith.length) {
     sections.push({
-      type: "section", title: "AKTİF İŞLER",
-      children: running.slice(0, 2).map((t) => ({
-        type: "task-card", title: t.type, source: t.class, status: "WORKING",
-        tone: "info", state: "loading",
-      })),
+      type: "section", title: "NEREDEN DEVAM EDELİM?", children: continueWith.slice(0, 2),
     });
   }
-  if (artifacts.length) {
+
+  if (continuity.activeTasks.length || continuity.failedTasks.length) {
     sections.push({
-      type: "section", title: "SON ARTEFAKTLAR",
-      children: [{ type: "list", children: artifacts.slice(0, 4).map((a) => ({
-        type: "list-row", icon: "square_stack_3d_up", title: a.title,
-        subtitle: a.prompt ? a.prompt.slice(0, 48) : "",
-        action: { type: "ui.artifact", payload: { id: a.id } } })) }],
+      type: "section", title: "ŞU AN", children: [{ type: "list", children: [
+        ...continuity.activeTasks.map((task) => ({ type: "list-row", icon: "circle_fill", title: task.type || "Görev",
+          subtitle: "Devam ediyor", trailing: "AKTİF", action: { type: "ui.goto", payload: { tab: "activity" } } })),
+        ...continuity.failedTasks.map((task) => ({ type: "list-row", icon: "xmark_circle", tone: "error", title: task.type || "Görev",
+          subtitle: task.error ? String(task.error).slice(0, 70) : "Sonuç alınamadı", trailing: "HATA",
+          action: { type: "ui.goto", payload: { tab: "activity" } } })),
+      ] }],
     });
   }
+
+  if (continuity.pinnedArtifacts.length) {
+    sections.push({ type: "section", title: "SABİTLEDİKLERİN", children: [{ type: "list", children:
+      continuity.pinnedArtifacts.map((artifact) => ({ type: "list-row", icon: "pin_fill", title: artifact.title || "Artefakt",
+        subtitle: "Kalıcı iş", action: { type: "ui.artifact", payload: { id: artifact.id } } })) }] });
+  }
+
   sections.push({
-    type: "section", title: "ŞUNU DENE",
+    type: "section", title: "BİRLİKTE OLUŞTUR",
     children: [{ type: "list", children: [
-      { type: "list-row", icon: "chart_bar_fill", title: "Pil ve ağ panelini üret",
-        action: { type: "ui.ask", payload: { q: "pil ve ağ durumunu panel olarak göster" } } },
-      { type: "list-row", icon: "internaldrive", title: "Depolama durumunu göster",
-        action: { type: "ui.ask", payload: { q: "depolama durumunu göster" } } },
-      { type: "list-row", icon: "list_bullet", title: "Çalışan servisleri listele",
-        action: { type: "ui.ask", payload: { q: "çalışan servisleri listele" } } },
-      { type: "list-row", icon: "speaker_2_fill", title: "Sesi 5'e düşür",
-        action: { type: "ui.ask", payload: { q: "medya sesini 5'e düşür" } } },
+      { type: "list-row", icon: "magnifyingglass", title: "Mevcut bir işlevi bul", subtitle: "Önce Keşfet'te var olanı aç",
+        action: { type: "ui.goto", payload: { tab: "komut" } } },
+      { type: "list-row", icon: "square_pencil", title: "Yeni bir işlev iste", subtitle: "İhtiyacını yaz; oluşan artefakt kalıcılaşabilir",
+        action: { type: "ui.ask", payload: { q: "Bana günlük kullanacağım yeni bir AIOS uygulaması oluştur" } } },
+      { type: "list-row", icon: "gauge", title: "AIOS'un durumuna bak", subtitle: "Servisler, görevler ve izinler",
+        action: { type: "ui.goto", payload: { screen: "management" } } },
     ] }],
   });
-  return { id: "hermes-empty", title: "Hermes", sections };
+  return { id: "relationship-empty", title: "AIOS", subtitle: "oluştur, sürdür, birlikte ilerle", sections };
 }
 
 /* ══════════════ ACTIVITY CENTER ══════════════
