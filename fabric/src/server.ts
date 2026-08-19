@@ -56,7 +56,7 @@ function serveStatic(pathname: string, res: import("node:http").ServerResponse):
   }
   const ext = rel.slice(rel.lastIndexOf("."));
   const headers: Record<string, string> = { "Content-Type": MIME[ext] ?? "application/octet-stream" };
-  // Framework7 gibi surumlu varliklar uzun, kabuk dosyalari kisa onbelleklenir
+  // Surumlu statik varliklar uzun, kabuk dosyalari kisa onbelleklenir
   headers["Cache-Control"] = rel.startsWith("vendor/") ? "public, max-age=604800" : "no-cache";
   res.writeHead(200, headers);
   res.end(data);
@@ -375,7 +375,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // ---------- Statik varliklar (Framework7, PWA manifest/sw/ikonlar) ----------
+    // ---------- Statik varliklar (PWA manifest/sw/ikonlar) ----------
     if (req.method === "GET" && /^\/(vendor|icons|css|js)\//.test(url.pathname)) {
       if (serveStatic(url.pathname, res)) return;
     }

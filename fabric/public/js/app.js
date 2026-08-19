@@ -41,7 +41,7 @@ const parseClient = new ParseClient(() => new Worker(new URL("./parse-worker.js"
 
 const S = SC.S;
 
-/* ════════ TOAST/SHEET (Framework7 kaldirildi, native <dialog>/Popover) ════════ */
+/* ════════ TOAST/SHEET (native <dialog>/Popover) ════════ */
 let toastHost = null;
 let pendingApprovalAction = null;
 function showToast(text, err) {
@@ -1088,6 +1088,8 @@ function pageHead(title, sub, onBack) {
   const h = el("div", "page-head");
   if (onBack) {
     const b = el("button", "back");
+    b.type = "button";
+    b.setAttribute("aria-label", "Geri");
     const i = el("i", "icon f7-icons"); i.textContent = "chevron_left";
     b.appendChild(i);
     b.addEventListener("click", onBack);

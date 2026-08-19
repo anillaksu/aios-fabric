@@ -61,7 +61,7 @@ export function homeScreen(artifacts = [], applications = []) {
   sections.push({
     type: "section", title: "ÇALIŞMA ALANI", layout: "grid-2",
     children: WORKSPACE_CATEGORIES.map((category) => ({
-      type: "tile", name: category.id, value: category.icon === "iphone" ? "CİHAZ" : "AÇ",
+      type: "tile", icon: category.icon, name: category.id,
       meta: category.subtitle, tap: { type: "ui.goto", payload: { screen: "discover", filter: category.id } },
     })),
   });
@@ -201,7 +201,7 @@ export function discoverScreen(q, capabilityNames = [], artifacts = [], applicat
     sections.push({
       type: "section", title: "KEŞFET", layout: "grid-2",
       children: WORKSPACE_CATEGORIES.map((item) => ({
-        type: "tile", name: item.id, value: "AÇ", meta: item.subtitle,
+        type: "tile", icon: item.icon, name: item.id, meta: item.subtitle,
         tap: { type: "ui.goto", payload: { screen: "discover", filter: item.id } },
       })),
     });

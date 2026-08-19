@@ -25,6 +25,12 @@ test("HOME ve KESFET ayni kategori metadata'sini kullanir; nesneler birbirine do
   const home = homeScreen([], []);
   const workspace = home.sections.find((section) => section.title === "ÇALIŞMA ALANI");
   assert.deepEqual(workspace.children.map((tile) => tile.name), WORKSPACE_CATEGORIES.map((category) => category.id));
+  assert.deepEqual(workspace.children.map((tile) => tile.icon), WORKSPACE_CATEGORIES.map((category) => category.icon));
+  assert.ok(workspace.children.every((tile) => tile.value == null), "kategoriye giden kart AÇ metnini tekrar etmez");
+
+  const discover = discoverScreen("", [], [], []);
+  const discoverCategories = discover.sections.find((section) => section.title === "KEŞFET");
+  assert.ok(discoverCategories.children.every((tile) => tile.value == null && tile.icon), "KEŞFET aynı ikon tabanlı kategori dilini kullanır");
 
   const device = discoverScreen("", [], [], [], "Cihaz");
   assert.equal(device.sections[0].children[0].title, "Cihaz Durum Merkezi");

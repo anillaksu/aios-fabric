@@ -13,6 +13,7 @@ test("premium component semantics merkezi token ve gorunur focus siniri kullanir
   }
   assert.match(components, /:focus-visible[\s\S]*var\(--focus\)/);
   assert.match(shell, /width: var\(--touch-target\)/);
+  assert.doesNotMatch(tokens, /--f7-/);
 });
 
 test("kullanici metni ortak kart ve listelerde kesilmez; eylem satirlari erisilebilirdir", async () => {
@@ -30,4 +31,6 @@ test("kullanici metni ortak kart ve listelerde kesilmez; eylem satirlari erisile
   assert.match(registry, /e\.key === "Enter" \|\| e\.key === " "/);
   assert.doesNotMatch(app, /a\.prompt \? a\.prompt\.slice\(0, 60\)/);
   assert.doesNotMatch(screens, /\(a\.prompt \|\| ""\)\.slice\(0, 70\)/);
+  assert.doesNotMatch(screens, /value: "AÇ"/);
+  assert.match(app, /b\.setAttribute\("aria-label", "Geri"\)/);
 });

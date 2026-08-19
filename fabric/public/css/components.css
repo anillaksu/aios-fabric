@@ -58,7 +58,7 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 }
 
 /* ── IKON BOYUTLARI ───────────────────────────────────────────
-   .f7-icons varsayilani 28px; bizim baglamlarimizda bu cok buyuk ve
+   Yerel ikon fontunun varsayilani 28px; bizim baglamlarimizda bu cok buyuk ve
    kartlari sisiriyor. Her baglam icin acikca sabitlenir.            */
 .c-card .f7-icons          { font-size: 20px; flex: 0 0 auto; }
 .c-rowitem .lead .f7-icons { font-size: 19px; }
@@ -440,12 +440,12 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .msg-block.sent { margin-left: auto; }
 .hermes-text { font-family: var(--font-ui); font-size: var(--fs-md); line-height: var(--lh-body); }
 
-/* Framework7 mesaj balonlarini tasarim diline cek */
+/* Sohbet balonlarini ortak tasarim diline cek */
 .message-bubble { font-family: var(--font-ui); font-size: var(--fs-md); line-height: var(--lh-body); }
 .message-received .message-bubble { background: var(--s1); border: 1px solid var(--line); color: var(--fg); }
 .message-sent .message-bubble { background: var(--primary-a); border: 1px solid var(--primary); color: var(--fg); }
 
-/* ── NATIVE TOAST/SHEET (Framework7 kaldirildi, W6.1) ────────── */
+/* ── NATIVE TOAST/SHEET ─────────────────────────────────────── */
 .native-toast {
   position: fixed; left: 50%; bottom: 18%; translate: -50% 0; margin: 0;
   max-width: 82vw; padding: 10px 16px; border-radius: var(--r-pill);

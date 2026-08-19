@@ -25,7 +25,6 @@
   --info:#F59E0B; --info-a:rgba(245,158,11,.13);
   --warn:#FB923C; --warn-a:rgba(251,146,60,.13);
   --fg:#F5E6C8; --fg-dim:#BFA47A; --fg-mute:#8A7350; --fg-invert:#0C0906;
-  --f7-theme-color:#FBBF24; --f7-theme-color-rgb:251,191,36;
   --atmo-sky-a:rgba(251,146,60,.13); --atmo-sky-b:rgba(251,191,36,.08); --atmo-glow:0 0 28px rgba(251,191,36,.10);
 }
 
@@ -36,7 +35,6 @@
   --primary:#38BDF8; --primary-d:#0EA5E9; --primary-a:rgba(56,189,248,.13);
   --info:#818CF8; --info-a:rgba(129,140,248,.13);
   --fg:#DBEAFE; --fg-dim:#93B4D8; --fg-mute:#5E7FA6; --fg-invert:#060A12;
-  --f7-theme-color:#38BDF8; --f7-theme-color-rgb:56,189,248;
   --atmo-sky-a:rgba(56,189,248,.16); --atmo-sky-b:rgba(129,140,248,.09); --atmo-glow:0 0 28px rgba(56,189,248,.12);
 }
 
@@ -47,7 +45,6 @@
   --primary:#C084FC; --primary-d:#A855F7; --primary-a:rgba(192,132,252,.14);
   --info:#F472B6; --info-a:rgba(244,114,182,.14);
   --fg:#EDE4FF; --fg-dim:#B4A2D6; --fg-mute:#7E6BA6; --fg-invert:#0A0714;
-  --f7-theme-color:#C084FC; --f7-theme-color-rgb:192,132,252;
   --atmo-sky-a:rgba(244,114,182,.14); --atmo-sky-b:rgba(192,132,252,.10); --atmo-glow:0 0 30px rgba(192,132,252,.13);
 }
 
@@ -60,7 +57,6 @@
   --warn:#FBBF24; --warn-a:rgba(251,191,36,.13);
   --fg:#F1F5FF; --fg-dim:#B5B8DD; --fg-mute:#777BAA; --fg-invert:#05050B;
   --atmo-sky-a:rgba(244,114,182,.17); --atmo-sky-b:rgba(34,211,238,.12); --atmo-grid:rgba(132,120,255,.085); --atmo-scan:rgba(241,245,255,.022); --atmo-glow:0 0 34px rgba(34,211,238,.15);
-  --f7-theme-color:#22D3EE; --f7-theme-color-rgb:34,211,238;
 }
 
 /* ── PAPER · acik tema (gunduz/gunes altinda) ── */
@@ -73,9 +69,6 @@
   --error:#B91C1C; --error-a:rgba(185,28,28,.10);
   --fg:#14201B; --fg-dim:#41544C; --fg-mute:#6B7E76; --fg-invert:#FFFFFF;
   --shadow:0 1px 3px rgba(0,0,0,.10);
-  --f7-theme-color:#15803D; --f7-theme-color-rgb:21,128,61;
-  --f7-page-bg-color:#F4F6F5; --f7-bars-bg-color:#FFFFFF;
-  --f7-text-color:#14201B; --f7-bars-text-color:#14201B;
   --atmo-sky-a:transparent; --atmo-sky-b:transparent; --atmo-grid:rgba(20,32,27,.025); --atmo-scan:transparent; --atmo-glow:none;
 }
 
