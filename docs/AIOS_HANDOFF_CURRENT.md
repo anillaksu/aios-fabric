@@ -322,13 +322,28 @@ dosya oluşturur).
 
 ---
 
+## Formation Memory — Runtime Witness provenance kabulü (2026-08-19)
+
+```text
+RUNTIME_PROVENANCE_BRIDGE_COMMIT = 6e2e314
+REUSE_ACCEPTANCE_TEST_COMMIT    = 3bbca13
+```
+
+**FACT zinciri:** `task.completed` → doğrulanmış Runtime Ledger checkpoint'i → canonical `RuntimeWitness` → immutable exact-parent provenance edge. Ledger `GENESIS` ile başlar; exact `previous-event-hash` bağını ve event hash'ini fail-closed denetler. Witness ham sonucu saklamaz; yalnız journal'a gidebilen/redakte edilmiş sonuçtan hesaplanan `resultDigest` taşır. Heartbeat/watchdog tek başına witness veya formation üretemez.
+
+Parent seçimi exact formation ID + `verifyFormation()` + artifact contract capability üyeliğidir; similarity, başlık veya prompt eşleşmesi parent değildir. Root formation immutable kalır: aynı root'un yeni execution bağlamında kullanımı **reuse**'dur; production'da derived child formation yaratılmaz. Edge JOIN set birleşimidir: idempotent, commutative, associative; aynı edge ID altında farklı canonical kayıt fail-closed reddedilir. Bir conflict çözüm politikası yoktur.
+
+**Canlı kabul:** Telefonun kalıcı Kaydırılabilir Ses Paneli formation'ı `formation:53542f…030c655`, ikinci ayrı task'ta (`9a030eee-fa1d-4a3b-ae91-0d5f34ed7804`) yeniden kullanıldı. Yeni witness `runtime-witness:23952…6bcaa`, yeni edge `provenance-edge:025faa…ec3ad`; ikisi de aynı exact parent'a bağlıdır. Sonradan gerçek `volume.read` `music=10/150` döndü ve ledger `LEDGER_OK events=42` verdi. Phone export → PC import sonucu 1 formation + 2 edge ve aynı canonical projection hash `sha256:93e50a…07ee8` oldu. PC/telefon: 144/144 PASS, BUILD_OK, telefon 144/144 PASS, 96 dosya md5 eşit; odaklı provenance paketi telefon üzerinde 13/13 PASS.
+
+Bu FACT yalnız gerçek dispatcher execution + provenance/portability kabulüdür; aynı çağrının fiziksel PWA slider'a dokunularak başlatıldığı iddia edilmez. B-9 Android/MIUI survivability riski değişmeden açıktır.
+
+---
+
 ## NEXT SAFE ACTION
 
-1. Bir sonraki canlı testten önce B-9 canlı kontrolünü tekrar yap (anlık sağlık kalıcı survivability değildir).
-2. Owner'a W6 Katman B önceliği sorusu HÂLÂ AÇIK — tekrar sor, tahmin etme.
-3. Cevap gelene kadar S-1/S-2/M-1 (ürün kararı gerektirmeyen, düşük riskli
-   teknik işler) bir "boşta iken yapılabilir" havuzu olarak değerlendirilebilir
-   — ama yine de başlamadan önce owner'a "bunlarla mı başlayalım" diye sor,
-   otonom karar verme (bu projede tekrarlayan, açık bir tercih: `sessiz-hata-
-   birakma.md`, `once-dogrulama-sonra-sinir-yaz.md` hafıza kayıtlarıyla aynı
-   ilke — küçük kararlarda bile önce doğrula/sor).
+1. Formation Canvas/UI veya AETHER promotion katmanına geçmeden önce owner,
+   gerçek kullanıcı için hangi read-only projection'ın değerli olduğunu seçsin.
+   Bu kabulde yeni graph, pub/sub, Layer B, economy/Essence veya canvas UI
+   açılmadı.
+2. B-9 ayrı operasyonel risktir: bir sonraki canlı test öncesi anlık sağlık
+   yeniden kontrol edilir; bu risk otomatik ürün önceliğine dönüştürülmez.
