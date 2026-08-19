@@ -63,14 +63,14 @@
      Pencere kaydi WindowManager'dan gelir; kategori kesfi Linhx'in icindedir. */
   #windowdock {
     flex: 0 0 auto; display: flex; align-items: center; gap: var(--sp-2);
-    overflow-x: auto; overscroll-behavior-x: contain;
+    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--sp-3);
     background: var(--s1); border-top: 1px solid var(--line);
     min-height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px));
     padding: var(--sp-2) var(--sp-3) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
     scrollbar-width: none;
   }
   #windowdock::-webkit-scrollbar { display: none; }
-  .window-slot { flex: 0 0 auto; display: flex; align-items: stretch; min-height: 42px; }
+  .window-slot { flex: 0 0 auto; display: flex; align-items: stretch; min-height: 42px; scroll-snap-align: center; }
   .window-tab {
     flex: 0 0 auto; min-height: 42px; padding: 7px 12px;
     border-radius: var(--r-md); border: 1px solid var(--line-mid); background: var(--s2);
@@ -86,7 +86,7 @@
   }
   .window-slot .window-tab { border-radius: var(--r-md) 0 0 var(--r-md); }
   .window-slot.is-active .window-close { color: var(--primary); border-color: var(--primary); background: var(--primary-a); }
-  .window-slot.is-entering { animation: window-dock-enter var(--t-normal) var(--ease) both; }
+  .window-slot.is-entering { animation: window-dock-enter var(--t-base) var(--ease) both; }
   .window-slot.is-closing { pointer-events: none; animation: window-dock-exit var(--t-fast) var(--ease) both; }
   @keyframes window-dock-enter { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
   @keyframes window-dock-exit { to { opacity: 0; transform: translateY(8px) scale(.96); } }

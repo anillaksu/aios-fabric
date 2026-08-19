@@ -3,5 +3,7 @@
  * degistirir ama pencereyi listeden dusuremez. */
 export function dockWindows(windows, artifactIds) {
   const known = artifactIds instanceof Set ? artifactIds : new Set(artifactIds || []);
-  return [...(windows || [])].filter((win) => known.has(win.id)).reverse();
+  // WindowManager en son odaklanani once verir. Yeni pencere Linhx'in hemen
+  // ardina cizilir; dar ekranda rail gorunur konuma scroll edilir.
+  return [...(windows || [])].filter((win) => known.has(win.id));
 }

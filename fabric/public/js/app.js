@@ -21,7 +21,8 @@ import { admitArtifact, capabilitySetVersion, reconcileArtifactContract } from "
 import { SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, musicVolumeFromResponse, soundPanelWithMusicVolume, DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_ID, DEVICE_STATUS_PANEL_REQUIREMENTS, deviceStatusWithLiveData } from "./reference-artifacts.js";
 import { meetsUiRequirements } from "./ui-requirements.js";
 import { getAll as storeGetAll, putAll as storePutAll, requestPersistence } from "./artifact-store.js";
-import { applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, recordApplicationOpen, updateApplicationEntry } from "./application-model.js";
+import { applicationIcon, applicationsForArtifact, canDeleteArtifact, createApplicationEntry, nextApplicationPosition, orderedApplications, recordApplicationOpen, updateApplicationEntry } from "./application-model.js";
+import { classifyApplication } from "./surface-classification.js";
 import { cacheKey, getCached, putCached, writeEligible } from "./prompt-cache.js";
 import { logClientError } from "./client-log.js";
 import { ParseClient } from "./parse-client.js";
@@ -626,6 +627,7 @@ function renderWindowDock() {
     slot.append(b, close);
     dock.insertBefore(slot, utility);
     renderedDockWindowIds.add(win.id);
+    if (win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }));
   });
 }
 
@@ -869,13 +871,14 @@ function paintApplications() {
   } else {
     entries.forEach((entry) => {
       const row = el("div", "c-rowitem");
-      const icon = el("i", "icon f7-icons"); icon.textContent = entry.icon || "square_grid_2x2_fill";
+      const artifact = findArtifact(entry.artifactId);
+      const icon = el("i", "icon f7-icons"); icon.textContent = applicationIcon(entry, artifact);
       const lead = el("div", "lead"); lead.appendChild(icon);
       row.appendChild(lead);
       const grow = el("div", "c-grow");
       grow.appendChild(el("div", "c-title", entry.title || "Uygulama"));
-      const artifact = findArtifact(entry.artifactId);
-      grow.appendChild(el("div", "c-sub", artifact ? (entry.lastOpenedAt ? "Son açılış: " + when(entry.lastOpenedAt) : "Henüz açılmadı") : "Bağlı artefakt bulunamadı"));
+      const surface = classifyApplication(entry, artifact);
+      grow.appendChild(el("div", "c-sub", surface.linked ? "AIOS UYGULAMASI · " + (entry.lastOpenedAt ? "Son açılış: " + when(entry.lastOpenedAt) : "Henüz açılmadı") : "BAĞLI ARTEFAKT BULUNAMADI"));
       row.appendChild(grow);
       row.addEventListener("click", () => { if (artifact) openApplication(entry.id, entry.artifactId); else toast("Bağlı artefakt bulunamadı", true); });
       const remove = el("button", "c-btn", "KALDIR");

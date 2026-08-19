@@ -13,6 +13,7 @@ test("premium component semantics merkezi token ve gorunur focus siniri kullanir
   }
   assert.match(components, /:focus-visible[\s\S]*var\(--focus\)/);
   assert.match(shell, /width: var\(--touch-target\)/);
+  assert.doesNotMatch(shell, /--t-normal/);
   assert.doesNotMatch(tokens, /--f7-/);
 });
 

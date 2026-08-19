@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_APPLICATION_ICON,
+  APPLICATION_ENTRY_KIND,
+  applicationIcon,
   applicationsForArtifact,
   canDeleteArtifact,
   createApplicationEntry,
@@ -16,7 +18,8 @@ test("ApplicationEntry artifact'i kopyalamaz: yalniz launcher identity + artifac
   const artifact = { id: "a1", title: "Pil", spec: { sections: [] }, capabilities: ["sensor.battery.read"] };
   const entry = createApplicationEntry({ id: "app1", artifact, position: 0 });
   assert.deepEqual(entry, {
-    id: "app1", artifactId: "a1", title: "Pil", icon: DEFAULT_APPLICATION_ICON, position: 0,
+    id: "app1", artifactId: "a1", title: "Pil", kind: APPLICATION_ENTRY_KIND,
+    icon: "battery_75", iconSource: "artifact-derived", position: 0,
   });
   assert.equal("spec" in entry, false);
   assert.equal("capabilities" in entry, false);
@@ -45,8 +48,14 @@ test("launcher adi ve ikonu artifact'i degistirmeden entry uzerinde duzenlenir",
   const entries = [{ id: "app1", artifactId: "a1", title: "Pil", icon: "square_grid_2x2_fill", position: 0 }];
   const result = updateApplicationEntry(entries, "app1", { title: "Ev pili", icon: "battery_75" });
   assert.equal(result.changed, true);
-  assert.deepEqual(result.entries[0], { id: "app1", artifactId: "a1", title: "Ev pili", icon: "battery_75", position: 0 });
+  assert.deepEqual(result.entries[0], { id: "app1", artifactId: "a1", title: "Ev pili", icon: "battery_75", iconSource: "custom", position: 0 });
   assert.equal(entries[0].title, "Pil", "orijinal kayit mutasyona ugramaz");
+});
+
+test("eksik veya legacy varsayilan ikon artefakt metadata'sindan deterministik turetilir; kullanici ikonu korunur", () => {
+  const sound = { id: "a-sound", title: "Ses Paneli", capabilities: ["volume.set"] };
+  assert.equal(applicationIcon({ icon: DEFAULT_APPLICATION_ICON }, sound), "speaker_2_fill");
+  assert.equal(applicationIcon({ icon: "star_fill", iconSource: "custom" }, sound), "star_fill");
 });
 
 test("son kullanilanlar yalniz launcher entry uzerinde deterministik tutulur", () => {
