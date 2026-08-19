@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 test("Connectivity Bridge runit sshd supervisorunu ister ve dinleyici dogrulamadan basari yazmaz", () => {
   // Kaynak depoda köprü üst scripts/ dizinindedir; Termux dağıtımında aynı
   // adapter Widget'ın çalıştırdığı ~/.shortcuts yolundadır. Test ikisini de
   // açıkça tanır, platformun yol düzenini ortak çekirdek varsayımı yapmaz.
   const candidates = [
-    new URL("../../scripts/aios-connectivity-bridge.sh", import.meta.url).pathname,
+    fileURLToPath(new URL("../../scripts/aios-connectivity-bridge.sh", import.meta.url)),
     join(homedir(), ".shortcuts", "aios-connectivity-bridge.sh"),
   ];
   const path = candidates.find((candidate) => existsSync(candidate));
