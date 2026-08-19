@@ -162,6 +162,31 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .c-range[data-state="success"] { border-color: var(--primary); }
 .c-range[data-state="error"] { border-color: var(--error); }
 
+/* ── FORMATION CANVAS (yalnız read-only projection) ────────── */
+.formation-canvas-screen { display:flex; flex-direction:column; gap:var(--sp-2); padding:0 var(--page-pad) var(--sp-4); min-height:0; }
+.formation-canvas-toolbar { display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2); }
+.formation-canvas-controls { display:flex; gap:var(--sp-1); }
+.formation-canvas-control { width:38px; min-height:38px; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface-elevated); color:var(--text-primary); font:inherit; cursor:pointer; }
+.formation-canvas-control:active { transform:scale(.94); background:var(--s2); }
+.formation-canvas-viewport { position:relative; min-height:min(62dvh,560px); overflow:hidden; border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(135deg,var(--s1),var(--s2)); touch-action:none; overscroll-behavior:contain; }
+.formation-canvas-viewport::before { content:""; position:absolute; inset:0; pointer-events:none; background-image:radial-gradient(var(--line-hi) 1px,transparent 1px); background-size:18px 18px; }
+.formation-canvas-stage { position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform; }
+.formation-canvas-links { position:absolute; inset:0; overflow:visible; pointer-events:none; }
+.formation-canvas-links line { stroke:var(--line-hi); stroke-width:2; stroke-dasharray:4 5; }
+.formation-canvas-links line[data-kind="reuse"] { stroke:var(--primary); stroke-dasharray:none; }
+.formation-canvas-node { position:absolute; display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:224px; min-height:72px; padding:10px 12px; text-align:left; border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface); color:var(--text-primary); box-shadow:var(--atmo-glow); cursor:pointer; }
+.formation-canvas-node[data-kind="root-formation"] { border-color:var(--primary); }
+.formation-canvas-node[data-kind="derived-formation"] { border-color:var(--info); }
+.formation-canvas-node[data-kind="reuse-execution"] { min-height:52px; border-style:dashed; background:var(--s2); }
+.formation-canvas-node strong { max-width:100%; overflow-wrap:anywhere; font-size:var(--fs-sm); }
+.formation-canvas-node-sub { max-width:100%; color:var(--fg-mute); font-family:var(--font-mono); font-size:var(--fs-micro); overflow-wrap:anywhere; }
+.formation-canvas-loading { margin:var(--sp-4); color:var(--fg-mute); font-family:var(--font-mono); font-size:var(--fs-micro); }
+.formation-canvas-detail { padding:var(--sp-4); display:flex; flex-direction:column; gap:var(--sp-3); }
+.formation-canvas-detail-list { display:flex; flex-direction:column; gap:var(--sp-1); }
+.formation-canvas-detail-row { display:grid; grid-template-columns:92px minmax(0,1fr); gap:var(--sp-2); padding:var(--sp-2) 0; border-bottom:1px solid var(--border); }
+.formation-canvas-detail-row code { overflow-wrap:anywhere; color:var(--fg-dim); font-size:var(--fs-micro); }
+@media (prefers-reduced-motion: reduce) { .formation-canvas-stage { will-change:auto; } }
+
 /* ── CARD tabani (Tile/Info/Action/Task/Agent ortak) ───────── */
 .c-card {
   background: var(--surface); border: 1px solid var(--border);

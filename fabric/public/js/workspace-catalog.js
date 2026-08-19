@@ -62,6 +62,12 @@ export const WORKSPACE_ENTRIES = [
     action: { type: "ui.goto", payload: { tab: "artifacts" } },
   },
   {
+    id: "formation-canvas", category: "AIOS", icon: "point_3_connected_trianglepath_dotted",
+    title: "Formation Canvas", subtitle: "Doğrulanmış oluşumlar ve yürütme izleri",
+    searchTerms: ["formation", "oluşum", "canvas", "kanvas", "provenance", "iz", "reuse", "yeniden kullanım"],
+    action: { type: "ui.goto", payload: { screen: "formation-canvas" } },
+  },
+  {
     id: "active-work", category: "AIOS", icon: "list_bullet",
     title: "Aktif Görevler", subtitle: "Çalışan, başarısız ve yeniden denenebilir işler",
     searchTerms: ["aios", "aktif", "görev", "iş", "hata", "journal"],

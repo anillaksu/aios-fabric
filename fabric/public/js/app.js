@@ -30,6 +30,8 @@ import { hasMeaningfulData } from "./dispatch-utils.js";
 import { normalizeNavigation, toHistoryState, isSameNavigation } from "./navigation-state.js";
 import { runViewTransition } from "./view-transitions.js";
 import { createRootFormation, verifyFormation } from "./formation-memory.js";
+import { projectFormationCanvas } from "./formation-canvas.js";
+import { mountFormationCanvas } from "./formation-canvas-view.js";
 import { clipboardAnalysisPrompt, clipboardTextFromResult } from "./clipboard-import.js";
 import { dockWindows } from "./workspace-dock.js";
 import { DEFAULT_WORKSPACE_SURFACE, WORKSPACE_SURFACES, canvasPosition, loadWorkspaceSurface, saveWorkspaceSurface } from "./workspace-surface.js";
@@ -776,6 +778,7 @@ async function paint() {
   if (secondary === "miniapps")    return paintApplications();
   if (secondary === "automations") return mountSecondary(host, validateScreen(await SC.automationsScreen()));
   if (secondary === "history")     return mountSecondary(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)));
+  if (secondary === "formation-canvas") return paintFormationCanvas();
 
   if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "komut")     return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications))), ctx);
@@ -787,6 +790,59 @@ async function paint() {
 function mountSecondary(host, screen) {
   mount(host, screen, ctx);
   host.prepend(pageHead(screen.title, screen.subtitle, goBack));
+}
+
+async function paintFormationCanvas() {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Formation Canvas", "DOĞRULANMIŞ OLUŞUM İZLERİ", goBack));
+  const loading = el("div", "formation-canvas-loading", "Formation Memory doğrulanıyor…");
+  host.appendChild(loading);
+  const bundle = await getJSON("/formation-memory");
+  loading.remove();
+  if (!bundle || bundle.ok === false || !Array.isArray(bundle.formations) || !Array.isArray(bundle.provenanceEdges)) {
+    const wrap = el("div", "c-section"); const body = el("div", "body");
+    body.appendChild(render({ type: "error-state", icon: "exclamationmark_triangle", title: "Formation Memory okunamadı",
+      detail: "Kaynak kayıt doğrulanamadı; Canvas tahmini bir graph göstermedi.", actionLabel: "TEKRAR DENE",
+      action: { type: "ui.goto", payload: { screen: "formation-canvas" } } }, ctx));
+    wrap.appendChild(body); host.appendChild(wrap); return;
+  }
+  try {
+    const projection = await projectFormationCanvas(bundle.formations, bundle.provenanceEdges);
+    if (!projection.nodes.length) {
+      const wrap = el("div", "c-section"); const body = el("div", "body");
+      body.appendChild(render({ type: "empty-state", icon: "point_3_connected_trianglepath_dotted", title: "Henüz doğrulanmış formation yok",
+        detail: "Bir artefakt açıldığında doğrulanmış formation kimliği burada görünür. Veri uydurulmaz." }, ctx));
+      wrap.appendChild(body); host.appendChild(wrap); return;
+    }
+    mountFormationCanvas(host, projection, { onSelect: openFormationCanvasDetail });
+    if (projection.omittedFormations) toast(`${projection.omittedFormations} formation görünüm sınırı dışında`);
+  } catch (err) {
+    logClientError("formationCanvas.project", err);
+    const wrap = el("div", "c-section"); const body = el("div", "body");
+    body.appendChild(render({ type: "error-state", icon: "exclamationmark_triangle", title: "Formation Canvas doğrulanamadı",
+      detail: "Geçersiz formation veya provenance kaydı nedeniyle graph çizilmedi." }, ctx));
+    wrap.appendChild(body); host.appendChild(wrap);
+  }
+}
+
+function openFormationCanvasDetail(node) {
+  const title = String(node?.title || "Formation");
+  const rows = node?.kind === "reuse-execution"
+    ? [
+      ["TÜR", "REUSE / EXECUTION"], ["CAPABILITY", node.title], ["TASK", node.taskId], ["WITNESS", node.witnessId], ["EDGE", node.edgeId], ["RESULT DIGEST", node.resultDigest],
+    ]
+    : [
+      ["TÜR", node?.kind === "derived-formation" ? "DERIVED FORMATION" : "ROOT FORMATION"], ["FORMATION", node?.formationId], ["CONTENT", node?.contentId], ["CONTEXT", node?.contextId], ["WITNESS", node?.witnessId], ["CAPABILITIES", (node?.capabilities || []).join(", ") || "—"],
+    ];
+  const sheet = createSheet(`<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner"><div class="formation-canvas-detail"><div class="k-micro">READ-ONLY FORMATION DETAIL</div><div class="c-title"></div><div class="formation-canvas-detail-list"></div><button class="c-btn" data-variant="ghost">KAPAT</button></div></div></div>`);
+  sheet.open();
+  const root = document.querySelector(".formation-canvas-detail");
+  root?.querySelector(".c-title")?.append(document.createTextNode(title));
+  const list = root?.querySelector(".formation-canvas-detail-list");
+  rows.forEach(([key, value]) => { const row = el("div", "formation-canvas-detail-row"); row.append(el("span", "k-micro", key), el("code", null, String(value || "—"))); list?.appendChild(row); });
+  root?.querySelector("button")?.addEventListener("click", () => sheet.close());
+  sheet.on("closed", () => sheet.destroy());
 }
 
 /* ════════ ARTEFAKT GALERISI ════════ */

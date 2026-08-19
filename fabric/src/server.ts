@@ -22,6 +22,7 @@ import type { Intent } from "./types.ts";
 import { logErr } from "./log.ts";
 import { readRuntimeStatus } from "./runtime-status.ts";
 import { recordCompletedRuntimeProvenance } from "./runtime-provenance.ts";
+import { exportFormationMemoryBundle, verifyFormation } from "../public/js/formation-memory.js";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 const AIOS_HTML_PATH = PUBLIC_DIR + "aios.html";
@@ -436,6 +437,29 @@ const server = createServer(async (req, res) => {
         json(res, 200, { ok: true, count: list.length });
       } catch (err) {
         json(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+      return;
+    }
+
+    // ---------- Read-only Formation Memory projection kaynagi ----------
+    // Canvas burada veri yaratmaz: artifact depodaki doğrulanmış root
+    // formation'lar ve immutable provenance edge'ler canonical bundle olarak
+    // okunur. Bozuk edge/formation fail-closed olur; eksik kayit uydurulmaz.
+    if (url.pathname === "/formation-memory" && req.method === "GET") {
+      try {
+        const artifacts = existsSync(ARTIFACTS_PATH) ? JSON.parse(readFileSync(ARTIFACTS_PATH, "utf8")) : [];
+        const provenanceEdges = existsSync(RUNTIME_PROVENANCE_PATH) ? JSON.parse(readFileSync(RUNTIME_PROVENANCE_PATH, "utf8")) : [];
+        if (!Array.isArray(artifacts) || !Array.isArray(provenanceEdges)) throw new TypeError("formation memory kaynaklari dizi olmali");
+        const formations = [];
+        for (const artifact of artifacts) {
+          if (!artifact?.formation) continue;
+          if (!(await verifyFormation(artifact.formation))) throw new TypeError("artifact formation dogrulanamadi");
+          formations.push(artifact.formation);
+        }
+        json(res, 200, await exportFormationMemoryBundle(formations, provenanceEdges));
+      } catch (err) {
+        logErr("server:formationMemoryRead", err);
+        json(res, 503, { ok: false, error: "Formation Memory doğrulanamadı" });
       }
       return;
     }
