@@ -807,8 +807,25 @@ export function agentsScreen() {
 }
 
 /* ══════════════ CAPABILITIES (MCP Explorer) ══════════════ */
+// getJSON() ag/fetch hatasinda sessizce null doner (api.js:getJSON); ekranlar
+// bunu `|| []`/`|| {}` ile varsayilan degere indirgeyince GERCEKTEN BOS veri
+// ile FETCH BASARISIZ OLDU ayirt edilemez oluyordu (goal §5/§18 - kullanici
+// "bir sey oldu mu?" diye dusunmemeli). connectionsScreen/managementScreen'de
+// zaten dogru yapiliyordu; bu yardimci ayni gorsel deseni (§16: ayni semantic
+// role ayni davranis) diger okuma ekranlarina da tasir. Yalniz OKUMA
+// durumunu degistirir; hicbir capability/policy/execution davranisi degismez.
+function fetchFailedSection(retryPayload) {
+  return { type: "error-state", icon: "wifi_exclamationmark", title: "Veri alınamadı",
+    detail: "AIOS runtime şu an bu veriyi doğrulayamadı; bağlantıyı kontrol edip yeniden deneyebilirsin.",
+    actionLabel: "TEKRAR DENE", action: { type: "ui.goto", payload: retryPayload } };
+}
+
 export async function capabilitiesScreen() {
-  const caps = (await getJSON("/capabilities")) || [];
+  const capsRaw = await getJSON("/capabilities");
+  // Registry sabit ~39 kayittir, production'da hic bos donmez - bu yuzden
+  // null (fetch hatasi) EYLESIK yalniz "[]" olmasi da fiili ariza sinyalidir.
+  const fetchFailed = !Array.isArray(capsRaw) || capsRaw.length === 0;
+  const caps = capsRaw || [];
   const groups = {};
   caps.forEach((c) => {
     const k = c.name.split(".")[0];
@@ -817,10 +834,14 @@ export async function capabilitiesScreen() {
   const sections = [{
     type: "section", title: "ÖZET", layout: "grid-2",
     children: [
-      { type: "metric", label: "CAPABILITY", value: caps.length, tone: "ok" },
+      { type: "metric", label: "CAPABILITY", value: caps.length, tone: fetchFailed ? "error" : "ok" },
       { type: "metric", label: "GRUP", value: Object.keys(groups).length },
     ],
   }];
+  if (fetchFailed) {
+    sections.push({ type: "section", children: [fetchFailedSection({ screen: "capabilities" })] });
+    return { id: "capabilities", title: "Capabilities", sections };
+  }
   Object.keys(groups).sort().forEach((g) => {
     sections.push({
       type: "section", title: g.toUpperCase(),
@@ -946,7 +967,9 @@ export function formationDetailScreen(record) {
    hissedilen sey buydu.                                                  */
 export async function journalScreen(filter) {
   const url = "/journal?limit=120" + (filter ? "&type=" + encodeURIComponent(filter) : "");
-  const r = (await getJSON(url)) || { events: [], total: 0 };
+  const raw = await getJSON(url);
+  const fetchFailed = raw === null;
+  const r = raw || { events: [], total: 0 };
   const events = r.events || [];
   const byType = {};
   events.forEach((e) => { byType[e.type] = (byType[e.type] || 0) + 1; });
@@ -978,7 +1001,8 @@ export async function journalScreen(filter) {
 
   sections.push({
     type: "section", title: filter ? "OLAYLAR · " + filter : "SON OLAYLAR",
-    children: events.length ? [{
+    children: fetchFailed ? [fetchFailedSection(filter ? { screen: "journal", filter } : { screen: "journal" })]
+      : events.length ? [{
       type: "list",
       children: events.slice(0, 60).map((e) => {
         const bad = e.type === "read.failed" || /fail|error/i.test(e.type);
@@ -1222,20 +1246,26 @@ export function miniAppsScreen(artifacts = []) {
    DURUST DURUM: kural motoru HENUZ YOK. Bu ekran var olmayan bir seyi
    varmis gibi gostermez; ne oldugunu ve neyin eksik oldugunu soyler.      */
 export async function automationsScreen() {
-  const rules = (await getJSON("/automations")) || [];
+  const rulesRaw = await getJSON("/automations");
+  const fetchFailed = rulesRaw === null;
+  const rules = rulesRaw || [];
   const sections = [];
 
   sections.push({
     type: "section", title: "ÖZET", layout: "grid-2",
     children: [
-      { type: "metric", label: "KURAL", value: rules.length, tone: rules.length ? "ok" : "idle" },
+      { type: "metric", label: "KURAL", value: rules.length, tone: fetchFailed ? "error" : rules.length ? "ok" : "idle" },
       { type: "metric", label: "AKTİF", value: rules.filter((r) => r.enabled).length, tone: "ok" },
     ],
   });
 
   sections.push({
     type: "section", title: "KURALLAR",
-    children: rules.length ? [{
+    // Kurallar gercekten hic olmayabilir (yeni kullanici) - bu, fetch
+    // hatasiyla karistirilmaz: fetchFailed acikca null donusten gelir,
+    // rules.length===0 tek basina belirsizdir.
+    children: fetchFailed ? [fetchFailedSection({ screen: "automations" })]
+      : rules.length ? [{
       type: "list",
       children: rules.map((r) => ({
         type: "list-row",
@@ -1306,6 +1336,10 @@ export async function intentHistoryScreen(query) {
     getJSON("/journal?limit=400"),
     getJSON("/artifacts"),
   ]);
+  // Bu ekran hata ayiklama araci: "kayit yok" ile "veri okunamadi" ayni
+  // gorunurse tam da arizayi arayan kullaniciyi yaniltir. Artifacts
+  // yardimci veridir, yalniz journal (birincil kaynak) fetchFailed sayilir.
+  const fetchFailed = journal === null;
   const events = (journal && journal.events) || [];
   const artifacts = Array.isArray(arts) ? arts : [];
   const q = (query || "").toLowerCase().trim();
@@ -1383,7 +1417,8 @@ export async function intentHistoryScreen(query) {
 
   sections.push({
     type: "section", title: q === "hata" ? "HATALI AKIŞLAR" : "AKIŞLAR",
-    children: list.length ? list.slice(0, 40).map((f) => {
+    children: fetchFailed ? [fetchFailedSection(q ? { screen: "history", filter: q } : { screen: "history" })]
+      : list.length ? list.slice(0, 40).map((f) => {
       // NE SOYLENDI -> NE ANLADI -> KIM -> SONUC, tek satirda okunur halde
       const chain = [];
       if (f.source) chain.push(SOURCE_LABEL[f.source] || f.source);
@@ -1405,8 +1440,9 @@ export async function intentHistoryScreen(query) {
              { label: "TEKRARLA", variant: "ghost", action: { type: "ui.ask", payload: { q: f.raw } } }]
           : (f.raw ? [{ label: "TEKRARLA", variant: "ghost", action: { type: "ui.ask", payload: { q: f.raw } } }] : undefined),
       };
-    }) : [{ type: "empty-state", icon: "ant", title: "Kayıt yok",
-            detail: q === "hata" ? "Hiç hatalı akış yok — iyi haber." : "Journal boş." }],
+    })
+      : [{ type: "empty-state", icon: "ant", title: "Kayıt yok",
+           detail: q === "hata" ? "Hiç hatalı akış yok — iyi haber." : "Journal boş." }],
   });
 
   return { id: "history", title: "Intent DevTools", sections };

@@ -554,6 +554,49 @@ liveProofPlan · priority`
   bir ek dogrulamadir.
 - **Priority:** P1 (premium/offline guvenilirlik), kapandi.
 
+### PG-025 — Okuma ekranlarında fetch hatası "boş veri" ile karışıyordu
+
+- **Surface / status:** Capabilities, Event Journal, Otomasyonlar, Intent
+  DevTools / **`FACT`** (2026-08-20, premium audit ikinci iterasyon).
+- **Code evidence:** `public/js/api.js:getJSON()` her ağ hatasında sessizce
+  `null` döner (`catch { return null; }`). `capabilitiesScreen()`,
+  `journalScreen()`, `automationsScreen()`, `intentHistoryScreen()` bunu
+  `(await getJSON(...)) || []`/`|| {}` ile varsayılana indirgiyor,
+  `null` (fetch başarısız) ile gerçekten boş veri arasındaki farkı kaybediyordu.
+  `connectionsScreen()`/`managementScreen()` bu ayrımı zaten doğru yapıyordu —
+  bu bulgu var olan deseni tutarlı hale getirir, yeni bir mimari eklemez.
+- **Current behavior / user impact:** Fabric'e ulaşılamadığında (B-9'un
+  tetiklediği tam da bu durum) kullanıcı "0 capability", "Kural yok",
+  "Journal boş" görür — gerçekten boş bir sistemle ayırt edilemez. Intent
+  DevTools için bu özellikle ironik: tam da "neden başarısız oldu?" sorusuna
+  cevap vermesi gereken hata ayıklama aracı, kendi fetch hatasını gizliyordu.
+- **Existing / missing primitive:** `error-state` bileşeni ve
+  `connectionsScreen`/`managementScreen`'deki referans desen zaten var; eksik
+  olan bu desenin diğer dört okuma ekranına tutarlı uygulanmasıydı.
+- **Fix (dar kapsam, yalnız okuma yüzeyi):** yeni `fetchFailedSection()`
+  yardımcı fonksiyonu (`screens.js`), dört ekranda `getJSON` sonucunu
+  varsayılana indirgemeden önce `null` mı yoksa geçerli veri mi olduğunu
+  yakalar. `capabilitiesScreen`: registry sabit ~39 kayıt, production'da hiç
+  boş dönmez — `!Array.isArray || length===0` güvenle "arıza" sayılır (mevcut
+  `connections`/`management` deseniyle aynı mantık). `automationsScreen`/
+  `journalScreen`/`intentHistoryScreen`: kural/olay listesi GERÇEKTEN boş
+  olabileceğinden yalnız kesin `=== null` (fetch hatası) sinyali kullanılır,
+  sayı temelli tahmin yapılmaz. Hiçbir capability/policy/execution davranışı
+  değişmedi; yalnız okuma ekranlarının hata görünürlüğü değişti.
+- **Test:** `test/screens-error-state.test.ts` — `globalThis.fetch` stub'ıyla
+  hem "fetch reddedilir" hem "gerçekten boş veri döner" senaryoları ayrı ayrı
+  test edilir (yanlış negatif VE yanlış pozitif ikisi de). Eski `screens.js`
+  üzerinde **önce çalıştırıldı ve 5/5 düştü**; düzeltmeden sonra 5/5 geçti.
+  Tam suite: yerel+telefon `npm test` **184/184**, `BUILD_OK`.
+- **Live proof:** telefonun gerçek `/capabilities` (39), `/automations` (4),
+  `/journal` (3369 olay) uçları canlı çağrıldı — yeni mantığın bunları
+  yanlışlıkla "arıza" saymadığı doğrulandı. `deploy-to-phone.sh` md5 depo ==
+  telefon (109 dosya). **Dürüst sınır:** gerçek "backend gerçekten ulaşılamaz"
+  senaryosu canlıda sahnelenmedi — Fabric'i kasten durdurmak, owner uyurken
+  bağımlı diğer süreçleri (Hermes gateway vb.) etkileyebilecek yıkıcı bir
+  eylem olurdu; bu FACT test+server-tarafı kanıta dayanır.
+- **Priority:** P1 (premium/error-recovery, §18), kapandı.
+
 ### DOC-001 — Canonical documentation synchronization
 
 - **Surface / status:** Devir belgeleri / `OPEN`.
