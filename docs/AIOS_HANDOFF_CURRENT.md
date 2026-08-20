@@ -347,16 +347,17 @@ Bu FACT yalnız gerçek dispatcher execution + provenance/portability kabulüdü
 
 ---
 
-## Runtime Ledger provenance köprüsü ŞU AN FAIL-CLOSED (2026-08-20, AÇIK BUG)
+## Runtime Ledger provenance köprüsü — kırıldı ve onarıldı (2026-08-20, FACT)
 
-**Bunu FACT sanma, yeniden keşfetme, kendiliğinden düzeltme.** `6e2e314` ile
-kurulan `task.completed → RuntimeWitness → immutable provenance edge` zinciri
-**2026-08-20T00:42:42Z'den beri hiçbir edge üretmiyor.**
+**Bu bölüm kapanmış bir arızanın izidir; yeniden açma, yeniden keşfetme.**
+`6e2e314` ile kurulan `task.completed → RuntimeWitness → immutable provenance
+edge` zinciri `2026-08-20T00:42:42Z` ile aynı günün ~01:40'ı arasında **hiç
+edge üretmedi**; kök neden bulunup owner onayıyla düzeltildi.
 
 Kök neden `PG-022`: ledger yazıcısı (`scripts/aios-runtime-ledger.sh`)
 `status=missing` satırında `commandHash` ve `processWitness` alanlarına `-`
-yazar; okuyucu (`src/runtime-provenance.ts:68-72` `readLedger`) bu iki alan için
-koşulsuz 64-hex hash ister. `readLedger` dosyanın tamamını önce doğruladığı için
+yazar; okuyucu (`src/runtime-provenance.ts:68-72` `verifyRuntimeLedgerText`) bu iki alan için
+koşulsuz 64-hex hash ister. `verifyRuntimeLedgerText` dosyanın tamamını önce doğruladığı için
 tek bir `missing` satırı sonraki **her** provenance yazımını düşürür. Satırlar
 append-only ve hash-zincirli olduğundan durum kendiliğinden düzelmez.
 
@@ -364,13 +365,22 @@ Bağımsız doğrulandı: 145 satırın yalnız 2'si (127, 128) reddediliyor; zi
 bütünlüğü ve tüm event-hash'ler **geçerli**, `aios-runtime-ledger.sh verify`
 `LEDGER_OK` diyor. Sorun zincir değil, okuyucunun alan regexi.
 
-**Owner kararı (2026-08-20):** bu tur üretim provenance çekirdeğine dokunulmadı,
-yazıcı sözleşmesi değiştirilmedi, geçmiş ledger satırları yeniden yazılmadı.
-Exact invariant farkı ve gelecekteki düzeltmenin kabul testi `PG-022` içinde
-tanımlıdır; düzeltme owner onayına bağlıdır.
+**Düzeltme (owner onaylı, dar kapsam):** `verifyRuntimeLedgerText` içindeki alan
+doğrulaması yazıcının gerçek sözleşmesine hizalandı — `commandHash` ve
+`processWitness` için `-` **yalnız** `status === "missing"` satırında geçerlidir.
+`checkpointFrom()`, `previousHash` zinciri, `eventHash` SHA-256 doğrulaması ve
+yazıcı sözleşmesi **dokunulmadı**; geçmiş ledger satırları yeniden yazılmadı
+(ilk 145 satır dondurulmuş fixture ile byte eşit kaldı, dosya yalnız append
+aldı). `src/` altında yalnız `runtime-provenance.ts` değişti.
 
-Pratik sonuç: bu köprü onarılana kadar **hiçbir yeni reuse kanıtı toplanamaz**,
-dolayısıyla `PG-001` canlı kabulü de alınamaz.
+**Kanıt:** T1-T6 düzeltmeden önce 5 düşüyor, sonra 19/19 geçiyor; yerel ve
+telefon `npm test` 174/174, `BUILD_OK`, md5 depo == telefon (107 dosya). Canlı:
+formation **22 → 22**, provenance edge **15 → 16** (`provenance-edge:92f10d96…`,
+parent exact Ses Paneli, witness `runtime-witness:9562590f…`, task
+`6fa9b709-…`), `LEDGER_OK events=151`. İkinci bağımsız reuse **16 → 17**.
+Ayrıntı: `PG-022`.
+
+`PG-023` (`.shortcuts/watchdog.sh` drift'i) bu turda **bilerek açık bırakıldı**.
 
 ## NEXT SAFE ACTION
 
@@ -381,14 +391,25 @@ dolayısıyla `PG-001` canlı kabulü de alınamaz.
 2. B-9 ayrı operasyonel risktir: bir sonraki canlı test öncesi anlık sağlık
    yeniden kontrol edilir; bu risk otomatik ürün önceliğine dönüştürülmez.
 
-### CURRENT DECISION POINT (2026-08-20)
+### CURRENT DECISION POINT (2026-08-20, ikinci tur)
+
+`PG-022` kapandı (`FACT`) ve provenance köprüsü canlıda iki kez doğrulandı.
+`PG-001`'in **provenance yarısı** artık canlı kanıtlı; **ürün yüzeyi yarısı**
+`TEST_VERIFIED` + telefon dağıtım paritesi. `FACT` için tek kapı owner'ın
+telefonda Explorer → Formation Detail → REUSE → artefakt → slider yolunu
+fiziksel olarak görmesidir. PC'den PWA sürülemiyor (`OTURUM_2026-08-20.md §5`).
+
+Sonraki owner seçimi (ajan kendiliğinden başlatmaz): `PG-001` görsel kabulü,
+`PG-023` (watchdog launcher drift'i), yoksa yeni bir ürün dilimi.
+
+### Önceki karar noktası (2026-08-20, ilk tur — kapandı)
 
 `PG-001`'in ürün yüzeyi tamam ve telefonda canlı (168/168, BUILD_OK, md5
 depo == telefon 107 dosya), fakat kabul zinciri `PG-022` yüzünden kapalı.
 Owner iki şeyi seçer, ajan kendiliğinden başlatmaz:
 
 1. `PG-022` düzeltmesine onay verilecek mi? Kabul kriterleri ve altı maddelik
-   kabul testi (`T1-T6`) register'da hazır; düzeltme yalnız `readLedger`'ın
+   kabul testi (`T1-T6`) register'da hazır; düzeltme yalnız `verifyRuntimeLedgerText`'ın
    `missing` satırı alan kuralını yazıcının gerçek sözleşmesine hizalar,
    `checkpointFrom` ve hash/zincir doğrulaması hiç değişmez.
 2. `PG-001`'in **görsel** kabulü telefonda ne zaman yapılacak? PC'den PWA

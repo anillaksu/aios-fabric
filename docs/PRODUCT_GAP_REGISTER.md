@@ -77,6 +77,18 @@ liveProofPlan · priority`
   o capability Ses Paneli formation contract'ında yok
   (`completed capability parent formation sozlesmesinde degil`).
   Bu nedenle `PG-001` `IN_PROGRESS` kalır; `LIVE_VERIFIED`/`FACT` yazılmadı.
+- **2026-08-20 (ikinci tur) — provenance yarısı canlı doğrulandı:** `PG-022`
+  düzeltmesinden sonra aynı zincir gerçek cihazda çalıştı: exact Ses Paneli
+  parent'ı üzerinde `volume.set` → `task.completed` → `RuntimeWitness` →
+  immutable provenance edge, **yeni identity üretmeden** (formation 22 → 22,
+  edge 15 → 16, ardından ikinci reuse ile 16 → 17). Ürün yüzeyi tarafı
+  `TEST_VERIFIED` + telefon dağıtım paritesi (174/174, `BUILD_OK`, md5 107
+  dosya). **Eksik kalan tek şey:** owner'ın telefonda Explorer → Formation
+  Detail → REUSE → artefakt → slider yolunu fiziksel olarak görmesi. PC'den
+  PWA sürülemiyor (düz HTTP secure context olmadığı için `crypto.subtle` yok,
+  `OTURUM_2026-08-20.md §5`), bu yüzden görsel kabul yalnız cihazda alınabilir.
+  Kayıt bu nedenle `IN_PROGRESS` kalır; `FACT` için tek kapı owner görsel
+  kabulüdür.
 
 ### PG-002 — Formation export/import ürün yüzeyi
 
@@ -351,20 +363,19 @@ liveProofPlan · priority`
 ### PG-022 — Runtime Ledger yazıcı/okuyucu sözleşme sapması
 
 - **Surface / status:** Runtime Ledger → Formation Memory provenance köprüsü /
-  `OPEN` — **BUG/RISK (contract drift)**. Owner kararı (2026-08-20): bu turda
-  üretim provenance çekirdeğine **dokunulmadı**, geçmiş ledger satırları
-  değiştirilmedi, fail-closed davranış korundu.
+  **`FACT`** (2026-08-20, owner onaylı düzeltme + T1-T6 + canlı kanıt). Kayıt
+  bulgunun tam izini taşımaya devam eder; silinmez.
 - **Code evidence:**
   - Yazıcı `scripts/aios-runtime-ledger.sh:46-58` (`process_witness()`): süreç
     pid'i yoksa veya `/proc/<pid>/stat` okunamıyorsa **beş alanı birden** `-`
     yazar (`pid`, `start`, `commandHash`, `sourceHash`, `processWitness`).
     `:121-128` `pid = '-'` ve önceki kayıt canlıysa `status="missing"` üretir.
-  - Okuyucu `src/runtime-provenance.ts:68-72` (`readLedger`): `commandHash` ve
+  - Okuyucu `src/runtime-provenance.ts:68-72` (`verifyRuntimeLedgerText`): `commandHash` ve
     `processWitness` için **koşulsuz** `HASH` (`^[0-9a-f]{64}$`) ister; `-`
     değerine yalnız `sourceHash` için izin verir.
   - Çağrı zinciri `src/server.ts:154-172` `onTaskCompleted` →
     `recordCompletedRuntimeProvenance` → `captureRuntimeCheckpoint` →
-    `readLedger`.
+    `verifyRuntimeLedgerText`.
 - **Exact invariant farkı** (yazıcının ürettiği ↔ okuyucunun kabul ettiği):
 
   | Alan | Yazıcı `started`/`replaced`/`stable` | Yazıcı `missing` | Okuyucu kabulü | Sonuç |
@@ -386,7 +397,7 @@ liveProofPlan · priority`
     `status ∈ {started, replaced, stable}` **ve** `sourceHash !== "-"`. Bu kapı
     sayesinde bir `missing` satırı hiçbir koşulda RuntimeWitness'a dönüşemez.
   - Ledger append-only'dir; geçmiş satır düzeltilmez veya yeniden yazılmaz.
-- **Current behavior / user impact:** `readLedger` dosyanın **tamamını** önce
+- **Current behavior / user impact:** `verifyRuntimeLedgerText` dosyanın **tamamını** önce
   doğruladığı için tek bir `missing` satırı o andan sonraki **her** provenance
   yazımını fail-closed düşürür. Telefonda `2026-08-20T00:42:42Z` tarihli iki
   `connectivity-bridge` satırı (`gateway missing`, `watchdog missing`; dosya
@@ -404,7 +415,7 @@ liveProofPlan · priority`
   uygunluk kapısı ve fail-closed doğrulama var; eksik olan, okuyucunun
   `missing` statüsü için yazıcının gerçek sözleşmesini tanıması.
 - **Acceptance criteria (owner onayı geldiğinde):**
-  1. `readLedger`, `status === "missing"` satırında `commandHash` ve
+  1. `verifyRuntimeLedgerText`, `status === "missing"` satırında `commandHash` ve
      `processWitness` için `-` kabul eder; diğer statülerde HASH zorunluluğu
      **aynen** kalır.
   2. Zincir ve event-hash doğrulaması hiç değişmez; kırık zincir/hash hâlâ
@@ -413,8 +424,8 @@ liveProofPlan · priority`
   4. Hiçbir geçmiş ledger satırı değiştirilmez, silinmez veya yeniden yazılmaz.
 - **Test plan (kabul testi tanımı):**
   - **T1** 11 kolonlu, `status=missing`, beş alanı `-`, `previousHash`/`eventHash`
-    geçerli satır → `readLedger` **geçirir**.
-  - **T2** aynı satırın `status`'u `stable` yapılırsa → `readLedger`
+    geçerli satır → `verifyRuntimeLedgerText` **geçirir**.
+  - **T2** aynı satırın `status`'u `stable` yapılırsa → `verifyRuntimeLedgerText`
     `gecersiz alan` ile **reddeder** (gevşeme yalnız `missing`'e özgüdür).
   - **T3** son `fabric` kaydı `missing` ise → `checkpointFrom`
     `witness olmaya uygun degil` ile **reddeder**.
@@ -432,7 +443,46 @@ liveProofPlan · priority`
   `formation:53542f33a1a45543997d705cf281598acf4cfb08ab3984f01d4dbecdc030c655`,
   formation sayısı **22'de kalır** → `aios-runtime-ledger.sh verify` yine
   `LEDGER_OK`.
-- **Priority:** `PG-001`'in blocker'ı; düzeltme owner onayına bağlıdır.
+- **Priority:** `PG-001`'in blocker'ıydı; kapandı.
+- **2026-08-20 düzeltme ve canlı kabul (owner onaylı, dar kapsam):**
+  `verifyRuntimeLedgerText` içindeki alan doğrulaması yazıcının gerçek
+  sözleşmesine hizalandı: `commandHash` ve `processWitness` için `-` **yalnız**
+  `status === "missing"` satırında kabul edilir. Değişmeyen her şey ölçüldü:
+  `checkpointFrom()` dokunulmadı, `previousHash` zinciri ve `eventHash`
+  SHA-256 doğrulaması dokunulmadı, yazıcı sözleşmesi dokunulmadı,
+  `src/` altında yalnız `runtime-provenance.ts` değişti (+15/-2, tamamı bu
+  koşul bloğu ve gerekçe yorumu).
+
+  **T1-T6 önce başarısız, sonra yeşil:** düzeltmeden önce 19 testin 5'i düştü
+  (T1, T3, T4, T5, T6 — T2 zaten geçiyordu çünkü reddi doğruluyor); düzeltmeden
+  sonra **19/19**. T5 özellikle anlamlı: gevşemeden önce satır alan regexinde,
+  gevşemeden sonra `event hash gecersiz` ile düşüyor — yani hash kapısı
+  gevşemedi. T6 için 2026-08-20'nin gerçek 145 satırlık ledger'ı
+  `test/fixtures/runtime-ledger-2026-08-20.tsv` olarak donduruldu; telefonda
+  fixture bulunmadığından canlı ledger'a düşer (production call-site testindeki
+  aynı desen).
+
+  **Kapı:** yerel ve telefon `npm test` **174/174**, `BUILD_OK`,
+  `git diff --check` temiz, `deploy-to-phone.sh` md5 **depo == telefon
+  (107 dosya)**.
+
+  **Canlı kanıt — başarı kriterlerinin tamamı:**
+
+  | Kriter | Ölçüm |
+  |---|---|
+  | formation 22 → 22 | ✓ yeni kimlik üretilmedi, kimlikler birebir aynı |
+  | provenance edge 15 → 16 | ✓ `provenance-edge:92f10d9609eb4337…` |
+  | parent = exact Ses Paneli | ✓ `formation:53542f33a1a45543…c030c655` |
+  | `aios-runtime-ledger.sh verify` | ✓ `LEDGER_OK events=151` |
+  | geçmiş 145 satır değişmemiş | ✓ ilk 145 satır fixture ile **byte eşit**; dosya yalnız append aldı (145 → 151) |
+
+  Witness `runtime-witness:9562590f96d92912…`, task
+  `6fa9b709-6bcb-496a-a14b-e79db1f60490`, capability `volume.set`; cihaz
+  gerçekten değişti (`music 106 → 72`, bağımsız `volume.read` ile doğrulandı).
+  `fabric.log`: `[fabric:runtime-provenance] recorded provenance-edge:92f10d96…`.
+  **İkinci bağımsız reuse** aynı exact root üzerinde tekrarlandı (edge
+  **16 → 17**, task `54bb5674-b134-4a72-a686-041dcd0bd033`, formation yine 22,
+  ses 106'ya geri alındı) — reuse'un derived olmadığı canlıda iki kez görüldü.
 
 ### PG-023 — Termux launcher kopyası kanoniklik kapsamı dışında
 

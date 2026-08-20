@@ -65,8 +65,21 @@ export function verifyRuntimeLedgerText(text: string): RuntimeLedgerEvent[] {
     const columns = row.split("\t");
     if (columns.length !== 11) throw new TypeError(`runtime ledger gecersiz sutun: ${index + 1}`);
     const [timestamp, reason, role, status, pid, start, commandHash, sourceHash, processWitness, previousHash, eventHash] = columns;
-    if (!timestamp || !reason || !role || !status || !pid || !start || !HASH.test(commandHash)
-      || (sourceHash !== "-" && !HASH.test(sourceHash)) || !HASH.test(processWitness)
+    // Yazici (scripts/aios-runtime-ledger.sh:process_witness) bir surec
+    // bulunamadiginda pid/start/commandHash/sourceHash/processWitness
+    // alanlarinin besini birden '-' yazar ve satiri status="missing" olarak
+    // kapatir. Okuyucu bunu kabul etmezse TEK bir missing satiri, dosyanin
+    // tamami once dogrulandigi icin sonraki BUTUN provenance yazimlarini
+    // fail-closed dusurur (PG-022; 2026-08-20'de canli telefonda gozlendi:
+    // 145 satirin 127-128'i, zincir ve event-hash'ler gecerli olmasina ragmen).
+    // Gevseme yalniz bu statuye ozgudur: canli surec iddia eden satirlarda
+    // hash zorunlulugu aynen surer, zincir/event-hash dogrulamasi hic
+    // degismez ve checkpointFrom() bir missing satirini zaten witness
+    // adayi saymaz.
+    const processAbsent = status === "missing";
+    const processHash = (value: string) => (processAbsent && value === "-") || HASH.test(value);
+    if (!timestamp || !reason || !role || !status || !pid || !start || !processHash(commandHash)
+      || (sourceHash !== "-" && !HASH.test(sourceHash)) || !processHash(processWitness)
       || (previousHash !== "GENESIS" && !HASH.test(previousHash)) || !HASH.test(eventHash)) {
       throw new TypeError(`runtime ledger gecersiz alan: ${index + 1}`);
     }

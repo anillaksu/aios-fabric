@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +14,7 @@ import {
   joinRuntimeProvenance,
   verifyRuntimeProvenanceEdge,
 } from "../public/js/formation-memory.js";
-import { verifyRuntimeLedgerText } from "../src/runtime-provenance.ts";
+import { captureRuntimeCheckpoint, verifyRuntimeLedgerText } from "../src/runtime-provenance.ts";
 
 const hex = (text: string) => createHash("sha256").update(text).digest("hex");
 const hid = (text: string) => `sha256:${text}`;
@@ -199,4 +200,138 @@ test("production call-site artifact context, dispatcher completion ve fail-close
   assert.match(server, /recordCompletedRuntimeProvenance/);
   assert.match(ledger, /LEDGER_CHAIN_BREAK/);
   assert.match(ledger, /expected_previous=\"\$event\"/);
+});
+
+/* ══════════ PG-022 — yazici/okuyucu sozlesme hizalamasi (T1-T6) ══════════
+   scripts/aios-runtime-ledger.sh:process_witness bir surec bulunamadiginda
+   pid/start/commandHash/sourceHash/processWitness alanlarinin BESINI birden
+   '-' yazar ve satiri status="missing" olarak kapatir. Okuyucu bunu kabul
+   etmezse tek bir missing satiri sonraki TUM provenance yazimlarini
+   fail-closed dusurur (2026-08-20'de canli telefonda gozlendi).
+
+   Bu paketin korudugu sinir: gevseme YALNIZ status="missing" icindir,
+   zincir/event-hash dogrulamasi hic degismez ve bir missing satiri hicbir
+   kosulda RuntimeWitness checkpoint'i olamaz. */
+
+// Yazicinin gercek "missing" cikti sekli.
+const WRITER_MISSING = Object.freeze({
+  status: "missing", pid: "-", start: "-", commandHash: "-", sourceHash: "-", processWitness: "-",
+});
+
+function ledgerLine(previousHash: string, overrides: Record<string, string> = {}) {
+  const field = {
+    timestamp: "2026-08-20T00:42:42Z", reason: "task-completed:pg022", role: "fabric",
+    status: "stable", pid: "41", start: "900",
+    commandHash: "a".repeat(64), sourceHash: "b".repeat(64), processWitness: "c".repeat(64),
+    ...overrides,
+  };
+  const fields = [
+    field.timestamp, field.reason, field.role, field.status, field.pid, field.start,
+    field.commandHash, field.sourceHash, field.processWitness, previousHash,
+  ];
+  return [...fields, hex(fields.join("|"))].join("\t");
+}
+
+/** Satirlari gercek yazici gibi GENESIS'ten baslayarak zincirler. */
+function ledgerText(specs: Record<string, string>[]) {
+  let previous = "GENESIS";
+  const lines: string[] = [];
+  for (const spec of specs) {
+    const line = ledgerLine(previous, spec);
+    lines.push(line);
+    previous = line.split("\t")[10];
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** captureRuntimeCheckpoint icin izole ledger + yazmayan stub snapshot betigi. */
+async function withStubLedger<T>(text: string, fn: (paths: { scriptPath: string; ledgerPath: string }) => T | Promise<T>) {
+  const dir = mkdtempSync(join(tmpdir(), "aios-pg022-"));
+  const scriptPath = join(dir, "stub-runtime-ledger.sh");
+  const ledgerPath = join(dir, "aios-runtime-ledger.tsv");
+  // Stub bilerek hicbir sey yazmaz: test, ledger icerigi TAM olarak
+  // kurdugumuz hali kalsin diye gercek betigi calistirmaz.
+  writeFileSync(scriptPath, "#!/usr/bin/env bash\nexit 0\n", "utf8");
+  writeFileSync(ledgerPath, text, "utf8");
+  try {
+    return await fn({ scriptPath, ledgerPath });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("PG-022 T1: yazicinin status=missing satiri okuyucudan gecer", () => {
+  const events = verifyRuntimeLedgerText(ledgerText([
+    {},
+    { ...WRITER_MISSING, role: "gateway", reason: "connectivity-bridge" },
+  ]));
+  assert.equal(events.length, 2);
+  assert.equal(events[1].status, "missing");
+  assert.equal(events[1].commandHash, "-");
+  assert.equal(events[1].processWitness, "-");
+});
+
+test("PG-022 T2: gevseme yalniz missing'e ozgudur - canli surec iddia eden satirda '-' reddedilir", () => {
+  for (const status of ["stable", "started", "replaced"]) {
+    assert.throws(
+      () => verifyRuntimeLedgerText(ledgerText([{ ...WRITER_MISSING, status }])),
+      /gecersiz alan/,
+      `${status} satiri '-' ile kabul edilmemeli`,
+    );
+  }
+});
+
+test("PG-022 T3: missing satiri hicbir kosulda RuntimeWitness checkpoint'i olamaz", async () => {
+  const reason = "task-completed:pg022";
+  const text = ledgerText([{}, { ...WRITER_MISSING, reason }]);
+  await withStubLedger(text, ({ scriptPath, ledgerPath }) => {
+    assert.throws(
+      () => captureRuntimeCheckpoint({ scriptPath, ledgerPath, reason }),
+      /witness olmaya uygun degil/,
+    );
+  });
+});
+
+test("PG-022 T4: missing satirindan SONRA gelen gecerli fabric checkpoint'i witness uretir", async () => {
+  const reason = "task-completed:pg022";
+  const text = ledgerText([{ ...WRITER_MISSING, reason }, { reason, status: "stable" }]);
+  await withStubLedger(text, async ({ scriptPath, ledgerPath }) => {
+    const ledger = captureRuntimeCheckpoint({ scriptPath, ledgerPath, reason });
+    assert.equal(ledger.role, "fabric");
+    assert.equal(ledger.status, "stable");
+    const parent = await createRootFormation(artifact);
+    const witness = await createRuntimeWitness({
+      parentFormationId: parent.id,
+      completion: { type: "task.completed", taskId: "pg022", correlationId: "corr-pg022", capability: "volume.set", result: {} },
+      ledger,
+    });
+    const edge = await createRuntimeProvenanceEdge({ parent, witness });
+    assert.equal(await verifyRuntimeProvenanceEdge(edge, parent), true);
+  });
+});
+
+test("PG-022 T5: bozuk event hash missing satirinda da reddedilir", () => {
+  const columns = ledgerText([{ ...WRITER_MISSING }]).trim().split("\t");
+  columns[10] = "f".repeat(64);
+  assert.throws(() => verifyRuntimeLedgerText(`${columns.join("\t")}\n`), /event hash gecersiz/);
+});
+
+test("PG-022 T6: gercek ledger regresyonu - her satir eksiksiz parse edilir", () => {
+  // Depoda 2026-08-20'nin dondurulmus anlik goruntusu; telefonda kanonik canli
+  // ledger. Ayni dosya iki konumda aranir (production call-site testindeki
+  // desenle ayni), cunku fixture telefona dagitilmaz.
+  const fixture = new URL("./fixtures/runtime-ledger-2026-08-20.tsv", import.meta.url);
+  const liveLedger = join(process.env.HOME || "", "aios-runtime-ledger.tsv");
+  const usingFixture = existsSync(fixture);
+  assert.ok(usingFixture || existsSync(liveLedger), "gercek ledger regresyonu icin fixture ya da canli ledger gerekli");
+
+  const text = readFileSync(usingFixture ? fixture : liveLedger, "utf8");
+  const rows = text.split(/\r?\n/).filter(Boolean);
+  const events = verifyRuntimeLedgerText(text);
+
+  assert.equal(events.length, rows.length, "gercek ledger'in her satiri parse edilmeli");
+  assert.ok(events.some((event) => event.status === "missing"), "regresyon ancak gercek missing satiriyla anlamlidir");
+  // Dondurulmus anlik goruntu tam olarak 145 satirdir; canli ledger buyudugu
+  // icin orada yalniz eksiksiz parse ve missing varligi aranir.
+  if (usingFixture) assert.equal(rows.length, 145);
 });
