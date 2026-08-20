@@ -11,7 +11,8 @@ bir önceki ajanın anlatımına GÜVENME, aşağıdaki kaynakları kendin doğr
 6. `docs/PRODUCT_GAP_REGISTER.md` — açık ürün borcu ve kapanış kanıtı
 7. `docs/AIOS_DETERMINISTIC_HANDOVER.md` — agent-bağımsız devir algoritması
 8. `docs/CROSS_PLATFORM_BOOTSTRAP.md` — rol-bazlı fresh checkout ve bağlantı sınırı
-9. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
+9. `docs/OTURUM_2026-08-20.md` — devir oturumunun ham kronolojisi ve canlı kanıtı
+10. `git log` / kod — çelişki varsa **bunlar kazanır**, bu dosya değil
 
 Bu dosya bir **özet/index**'tir, birincil kaynak değil. Çelişki bulursan
 "§ Bilinen belge kaymaları" bölümüne ekle, üstteki dosyaları elle düzeltme
@@ -346,6 +347,31 @@ Bu FACT yalnız gerçek dispatcher execution + provenance/portability kabulüdü
 
 ---
 
+## Runtime Ledger provenance köprüsü ŞU AN FAIL-CLOSED (2026-08-20, AÇIK BUG)
+
+**Bunu FACT sanma, yeniden keşfetme, kendiliğinden düzeltme.** `6e2e314` ile
+kurulan `task.completed → RuntimeWitness → immutable provenance edge` zinciri
+**2026-08-20T00:42:42Z'den beri hiçbir edge üretmiyor.**
+
+Kök neden `PG-022`: ledger yazıcısı (`scripts/aios-runtime-ledger.sh`)
+`status=missing` satırında `commandHash` ve `processWitness` alanlarına `-`
+yazar; okuyucu (`src/runtime-provenance.ts:68-72` `readLedger`) bu iki alan için
+koşulsuz 64-hex hash ister. `readLedger` dosyanın tamamını önce doğruladığı için
+tek bir `missing` satırı sonraki **her** provenance yazımını düşürür. Satırlar
+append-only ve hash-zincirli olduğundan durum kendiliğinden düzelmez.
+
+Bağımsız doğrulandı: 145 satırın yalnız 2'si (127, 128) reddediliyor; zincir
+bütünlüğü ve tüm event-hash'ler **geçerli**, `aios-runtime-ledger.sh verify`
+`LEDGER_OK` diyor. Sorun zincir değil, okuyucunun alan regexi.
+
+**Owner kararı (2026-08-20):** bu tur üretim provenance çekirdeğine dokunulmadı,
+yazıcı sözleşmesi değiştirilmedi, geçmiş ledger satırları yeniden yazılmadı.
+Exact invariant farkı ve gelecekteki düzeltmenin kabul testi `PG-022` içinde
+tanımlıdır; düzeltme owner onayına bağlıdır.
+
+Pratik sonuç: bu köprü onarılana kadar **hiçbir yeni reuse kanıtı toplanamaz**,
+dolayısıyla `PG-001` canlı kabulü de alınamaz.
+
 ## NEXT SAFE ACTION
 
 1. Formation Canvas/UI veya AETHER promotion katmanına geçmeden önce owner,
@@ -354,6 +380,23 @@ Bu FACT yalnız gerçek dispatcher execution + provenance/portability kabulüdü
    açılmadı.
 2. B-9 ayrı operasyonel risktir: bir sonraki canlı test öncesi anlık sağlık
    yeniden kontrol edilir; bu risk otomatik ürün önceliğine dönüştürülmez.
+
+### CURRENT DECISION POINT (2026-08-20)
+
+`PG-001`'in ürün yüzeyi tamam ve telefonda canlı (168/168, BUILD_OK, md5
+depo == telefon 107 dosya), fakat kabul zinciri `PG-022` yüzünden kapalı.
+Owner iki şeyi seçer, ajan kendiliğinden başlatmaz:
+
+1. `PG-022` düzeltmesine onay verilecek mi? Kabul kriterleri ve altı maddelik
+   kabul testi (`T1-T6`) register'da hazır; düzeltme yalnız `readLedger`'ın
+   `missing` satırı alan kuralını yazıcının gerçek sözleşmesine hizalar,
+   `checkpointFrom` ve hash/zincir doğrulaması hiç değişmez.
+2. `PG-001`'in **görsel** kabulü telefonda ne zaman yapılacak? PC'den PWA
+   sürülemiyor: düz HTTP secure context olmadığı için `crypto.subtle` yok
+   (`OTURUM_2026-08-20.md §5`). Görsel kabul yalnız cihazda alınabilir ve
+   `PG-022`'den bağımsız olarak şimdi alınabilir.
+
+`PG-002` ve diğer açık kayıtlar bu oturumda bilerek açılmadı.
 
 ---
 

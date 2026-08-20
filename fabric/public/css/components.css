@@ -164,9 +164,11 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 
 /* ── FORMATION CANVAS (yalnız read-only projection) ────────── */
 .formation-canvas-screen { display:flex; flex-direction:column; gap:var(--sp-2); padding:0 var(--page-pad) var(--sp-4); min-height:0; }
-.formation-canvas-toolbar { display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2); }
-.formation-canvas-controls { display:flex; gap:var(--sp-1); }
+.formation-canvas-toolbar { display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2); flex-wrap:wrap; }
+.formation-canvas-toolbar > .k-micro { flex:1 1 150px; min-width:0; }
+.formation-canvas-controls { display:flex; gap:var(--sp-1); flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; }
 .formation-canvas-control { width:38px; min-height:38px; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface-elevated); color:var(--text-primary); font:inherit; cursor:pointer; }
+.formation-canvas-control[data-wide="1"] { width:auto; min-width:112px; padding-inline:var(--sp-2); font-family:var(--font-mono); font-size:var(--fs-micro); letter-spacing:var(--ls-micro); }
 .formation-canvas-control:active { transform:scale(.94); background:var(--s2); }
 .formation-canvas-viewport { position:relative; min-height:min(62dvh,560px); overflow:hidden; border:1px solid var(--border); border-radius:var(--r-lg); background:linear-gradient(135deg,var(--s1),var(--s2)); touch-action:none; overscroll-behavior:contain; }
 .formation-canvas-viewport::before { content:""; position:absolute; inset:0; pointer-events:none; background-image:radial-gradient(var(--line-hi) 1px,transparent 1px); background-size:18px 18px; }
@@ -489,8 +491,11 @@ dialog.aios-sheet .sheet-modal {
   position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh;
   background: var(--s1); border-radius: var(--r-lg) var(--r-lg) 0 0;
   border: 1px solid var(--line); border-bottom: none; overflow-y: auto;
+  transform-origin: center bottom; animation: aios-sheet-enter var(--t-base) var(--ease) both;
 }
 dialog.aios-sheet .sheet-modal-inner { padding-bottom: env(safe-area-inset-bottom); }
+@keyframes aios-sheet-enter { from { opacity:0; transform:translateY(20px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { dialog.aios-sheet .sheet-modal { animation:none; } }
 
 /* Control Center'daki pencere yuzeyi secimi: tema gibi estetik degil,
    WindowManager kayitlarinin nasil gorunecegine dair yerel tercih. */

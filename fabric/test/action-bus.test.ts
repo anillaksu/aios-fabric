@@ -95,6 +95,21 @@ test("sahte cihaz bilgisi: bozuk/gecersiz aios blogu metinden tamamen silinir", 
   assert.match(out, /Baska bir cumle\./);
 });
 
+test("aios blogu: gecerli ilk JSON object sonrasi model metni artefakti dusurmez", () => {
+  const text = "Hazir.\n```aios\n{\"id\":\"ses\",\"title\":\"Ses\",\"sections\":[{\"type\":\"section\",\"children\":[{\"type\":\"metric\",\"label\":\"Durum\",\"value\":\"hazir\"}]}]}\nModel notu: kart kullanima hazir.\n```\n";
+  const out = sanitizeAiosBlock(text);
+  const block = out.match(/```aios\s*([\s\S]*?)```/);
+  assert.ok(block, "gecerli ScreenSpec korunmali");
+  assert.doesNotThrow(() => JSON.parse(block![1]));
+  assert.equal(validateScreen(JSON.parse(block![1]))?.title, "Ses");
+  assert.ok(!block![1].includes("Model notu"), "fence icindeki serbest ek metin contract'a girmemeli");
+});
+
+test("aios blogu: JSON object oncesi serbest metin fail-closed silinir", () => {
+  const text = "```aios\nBunu kullan:\n{\"id\":\"x\",\"title\":\"X\",\"sections\":[]}\n```";
+  assert.ok(!sanitizeAiosBlock(text).includes("```aios"));
+});
+
 // ─── 4) YETKISIZ CAPABILITY: risk:"ask" TEK bus'ta da (dispatcher) reddedilir ───
 test("yetkisiz capability: risk:ask olan script.run dispatcher'dan gecince kosulsuz reddedilir", async () => {
   const { dispatcher } = makeStack();

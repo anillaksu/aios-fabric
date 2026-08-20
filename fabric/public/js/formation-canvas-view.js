@@ -2,7 +2,7 @@
 
 function nodeText(value) { return typeof value === "string" ? value : ""; }
 
-export function mountFormationCanvas(host, projection, { onSelect } = {}) {
+export function mountFormationCanvas(host, projection, { onSelect, onBrowse } = {}) {
   host.innerHTML = "";
   const wrap = document.createElement("section");
   wrap.className = "formation-canvas-screen";
@@ -13,9 +13,10 @@ export function mountFormationCanvas(host, projection, { onSelect } = {}) {
   summary.textContent = `${projection.totalFormations} OLUŞUM · ${projection.links.filter((link) => link.kind === "reuse").length} YÜRÜTME İZİ`;
   const controls = document.createElement("div");
   controls.className = "formation-canvas-controls";
-  const makeControl = (label, action) => {
+  const makeControl = (label, action, wide = false) => {
     const button = document.createElement("button");
     button.type = "button"; button.className = "formation-canvas-control";
+    if (wide) button.dataset.wide = "1";
     button.textContent = label; button.setAttribute("aria-label", action);
     controls.appendChild(button); return button;
   };
@@ -62,8 +63,11 @@ export function mountFormationCanvas(host, projection, { onSelect } = {}) {
   let transform = { x: 10, y: 10, z: 0.82 };
   const pointers = new Map(); let pinch = null;
   const apply = () => { stage.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.z})`; };
-  const clampZoom = (value) => Math.max(0.55, Math.min(1.8, value));
+  // Geniş formation ağında tüm ilişkiyi bir bakışta görebilmek için alt
+  // sınır dar mobil viewport'a göre değil graph'ın büyüyebilirliğine göre.
+  const clampZoom = (value) => Math.max(0.24, Math.min(1.8, value));
   const zoom = (delta) => { transform = { ...transform, z: clampZoom(transform.z + delta) }; apply(); };
+  if (onBrowse) makeControl("FORMATIONLAR", "Formation listesini aç", true).addEventListener("click", () => onBrowse());
   makeControl("−", "Uzaklaştır").addEventListener("click", () => zoom(-0.15));
   makeControl("+", "Yakınlaştır").addEventListener("click", () => zoom(0.15));
   makeControl("⌾", "Grafiği ortala").addEventListener("click", () => { transform = { x: 10, y: 10, z: 0.82 }; apply(); });

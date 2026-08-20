@@ -37,7 +37,7 @@ export const UI_META_ACTIONS = new Set([
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
   "ui.compose", "ui.refreshApps", "ui.refreshArtifacts", "ui.refreshApplications", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
   "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove",
-  "ui.referenceSoundPanel", "ui.referenceDeviceStatus",
+  "ui.referenceSoundPanel", "ui.referenceDeviceStatus", "ui.formationReuse", "ui.formationIdentity",
 ]);
 
 function actionAllowed(type: string): boolean {
@@ -184,7 +184,36 @@ export function sanitizeAiosBlock(text: string): string {
   if (!m) return text;
   let clean: CleanScreen | null = null;
   try {
-    clean = validateScreen(JSON.parse(m[1].trim()));
+    // Model bazen gecerli JSON nesnesini kapattiktan sonra AYNI fenced block
+    // icinde bir cumle daha yazar. JSON.parse tum blogu aldigi icin bu tek
+    // fazla karakter artefaktin tamamini dusuruyordu. Serbest metni ya da
+    // ikinci bir nesneyi kabul etmiyoruz: yalnizca ilk karakteri `{` olan ve
+    // string/escape kurallarina gore TAMAMLANMIS ilk JSON object ayiklanir;
+    // ardindan her zamanki server validator kapisi calisir.
+    const body = m[1].trim();
+    if (!body.startsWith("{")) throw new SyntaxError("aios blogu JSON object ile baslamiyor");
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    let end = -1;
+    for (let i = 0; i < body.length; i++) {
+      const ch = body[i];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') quoted = false;
+        continue;
+      }
+      if (ch === '"') { quoted = true; continue; }
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth < 0) throw new SyntaxError("aios JSON kapanisi gecersiz");
+        if (depth === 0) { end = i + 1; break; }
+      }
+    }
+    if (end < 0 || quoted || depth !== 0) throw new SyntaxError("aios JSON object tamamlanmamis");
+    clean = validateScreen(JSON.parse(body.slice(0, end)));
   } catch (err) {
     // Model bozuk JSON uretti - bu tamamen olasi (LLM hallucination), ama
     // ne siklikta oldugunu bilmek kalite sinyali (prompt.ts ayarlamasi icin).

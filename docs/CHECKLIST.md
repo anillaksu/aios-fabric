@@ -266,6 +266,12 @@ Son güncelleme: 2026-08-19 (Formation Memory Runtime Witness provenance kabulü
 
 ## Bilinen borçlar (henüz sıraya girmedi)
 
+- [ ] B-14 **(2026-08-20'de canlı reuse denemesinde bulundu)** Runtime Ledger yazıcı/okuyucu sözleşme sapması — `scripts/aios-runtime-ledger.sh` `status=missing` satırında `commandHash` ve `processWitness` alanlarına `-` yazarken `src/runtime-provenance.ts:68-72` (`readLedger`) bu iki alan için koşulsuz 64-hex hash istiyor. `readLedger` dosyanın tamamını önce doğruladığı için **2026-08-20T00:42:42Z'den sonraki her provenance yazımı fail-closed**; `task.completed → RuntimeWitness → immutable edge` zinciri yeni edge üretmiyor. Ledger append-only + hash-zincirli olduğundan kendiliğinden düzelmez.
+      · **Bağımsız doğrulandı:** telefondaki 145 satırın yalnız 2'si (127, 128) reddediliyor, ikisi de `status=missing`; zincir bütünlüğü ve TÜM event-hash'ler geçerli, `aios-runtime-ledger.sh verify` `LEDGER_OK` diyor. Sorun zincir bütünlüğü DEĞİL, okuyucunun alan regexi.
+      · **Owner kararı (2026-08-20):** üretim provenance çekirdeğine bu turda dokunulmadı, yazıcı sözleşmesi değiştirilmedi, geçmiş satırlar yeniden yazılmadı. Exact invariant farkı + `T1-T6` kabul testi `PRODUCT_GAP_REGISTER.md` `PG-022` içinde tanımlı; düzeltme owner onayına bağlı.
+      · **Etkisi:** `PG-001` (Exact Formation Reuse Explorer) canlı kabulü bu köprü onarılana kadar alınamaz.
+- [ ] B-15 **(2026-08-20)** `~/.shortcuts/watchdog.sh` kanoniklik kapsamı dışında — `deploy-to-phone.sh` yalnız `~/watchdog.sh`'i md5 doğrular; `.shortcuts` kopyası (md5 `1130a903…`) kanonikten geride ve Runtime Ledger `observe watchdog-cycle` bloğunu taşımıyor. Widget'tan başlatılırsa `/runtime-status` ve `start_hermes_os.sh` sağlık satırı watchdog'u "down" gösterir (desen `^bash $HOME/watchdog\.sh$`) ve ledger sürekliliği beslenmez. Ayrıntı: `PRODUCT_GAP_REGISTER.md` `PG-023`. Owner kararı olmadan başlatıcı matrisine dokunulmadı.
+
 - [x] B-1 `pc-agent` Agent Card sürümü `0.3.0`, `package.json` `0.1.0` — W2.2 ile kapandı, ikisi de artık `0.1.0`
 - [x] B-2 `a2a.ts:pollPeerTask()` ölü kod — W2 sırasında silindi
 - [x] B-3 ✅ **KAPANDI (2026-08-18)** — `fabric/public/js/components.css` **silindi**. Doğrulama: `aios.html` yalnızca `/css/components.css`'i yüklüyor; `js/` kopyasına sıfır referans; ve artık birebir kopya bile değildi (W6.I'nin native toast/sheet CSS'i yalnızca `css/` sürümüne eklenmişti, ölü kopya hiç güncellenmemişti — bu da terk edildiğinin ayrı bir kanıtı)

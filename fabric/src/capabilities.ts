@@ -635,6 +635,10 @@ export const capabilities: Capability[] = [
     name: "shizuku.status",
     class: "REFLEX",
     risk: "safe",
+    // Bu salt gozlem capability'si Ayarlar ekraninin gercek durumu
+    // gosterebilmesi icin /read facade'inda acik olmalidir. Baslatma ve
+    // ayricalikli eylemler ise readOnly degildir ve kapali kalir.
+    readOnly: true,
     maxRetries: 0,
     execute: async () => {
       const alive = await runRish("id", 8000);

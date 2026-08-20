@@ -32,6 +32,7 @@ import { runViewTransition } from "./view-transitions.js";
 import { createRootFormation, verifyFormation } from "./formation-memory.js";
 import { projectFormationCanvas } from "./formation-canvas.js";
 import { mountFormationCanvas } from "./formation-canvas-view.js";
+import { projectFormationExplorer, findFormationExplorerRecord } from "./formation-explorer.js";
 import { clipboardAnalysisPrompt, clipboardTextFromResult } from "./clipboard-import.js";
 import { dockWindows } from "./workspace-dock.js";
 import { DEFAULT_WORKSPACE_SURFACE, WORKSPACE_SURFACES, canvasPosition, loadWorkspaceSurface, saveWorkspaceSurface } from "./workspace-surface.js";
@@ -67,13 +68,18 @@ function createSheet(html) {
   dlg.innerHTML = html;
   document.body.appendChild(dlg);
   const listeners = {};
+  let openedAt = 0;
   const close = () => { if (dlg.open) dlg.close(); };
   dlg.addEventListener("click", (e) => {
+    // Sheet'i acan dokunusun gec kalan pointer/click olayi native dialog'a
+    // dusurse yeni sheet ayni anda kapanmasin. Bu bir navigation state'i
+    // degil, dialog'un kendi native interaction siniridir.
+    if (performance.now() - openedAt < 180) return;
     if (e.target === dlg || e.target.closest(".sheet-close")) close();
   });
   dlg.addEventListener("close", () => (listeners.closed || []).forEach((cb) => cb()));
   return {
-    open: () => dlg.showModal(),
+    open: () => { dlg.showModal(); openedAt = performance.now(); },
     close,
     on(ev, cb) { (listeners[ev] || (listeners[ev] = [])).push(cb); },
     destroy: () => dlg.remove(),
@@ -410,6 +416,8 @@ const ctx = {
     if (type === "ui.application") { openApplication(payload && payload.applicationId, payload && payload.artifactId); return { ok: true }; }
     if (type === "ui.referenceSoundPanel") return openReferenceArtifact(SCROLLABLE_SOUND_PANEL, SOUND_PANEL_REQUIREMENTS, "Kaydırılabilir Ses Paneli");
     if (type === "ui.referenceDeviceStatus") return openReferenceArtifact(DEVICE_STATUS_PANEL, DEVICE_STATUS_PANEL_REQUIREMENTS, "Cihaz Durum Merkezi");
+    if (type === "ui.formationReuse") return openFormationReuseConfirmation(payload && payload.formationId);
+    if (type === "ui.formationIdentity") return openFormationIdentitySheet(payload && payload.formationId);
     if (type === "ui.compose")   { focusComposer(payload && payload.text); return { ok: true }; }
     if (type === "ui.refreshApps") { await refreshAndroidApps(); return { ok: S.appsLoadState === "ready", error: S.appsLoadError }; }
     if (type === "ui.refreshArtifacts") { await refreshArtifacts(); return { ok: artifactsLoadState === "ready", error: artifactsLoadError }; }
@@ -631,8 +639,49 @@ function updateBadges() {
   renderWindowDock();
 }
 
-/* Eski sabit kategori tablari yerine yalniz Linhx ve gercekten acilmis
-   WindowManager pencereleri gorunur. Bu saf istemci navigasyonudur. */
+const WORKSPACE_ROUTE_TITLES = Object.freeze({
+  home: "ANA SAYFA", komut: "KEŞFET", artifact: "ARTEFAKTLAR", activity: "AKTİF", hermes: "LINHX",
+  discover: "KEŞFET", androidApps: "UYGULAMALAR", tools: "ARAÇLAR", agents: "AGENTLAR",
+  capabilities: "YETENEKLER", journal: "JOURNAL", connections: "BAĞLANTILAR", management: "YÖNETİM",
+  settings: "AYARLAR", miniapps: "UYGULAMALAR", automations: "OTOMASYONLAR", history: "GEÇMİŞ",
+  "formation-canvas": "FORMATION CANVAS", formations: "FORMATIONLAR", "formation-detail": "FORMATION DETAY",
+  "system-map": "SİSTEM HARİTASI", operator: "OPERATÖR",
+});
+
+// Secondary screens pencere değildir: WindowManager'a yazılmazlar. Ancak
+// kullanicinin bulundugu yuzey dock'ta gorunur ve GERİ ile mevcut browser
+// history primitive'ine doner. Bu, Artifact ≠ ApplicationEntry ≠ navigation
+// ayrimini koruyan saf bir UI projeksiyonudur.
+function currentWorkspaceRoute() {
+  if (artifactOpenId) return null;
+  const key = secondary || currentTab;
+  if (!secondary && currentTab === "hermes") return null;
+  return { key, title: WORKSPACE_ROUTE_TITLES[key] || String(key || "AIOS").toUpperCase() };
+}
+
+function appendRouteDockSlot(nodeHost, route) {
+  const slot = document.createElement("div");
+  slot.className = "window-slot is-active is-navigation";
+  slot.dataset.dockEntry = "navigation";
+  const button = document.createElement("button");
+  button.className = "window-tab on";
+  button.textContent = route.title;
+  button.setAttribute("aria-label", `${route.title} yüzeyi; geri dönmek için oku kullan`);
+  button.addEventListener("click", () => goBack());
+  const back = document.createElement("button");
+  back.className = "window-close";
+  back.type = "button";
+  back.textContent = "←";
+  back.setAttribute("aria-label", "Önceki AIOS yüzeyine dön");
+  back.addEventListener("click", (event) => { event.stopPropagation(); goBack(); });
+  slot.append(button, back);
+  nodeHost.appendChild(slot);
+  requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }));
+  return slot;
+}
+
+/* Eski sabit kategori tablari yerine Linhx, mevcut navigation yuzeyi ve
+   gercekten acilmis WindowManager pencereleri gorunur. */
 function renderWindowDock() {
   const dock = $("#windowdock");
   if (!dock) return;
@@ -642,7 +691,7 @@ function renderWindowDock() {
   const root = $("#linhx-root");
   if (root) root.classList.toggle("on", currentTab === "hermes" && !artifactOpenId && !secondary);
   syncSurfaceNav();
-  nodeHost.querySelectorAll("[data-window-id]").forEach((node) => node.remove());
+  nodeHost.querySelectorAll("[data-window-id], [data-dock-entry]").forEach((node) => node.remove());
   const utility = $("#cc-open");
   let windows = dockWindows(wm.list(), new Set(artifacts.map((artifact) => artifact.id)));
   // Katmanli profilin ilk karti her zaman aktif penceredir. Bu yalniz
@@ -650,11 +699,13 @@ function renderWindowDock() {
   if (workspaceSurface === "stack" && artifactOpenId) {
     windows = [...windows].sort((a, b) => (a.id === artifactOpenId ? -1 : b.id === artifactOpenId ? 1 : 0));
   }
+  const route = currentWorkspaceRoute();
   if (context) {
     const activeIndex = windows.findIndex((win) => win.id === artifactOpenId);
     const active = activeIndex >= 0 ? windows[activeIndex] : null;
-    context.textContent = active ? `AKTİF ${activeIndex + 1}/${windows.length} · ${active.title || "Pencere"}` : `${windows.length} AÇIK PENCERE · bir pencere seç`;
+    context.textContent = active ? `AKTİF ${activeIndex + 1}/${windows.length} · ${active.title || "Pencere"}` : route ? `YÜZEY · ${route.title}` : `${windows.length} AÇIK PENCERE · bir pencere seç`;
   }
+  if (route && workspaceSurface !== "canvas") appendRouteDockSlot(nodeHost, route);
   const visibleIds = new Set(windows.map((win) => win.id));
   for (const id of renderedDockWindowIds) if (!visibleIds.has(id)) renderedDockWindowIds.delete(id);
   windows.forEach((win, index) => {
@@ -690,7 +741,7 @@ function renderWindowDock() {
     slot.append(b, close);
     nodeHost.appendChild(slot);
     renderedDockWindowIds.add(win.id);
-    if (workspaceSurface !== "canvas" && win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" }));
+    if (workspaceSurface !== "canvas" && win.id === artifactOpenId) requestAnimationFrame(() => slot.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }));
   });
   if (workspaceSurface === "cards") wireCardsScroll(nodeHost, windows);
 }
@@ -779,6 +830,8 @@ async function paint() {
   if (secondary === "automations") return mountSecondary(host, validateScreen(await SC.automationsScreen()));
   if (secondary === "history")     return mountSecondary(host, validateScreen(await SC.intentHistoryScreen(secondaryArg)));
   if (secondary === "formation-canvas") return paintFormationCanvas();
+  if (secondary === "formations") return paintFormationExplorer(secondaryArg);
+  if (secondary === "formation-detail") return paintFormationDetail(secondaryArg);
 
   if (currentTab === "home")      return mount(host, validateScreen(SC.homeScreen(artifacts, orderedApplications(applications))), ctx);
   if (currentTab === "komut")     return mount(host, validateScreen(SC.discoverScreen(query, capabilityNames, artifacts, orderedApplications(applications))), ctx);
@@ -815,7 +868,13 @@ async function paintFormationCanvas() {
         detail: "Bir artefakt açıldığında doğrulanmış formation kimliği burada görünür. Veri uydurulmaz." }, ctx));
       wrap.appendChild(body); host.appendChild(wrap); return;
     }
-    mountFormationCanvas(host, projection, { onSelect: openFormationCanvasDetail });
+    mountFormationCanvas(host, projection, {
+      onSelect: openFormationCanvasDetail,
+      onBrowse: () => goSecondary("formations"),
+    });
+    // Canvas kendi native DOM'unu kurarken host'u temizler; geri davranisi
+    // diger secondary ekranlarla ayni kalacak sekilde basligi sonradan ekle.
+    host.prepend(pageHead("Formation Canvas", "DOĞRULANMIŞ OLUŞUM İZLERİ", goBack));
     if (projection.omittedFormations) toast(`${projection.omittedFormations} formation görünüm sınırı dışında`);
   } catch (err) {
     logClientError("formationCanvas.project", err);
@@ -835,14 +894,151 @@ function openFormationCanvasDetail(node) {
     : [
       ["TÜR", node?.kind === "derived-formation" ? "DERIVED FORMATION" : "ROOT FORMATION"], ["FORMATION", node?.formationId], ["CONTENT", node?.contentId], ["CONTEXT", node?.contextId], ["WITNESS", node?.witnessId], ["CAPABILITIES", (node?.capabilities || []).join(", ") || "—"],
     ];
-  const sheet = createSheet(`<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner"><div class="formation-canvas-detail"><div class="k-micro">READ-ONLY FORMATION DETAIL</div><div class="c-title"></div><div class="formation-canvas-detail-list"></div><button class="c-btn" data-variant="ghost">KAPAT</button></div></div></div>`);
+  const sheet = createSheet(`<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner"><div class="formation-canvas-detail"><div class="k-micro">READ-ONLY FORMATION DETAIL</div><div class="c-title"></div><div class="formation-canvas-detail-list"></div><div class="c-btn-row">${node?.formationId ? '<button class="c-btn formation-canvas-detail-open">FORMATION’A GİT</button>' : ""}<button class="c-btn" data-variant="ghost">KAPAT</button></div></div></div></div>`);
   sheet.open();
   const root = document.querySelector(".formation-canvas-detail");
   root?.querySelector(".c-title")?.append(document.createTextNode(title));
   const list = root?.querySelector(".formation-canvas-detail-list");
   rows.forEach(([key, value]) => { const row = el("div", "formation-canvas-detail-row"); row.append(el("span", "k-micro", key), el("code", null, String(value || "—"))); list?.appendChild(row); });
-  root?.querySelector("button")?.addEventListener("click", () => sheet.close());
+  root?.querySelector(".formation-canvas-detail-open")?.addEventListener("click", () => {
+    sheet.close(); goSecondary("formation-detail", node.formationId);
+  });
+  root?.querySelector("button[data-variant=ghost]")?.addEventListener("click", () => sheet.close());
   sheet.on("closed", () => sheet.destroy());
+}
+
+async function loadFormationExplorer(filter = null) {
+  const bundle = await getJSON("/formation-memory");
+  if (!bundle || bundle.ok === false || !Array.isArray(bundle.formations) || !Array.isArray(bundle.provenanceEdges)) {
+    throw new TypeError("Formation Memory doğrulanamadı");
+  }
+  return projectFormationExplorer(bundle.formations, bundle.provenanceEdges, artifacts, { filter });
+}
+
+function formationExplorerError(host, title, detail) {
+  mountSecondary(host, validateScreen({ id: "formations-error", title, sections: [{ type: "section", children: [{
+    type: "error-state", icon: "exclamationmark_triangle", title, detail,
+    actionLabel: "TEKRAR DENE", action: { type: "ui.goto", payload: { screen: "formations" } },
+  }] }] }));
+}
+
+async function paintFormationExplorer(filter = null) {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Formationlarım", "DOĞRULANMIŞ OLUŞUMLAR", goBack));
+  host.appendChild(el("div", "formation-canvas-loading", "Formation Memory doğrulanıyor…"));
+  try {
+    const projection = await loadFormationExplorer(filter);
+    mountSecondary(host, validateScreen(SC.formationExplorerScreen(projection)));
+  } catch (err) {
+    logClientError("formationExplorer.load", err);
+    formationExplorerError(host, "Formationlar okunamadı", "Kaynak kayıt doğrulanamadı; tahmini formation listesi gösterilmedi.");
+  }
+}
+
+async function paintFormationDetail(formationId) {
+  const host = $("#screen");
+  host.innerHTML = "";
+  host.appendChild(pageHead("Formation", "DOĞRULANMIŞ REUSE BAĞLAMI", goBack));
+  host.appendChild(el("div", "formation-canvas-loading", "Formation doğrulanıyor…"));
+  try {
+    const projection = await loadFormationExplorer(formationId);
+    const record = findFormationExplorerRecord(projection, formationId);
+    mountSecondary(host, validateScreen(SC.formationDetailScreen(record)));
+  } catch (err) {
+    logClientError("formationExplorer.detail", err);
+    formationExplorerError(host, "Formation okunamadı", "Exact formation kimliği doğrulanamadı; reuse açılmadı.");
+  }
+}
+
+async function openFormationReuseConfirmation(formationId) {
+  try {
+    const projection = await loadFormationExplorer(formationId);
+    const record = findFormationExplorerRecord(projection, formationId);
+    if (!record?.artifact) {
+      toast("Exact backing artifact bulunamadı; reuse açılmadı", true);
+      return { ok: false, error: "exact artifact yok" };
+    }
+    const sheet = createSheet(`<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner"><div class="formation-canvas-detail"><div class="k-micro">REUSE CONFIRMATION</div><div class="c-title"></div><p class="c-sub">Bu işlem yeni formation üretmez. Mevcut artifact açılır; capability eylemi ancak sen artifact içinden başlatırsan dispatcher/policy yoluna gider.</p><div class="formation-canvas-detail-list"></div><div class="c-btn-row"><button class="c-btn formation-reuse-confirm">AÇ VE YENİDEN KULLAN</button><button class="c-btn" data-variant="ghost">İPTAL</button></div></div></div></div>`);
+    sheet.open();
+    const root = document.querySelector(".formation-canvas-detail");
+    root?.querySelector(".c-title")?.append(document.createTextNode(record.title));
+    const list = root?.querySelector(".formation-canvas-detail-list");
+    [["FORMATION", record.formationId], ["ARTIFACT", record.artifact.title], ["CAPABILITIES", record.capabilities.join(", ") || "—"], ["DOĞRULANMIŞ KULLANIM", String(record.verifiedUseCount)]].forEach(([key, value]) => {
+      const row = el("div", "formation-canvas-detail-row"); row.append(el("span", "k-micro", key), el("code", null, value)); list?.appendChild(row);
+    });
+    root?.querySelector(".formation-reuse-confirm")?.addEventListener("click", () => {
+      sheet.close(); openArtifact(record.artifact.id); toast("Artifact açıldı; gerçek eylem mevcut dispatcher zincirinden geçecek");
+    });
+    root?.querySelector("button[data-variant=ghost]")?.addEventListener("click", () => sheet.close());
+    sheet.on("closed", () => sheet.destroy());
+    return { ok: true };
+  } catch (err) {
+    logClientError("formationExplorer.reuse", err);
+    toast("Reuse doğrulanamadı; artifact açılmadı", true);
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/* Teknik kimlik ayri bir sayfada tutulur: formation detay yuzeyi kullanicinin
+   karar verdigi seyi (bu ne, hangi artefakt, ne yapabilir, gercekten
+   kullanilmis mi) tasisin, ham hash/edge/witness yigini onu bogmasin.
+   Sheet salt-okunurdur; hicbir eylem tetiklemez. */
+async function openFormationIdentitySheet(formationId) {
+  try {
+    const projection = await loadFormationExplorer(formationId);
+    const record = findFormationExplorerRecord(projection, formationId);
+    if (!record) {
+      toast("Exact formation kimliği doğrulanamadı", true);
+      return { ok: false, error: "formation yok" };
+    }
+    const sheet = createSheet(`<div class="sheet-modal" style="height:auto"><div class="sheet-modal-inner"><div class="formation-canvas-detail formation-identity-detail"><div class="k-micro">TEKNİK KİMLİK · SALT OKUNUR</div><div class="c-title"></div><div class="formation-canvas-detail-list"></div><div class="c-btn-row"><button class="c-btn" data-variant="ghost">KAPAT</button></div></div></div></div>`);
+    sheet.open();
+    // Kendi kokunu ad ile secer: baska bir sheet DOM'dan tam kaldirilmadan
+    // acilirsa genel ".formation-canvas-detail" secicisi yanlis sheet'i
+    // doldurabilirdi.
+    const root = document.querySelector(".formation-identity-detail");
+    root?.querySelector(".c-title")?.append(document.createTextNode(record.title));
+    const list = root?.querySelector(".formation-canvas-detail-list");
+    const addRow = (key, value) => {
+      const row = el("div", "formation-canvas-detail-row");
+      row.append(el("span", "k-micro", key), el("code", null, String(value)));
+      list?.appendChild(row);
+    };
+    const addGroup = (label) => list?.appendChild(el("div", "k-micro", label));
+    addGroup("IDENTITY");
+    addRow("FORMATION", record.formationId);
+    addRow("CONTENT", record.contentId);
+    addRow("CONTEXT", record.contextId);
+    addRow("WITNESS", record.witnessId);
+    addGroup("CONTEXT");
+    addRow("KAYNAK", record.context.provenanceKind);
+    addRow("CAP SÜRÜM", record.context.capabilitySetVersion);
+    if (record.context.parents.length) record.context.parents.forEach((parent) => addRow("PARENT", parent));
+    else addRow("PARENT", "kök formation · türetilmedi");
+    addGroup(`RUNTIME WITNESS + PROVENANCE EDGE · ${record.verifiedExecutions.length}`);
+    if (!record.verifiedExecutions.length) addRow("KAYIT", "doğrulanmış execution izi yok");
+    record.verifiedExecutions.forEach((execution) => {
+      addRow("EDGE", execution.edgeId);
+      addRow("WITNESS", execution.witnessId);
+      addRow("TASK", `${execution.taskId} · ${execution.capability}`);
+      addRow("DIGEST", execution.resultDigest);
+    });
+    addGroup("SINIRLAR");
+    // Bu iki satir eksik veriyi gizlemek yerine acikca soyler: witness
+    // semasinda zaman alani yoktur ve per-formation tasinabilirlik kaniti
+    // bu kayitta tutulmaz. Yerlerine tahmini deger yazilmaz.
+    addRow("SON KULLANIM", record.lastVerifiedUseAt ?? "witness şemasında zaman alanı yok");
+    addRow("PORTABILITY", record.portability === "per-formation-proof-unavailable"
+      ? "per-formation kanıt yok · yalnız canonical paket kabulüyle doğrulanır" : record.portability);
+    root?.querySelector("button[data-variant=ghost]")?.addEventListener("click", () => sheet.close());
+    sheet.on("closed", () => sheet.destroy());
+    return { ok: true };
+  } catch (err) {
+    logClientError("formationExplorer.identity", err);
+    toast("Teknik kimlik okunamadı", true);
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /* ════════ ARTEFAKT GALERISI ════════ */

@@ -10,5 +10,5 @@
 export const UI_META_ACTIONS = [
   "ui.goto", "ui.back", "ui.appsheet", "ui.control", "ui.ask", "ui.artifact",
   "ui.compose", "ui.refreshApps", "ui.refreshArtifacts", "ui.refreshApplications", "cap.test", "ui.taskCancel", "ui.taskRetry", "ui.taskUndo",
-  "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove", "ui.referenceSoundPanel", "ui.referenceDeviceStatus",
+  "ui.miniapp", "ui.application", "ui.ruleAdd", "ui.ruleToggle", "ui.ruleRemove", "ui.referenceSoundPanel", "ui.referenceDeviceStatus", "ui.formationReuse", "ui.formationIdentity",
 ];

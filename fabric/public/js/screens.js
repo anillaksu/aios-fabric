@@ -829,12 +829,114 @@ export async function capabilitiesScreen() {
         children: groups[g].map((c) => ({
           type: "list-row", title: c.name,
           chip: { label: c.class, tone: c.class === "REFLEX" ? "ok" : c.class === "THOUGHT" ? "info" : "warn" },
-          action: { type: "cap.test", payload: { name: c.name } },
+          // Capability burada calistirilmaz. Kullanici once bu contract'i
+          // kullanan dogrulanmis formation'lari gorur; execution yalniz
+          // artifact renderer -> dispatcher yolunda kalir.
+          action: { type: "ui.goto", payload: { screen: "formations", filter: "cap:" + c.name } },
         })),
       }],
     });
   });
   return { id: "capabilities", title: "Capabilities", sections };
+}
+
+/* ══════════════ FORMATION REUSE EXPLORER ══════════════
+   Bu ekran yeni bir memory/graph modeli degildir. Ust katman, mevcut exact
+   Formation Memory projeksiyonunu kullanicinin artefakti yeniden bulmasi ve
+   acmasi icin okunabilir hale getirir. */
+export function formationExplorerScreen(projection) {
+  const records = projection?.records || [];
+  const filter = projection?.filter || { kind: "all" };
+  const title = filter.kind === "capability" ? "FORMATIONLAR · " + filter.capability
+    : filter.kind === "formation" ? "FORMATION DETAYI" : "FORMATIONLARIM";
+  const sections = [{
+    type: "section", title: "DOĞRULANMIŞ HAFIZA", layout: "grid-2",
+    children: [
+      { type: "metric", label: "FORMATION", value: projection?.totalFormations ?? 0, tone: "ok" },
+      { type: "metric", label: "GÖRÜNEN", value: records.length, tone: records.length ? "info" : "idle" },
+    ],
+  }];
+  if (filter.kind === "capability") {
+    sections.push({ type: "section", children: [{ type: "info-card", icon: "link", title: filter.capability,
+      body: "Bu capability'yi exact contract'inda tasiyan formation'lar. Buradan capability calistirilmaz." }] });
+  }
+  if (!records.length) {
+    sections.push({ type: "section", children: [{ type: "empty-state", icon: "point_3_connected_trianglepath_dotted",
+      title: "Eşleşen formation yok", detail: "Similarity veya baslik tahmini kullanilmadi; yalniz exact identity ve capability contract'i aranir." }] });
+    return { id: "formations", title, sections };
+  }
+  sections.push({ type: "section", title: "FORMATIONLAR", children: [{ type: "list", children: records.map((record) => ({
+    type: "list-row", icon: record.origin === "derived" ? "arrow_turn_up_right" : "point_3_connected_trianglepath_dotted",
+    title: record.title,
+    // Kimlik ozeti listede de gorunur: kullanici ayni baslikli iki formation'i
+    // (or. iki "El Feneri") baslik tahminiyle degil exact kimlikle ayirir.
+    subtitle: `${record.identitySummary} · ${record.capabilities.join(", ") || "capability yok"} · ${record.verifiedUseCount} doğrulanmış kullanım`,
+    chip: { label: record.provenanceStatus === "verified" ? "DOĞRULANDI" : "BİLİNMİYOR", tone: record.provenanceStatus === "verified" ? "ok" : "idle" },
+    action: { type: "ui.goto", payload: { screen: "formation-detail", filter: record.formationId } },
+  })) }] });
+  return { id: "formations", title, sections };
+}
+
+export function formationDetailScreen(record) {
+  if (!record) return {
+    id: "formation-detail", title: "Formation", sections: [{ type: "section", children: [{ type: "empty-state", icon: "exclamationmark_triangle",
+      title: "Formation bulunamadı", detail: "Kimlik mevcut canonical Formation Memory paketinde yok." }] }],
+  };
+  // Blok ayrimi bilincli: ana yuzey kullanicinin karar verdigi seyi tasir
+  // (bu ne, hangi artefakt, ne yapabilir, gercekten kullanilmis mi). Ham
+  // hash/edge/witness kimlikleri ayri bir teknik sayfaya (sheet) alinir ki
+  // detay tek bir bilgi yigina donusmesin.
+  const sections = [
+    { type: "section", title: "FORMATION", children: [
+      { type: "info-card", icon: "point_3_connected_trianglepath_dotted", title: record.title,
+        body: `${record.origin === "derived" ? "Derived formation" : "Root formation"} · ${record.verifiedUseCount} doğrulanmış kullanım` },
+      { type: "list", children: [
+        // Canvas ile Explorer ayni read-only projeksiyonun iki gorunumudur;
+        // bag cift yonlu olmali. Canvas belirli bir node'a odaklanamaz
+        // (deep-link acik borctur), bu yuzden vaat de edilmez.
+        { type: "list-row", icon: "point_3_filled_connected_trianglepath_dotted", title: "Canvas'ta göster",
+          subtitle: "Tüm oluşum ağını grafik olarak aç", action: { type: "ui.goto", payload: { screen: "formation-canvas" } } },
+      ] },
+    ] },
+    { type: "section", title: "ARTIFACT", children: record.artifact ? [
+      // ActionCard yalniz `action` kabul eder. Kartin tamami mevcut exact
+      // artifact'i acar; reuse ise ayri ve acik insan onayli eylemdir.
+      { type: "action-card", icon: "square_stack_3d_up_fill", title: record.artifact.title,
+        subtitle: "Exact formation'a bağlı artifact · aç", action: { type: "ui.artifact", payload: { id: record.artifact.id } } },
+      { type: "button-row", children: [
+        { type: "button", label: "YENİDEN KULLAN", variant: "primary", action: { type: "ui.formationReuse", payload: { formationId: record.formationId } } },
+        { type: "button", label: "ARTEFAKTI AÇ", variant: "ghost", action: { type: "ui.artifact", payload: { id: record.artifact.id } } },
+      ] },
+    ] : [{ type: "empty-state", icon: "exclamationmark_triangle", title: "Bağlı artifact yok",
+      detail: "Formation doğrulanmış olsa da mevcut depoda exact backing artifact bulunamadı; reuse fail-closed kalır." }] },
+    { type: "section", title: "CAPABILITIES", children: [{ type: "list", children: record.capabilities.map((capability) => ({
+      type: "list-row", icon: "link", title: capability, subtitle: "Bu capability'yi kullanan formation'ları gör",
+      action: { type: "ui.goto", payload: { screen: "formations", filter: "cap:" + capability } },
+    })) }] },
+    // CONTEXT, IDENTITY'den ayri bir blok: hash'ler "hangi kayit" sorusunu,
+    // context "hangi kosullarda dogrulandi" sorusunu yanitlar.
+    { type: "section", title: "CONTEXT", children: [{ type: "list", children: [
+      { type: "list-row", icon: "sparkles", title: "KAYNAK", subtitle: "Formation'ın üretim bağlamı", trailing: record.context.provenanceKind },
+      { type: "list-row", icon: "number", title: "CAPABILITY SÜRÜMÜ", subtitle: "Contract'ın doğrulandığı registry sürümü", trailing: record.context.capabilitySetVersion },
+      { type: "list-row", icon: "arrow_turn_up_right", title: "PARENT",
+        subtitle: record.context.parents.length ? "Exact parent formation sayısı" : "Kök formation · türetilmedi",
+        trailing: String(record.context.parents.length) },
+    ] }] },
+    { type: "section", title: "EXECUTIONS", children: record.verifiedExecutions.length ? [{ type: "list", children: record.verifiedExecutions.map((execution) => ({
+      type: "list-row", icon: "checkmark_seal_fill", title: execution.capability,
+      subtitle: `Task ${execution.taskId.slice(0, 12)} · digest ${execution.resultDigest.replace(/^sha256:/, "").slice(0, 12)}`,
+      trailing: "DOĞRULANDI",
+    })) }] : [{ type: "empty-state", icon: "clock", title: "Henüz execution izi yok",
+      detail: "Artifact'i yeniden kullanıp gerçek bir capability eylemi tamamlandığında immutable provenance edge burada görünür." }] },
+    { type: "section", title: "KİMLİK VE KANIT", children: [
+      { type: "info-card", icon: "lock_fill", title: "Canonical identity",
+        body: "Formation, witness ve provenance edge kimlikleri teknik ayrıntı sayfasındadır; başlık, prompt veya benzerlik identity değildir." },
+      { type: "button-row", children: [
+        { type: "button", label: "TEKNİK KİMLİK", variant: "ghost", action: { type: "ui.formationIdentity", payload: { formationId: record.formationId } } },
+      ] },
+    ] },
+  ];
+  return { id: "formation-detail", title: record.title, subtitle: "DOĞRULANMIŞ REUSE BAĞLAMI", sections };
 }
 
 /* ══════════════ EVENT JOURNAL ══════════════
