@@ -515,6 +515,45 @@ liveProofPlan · priority`
 - **Priority:** B-9 (`PG-020`) ile aynı sınıf operasyonel risk; ürün önceliğine
   çevrilmez.
 
+### PG-024 — Service worker precache tam degildi (offline ilk oturum kirikligi)
+
+- **Surface / status:** PWA / offline / **`FACT`** (2026-08-20, premium audit ilk
+  bulgusu, code+test+build+phone kanitli; offline fiziksel kabul owner'a aciktir).
+- **Code evidence:** `public/sw.js:SHELL_FILES` yalniz 5/30 `public/js/*.js`
+  dosyasini precache ediyordu (`app.js`, `api.js`, `registry.js`, `renderer.js`,
+  `screens.js`); `formation-explorer.js`, `windowmanager.js`,
+  `application-model.js`, `artifact-contract.js`, `navigation-state.js` ve 20
+  diger modul listede yoktu. `app.js:14-38` nerdeyse tum modulleri STATIK
+  import eder.
+- **Current behavior / user impact:** fetch handler network-first oldugu icin
+  ilk ONLINE oturum TAMAMLANDIKTAN sonra eksik dosyalar firsatci onbelleklenir
+  — ama SW `install` event'i bitip ilk online oturum tamamlanmadan (orn.
+  kurulum sirasinda kesintili baglanti, ya da kurulumdan hemen sonra ucak
+  modu) cevrimdisiya gecen kullanici, onbellekte olmayan bir modulun import
+  edilememesi yuzunden bos/olu bir ekranla kalirdi (goal §12'nin acikca
+  yasakladigi durum).
+- **Existing / missing primitive:** service worker + network-first/cache-
+  fallback stratejisi zaten var; eksik olan yalniz precache listesinin gercek
+  modul grafigiyle eslesmesiydi.
+- **Fix (dar kapsam):** `SHELL_FILES` gercek `public/js`/`public/css`
+  dizinlerinin TAM icerigine genisletildi (30 js + 3 css + vendor + manifest +
+  icon), `SHELL` versiyonu `v6 → v7`. Davranissal invaryant degismedi: `/read`,
+  `/intent`, `/events`, `/a2a`, `/state` hicbir zaman onbelleklenmez.
+- **Test (regresyon, registry-drift.test.ts ile ayni desen):**
+  `test/sw-shell.test.ts` — `SHELL_FILES`'i gercek dosya sistemiyle karsilastirir,
+  hem eksik hem hayalet (silinmis dosyaya referans) sapmayi yakalar. Eski
+  `sw.js` uzerinde calistirilip **once dustugu** dogrulandi (2/5 fail), sonra
+  **5/5 gecti**. Tam suite: yerel+telefon `npm test` **179/179**, `BUILD_OK`.
+- **Live proof:** telefonda `GET /sw.js` → `aios-shell-v7` dogrulandi; listedeki
+  **33 varlik tek tek** `curl` ile `200` dondugu goruldu (bu, `caches.addAll()`
+  atomik oldugu icin kritik — tek bir 404 tum `install` event'ini fail-closed
+  patlatirdi). `deploy-to-phone.sh` md5 depo == telefon (108 dosya).
+  **Eksik kalan:** gercek ucak modu/offline fiziksel kabul yalnizca telefonda
+  yapilabilir (PC'den PWA surulemiyor, `OTURUM_2026-08-20.md §5`); bu FACT
+  server-tarafi ve test kanitina dayanir, fiziksel offline testi owner'a acik
+  bir ek dogrulamadir.
+- **Priority:** P1 (premium/offline guvenilirlik), kapandi.
+
 ### DOC-001 — Canonical documentation synchronization
 
 - **Surface / status:** Devir belgeleri / `OPEN`.

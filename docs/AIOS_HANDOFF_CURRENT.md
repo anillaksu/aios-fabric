@@ -391,6 +391,20 @@ Ayrıntı: `PG-022`.
 2. B-9 ayrı operasyonel risktir: bir sonraki canlı test öncesi anlık sağlık
    yeniden kontrol edilir; bu risk otomatik ürün önceliğine dönüştürülmez.
 
+### CURRENT DECISION POINT (2026-08-20, üçüncü tur — premium UX audit başladı)
+
+Owner'ın uzun otonom premium productization talimatı üzerine tek iterasyonluk
+audit döngüsü çalıştırıldı: **PG-024** (service worker precache eksikliği,
+offline ilk-oturum boş ekran riski) bulundu, kapatıldı, telefona dağıtıldı ve
+sunucu-tarafı kanıtla doğrulandı. Bu, `docs/OTURUM_2026-08-20.md §9`'daki tam
+audit taramasının yalnız ilk P1 bulgusudur — 16 ana yüzeyin (HOME, KEŞFET,
+Formation Explorer/Detail/Canvas, Cihaz Durum Merkezi, Medya, Capabilities,
+Control Center, Permissions, A2A, Settings…) sistematik taraması henüz
+tamamlanmadı. Ajan kendiliğinden devam edebilir (yeni mimari/protokol/execution
+authority gerektirmeyen küçük-orta UI düzeltmeleri owner onayı istemez), ama
+her iterasyon kendi kanıt zincirini taşımalı; bu handoff `OTURUM_2026-08-20.md`
+üzerinden takip edilir.
+
 ### CURRENT DECISION POINT (2026-08-20, ikinci tur)
 
 `PG-022` kapandı (`FACT`) ve provenance köprüsü canlıda iki kez doğrulandı.

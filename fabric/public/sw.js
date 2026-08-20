@@ -3,7 +3,16 @@
 // hizli acilmasi. VERI (capability okumalari, LLM) ASLA onbelleklenmez -
 // pil/ag/uygulama listesi her zaman canli olmali.
 
-const SHELL = "aios-shell-v6";
+const SHELL = "aios-shell-v7";
+// TAM liste: app.js nerdeyse her modulu ustte statik import eder (bkz.
+// app.js:14-38), yani ilk ONLINE acilista bunlarin tumu zaten fetch
+// handler'dan gecip firsatci onbelleklenir. Ama bu install-time precache
+// listesi EKSIKse, SW kurulumu bitip de ilk online oturum TAMAMLANMADAN
+// (orn. kurulum sirasinda kesintili baglanti) cevrimdisiya gecen kullanici
+// bos/olu bir ekranla kalir - onbellekte olmayan bir modul import edilemez.
+// Liste public/js ve public/css dizinlerinin TAM icerigidir;
+// test/sw-shell.test.ts bunu gercek dosya sistemiyle karsilastirip sapmayi
+// yakalar (registry-drift.test.ts ile ayni desen).
 const SHELL_FILES = [
   "/",
   "/vendor/framework7-icons.css",
@@ -11,11 +20,36 @@ const SHELL_FILES = [
   "/css/tokens.css",
   "/css/themes.css",
   "/css/components.css",
-  "/js/app.js",
   "/js/api.js",
+  "/js/app.js",
+  "/js/application-model.js",
+  "/js/artifact-contract.js",
+  "/js/artifact-parse.js",
+  "/js/artifact-store.js",
+  "/js/client-log.js",
+  "/js/clipboard-import.js",
+  "/js/continuity-projection.js",
+  "/js/dispatch-utils.js",
+  "/js/formation-canvas-view.js",
+  "/js/formation-canvas.js",
+  "/js/formation-explorer.js",
+  "/js/formation-memory.js",
+  "/js/navigation-state.js",
+  "/js/parse-client.js",
+  "/js/parse-worker.js",
+  "/js/prompt-cache.js",
+  "/js/reference-artifacts.js",
   "/js/registry.js",
   "/js/renderer.js",
   "/js/screens.js",
+  "/js/surface-classification.js",
+  "/js/ui-actions.js",
+  "/js/ui-requirements.js",
+  "/js/view-transitions.js",
+  "/js/windowmanager.js",
+  "/js/workspace-catalog.js",
+  "/js/workspace-dock.js",
+  "/js/workspace-surface.js",
   "/manifest.json",
   "/icons/icon.svg",
 ];
