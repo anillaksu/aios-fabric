@@ -643,6 +643,88 @@ liveProofPlan · priority`
 - **Priority:** P1 (güven/premium, B-13'ün şeffaflık invaryantını korur),
   kapandı.
 
+### PG-027 — Platform-nötr çekirdek: Android ↔ Windows taşınabilirlik kanıtı
+
+- **Surface / status:** AIOS Universal Runtime / **`FACT`** (2026-08-21, çift
+  yönlü canlı kanıt + kalıcı regresyon testi).
+- **Owner direktifi:** "AIOS'un canonical artifact/formation/provenance
+  çekirdeği platformdan bağımsız çalışır; Android ve Windows yalnızca farklı
+  runtime/capability adapter'larıdır" iddiasının **koddan** kanıtlanması.
+- **Code evidence:**
+  - `public/js/formation-memory.js` **hiçbir modül import etmiyor** (sıfır
+    `import`/`require`) — taşınabilirliğin yapısal garantisi.
+  - Kullandığı **tüm** platform API'leri: `Array.isArray`, `JSON.stringify`,
+    `Object.hasOwn`, `Object.keys`, `TextEncoder`, `crypto.subtle.digest`.
+    Hepsi ECMAScript/WHATWG/W3C standardı; Node ve tarayıcıda mevcut.
+  - Android/Termux sızıntı taraması (`termux|android|shizuku|rish|/data/data|
+    am start|pm list|proot`): çekirdek adaylarının **10'unda da 0 eşleşme**
+    (`formation-memory.js`, `formation-canvas.js`, `formation-explorer.js`,
+    `artifact-contract.js`, `navigation-state.js`, `application-model.js`,
+    `screenspec.ts`, `runtime-provenance.ts`, `approval.ts`, `read-policy.ts`).
+  - Aynı tarama adapter katmanında yoğunlaşıyor: `capabilities.ts` **92**
+    eşleşme, `screens.js` 19, `app.js` 11, `server.ts` 1 → Android'e özgü kod
+    gerçekten capability/adapter sınırında duruyor, çekirdeğe sızmamış.
+- **Canlı kanıt — A) Android → Windows (gerçek üretim verisi):** telefonun
+  `/formation-memory` çıktısı (22 formation, 18 provenance edge) Windows'a
+  alındı: **22/22 formation** ve **18/18 edge** Windows'ta doğrulandı;
+  `import → re-export` sonrası canonical paket hash'i **byte-özdeş**
+  (`7fbae450…a469d`); JOIN determinizmi (A,B / B,A / A,A,B) korundu;
+  formation kimlikleri değişmedi.
+- **Canlı kanıt — B) Windows → Android (ters yön):** Windows'ta üretilen
+  formation + runtime witness + provenance edge telefona taşındı ve
+  **telefonun kendi çekirdek kopyasıyla** doğrulandı: formation ✓, edge ✓,
+  `import → re-export` hash'i **byte-özdeş** (`2d74ff1b…ad2e0`), kimlik
+  değişmedi.
+- **Canlı kanıt — C) Bağımsız kimlik yeniden hesabı (en güçlü kanıt):**
+  birebir aynı girdi iki platformda **bağımsız** hesaplandı —
+  `win32/x64` (Node v26.4.0) ve `android/arm64` (Node v26.4.0) — ve
+  **altı kimlik alanının hepsi byte-özdeş** çıktı:
+
+  ```text
+  formation      : formation:2d9590a65f575446d08f5db2e35d2d8c5d3db02153ffbd7bc53d37678395df65
+  contentId      : sha256:85af225f7afb9d12f64139a3c4f8e5c4ec05698ff1ed4163bb2cb74e9ecaff51
+  contextId      : sha256:542e0b0b5b5e502f6268815b501370bb15d1c28aceffe82f2a28b0402f2e7796
+  witnessId      : sha256:e63cb121195e57a9c84acbf5b4a994704310b00c076794b6952f4b6ec785476e
+  runtimeWitness : runtime-witness:14624a25679f3ee58ddf92089cdff24bc267ca648bc0ff1b9cd65553d150a549
+  edge           : provenance-edge:bb454de3aafee853fb6fa6f8f61115eeeb86445d0f01b486677d41ac02d3bf13
+  ```
+
+  Farklı işletim sistemi, farklı CPU mimarisi, aynı kimlik.
+- **Regresyon kapısı:** `test/platform-neutral-core.test.ts` — yukarıdaki altı
+  değeri sabit olarak doğrular, çekirdeğe `import`/`require`/`node:fs`/`fetch`/
+  `document`/`window`/`localStorage`/`process.env|platform|arch` sızmasını
+  reddeder, kimlik kaydına platform/zaman değeri girmediğini denetler ve
+  export→import→re-export özdeşliğini korur. **Aynı test dosyası her iki
+  platformda da geçiyor:** Windows 4/4, telefon (android/arm64) 4/4.
+- **Kapı:** yerel `npm test` **190/190**, `BUILD_OK`, `git diff --check` temiz;
+  telefon `npm test` 190/190, `deploy-to-phone.sh` md5 **depo == telefon
+  (111 dosya)**.
+- **Sınır — bu FACT neyi kanıtlamıyor:** yalnız **canonical çekirdeğin**
+  (identity/verify/JOIN/export/import/provenance) platform-nötrlüğü kanıtlandı.
+  Capability yürütme, UI kabuğu, Electron/masaüstü node, sistem artifact
+  ailesi ve App Market **bu kayıtta yoktur** — onlar `PG-028`'de TARGET.
+- **Priority:** Universal Runtime'ın temel taşı; kapandı.
+
+### PG-028 — AIOS Desktop (Electron) Reference Node
+
+- **Surface / status:** Universal Runtime / dağıtım / `OPEN` (**TARGET**).
+- **Bağlam:** `PG-027` çekirdeğin platform-nötr olduğunu kanıtladı; bu kayıt
+  ikinci bir **çalışan node**'un (Windows/Electron host + masaüstü adapter)
+  eksikliğini taşır.
+- **Existing primitive:** platform-nötr çekirdek (`PG-027`), portable
+  read-only CLI (`bin/aios.mjs`), `aios node doctor` admission (`PG-021`),
+  rol-bazlı bootstrap belgesi (`CROSS_PLATFORM_BOOTSTRAP.md`).
+- **Missing primitive:** Electron host, masaüstü capability adapter
+  (Android `termux-*`/`rish` yollarının Windows karşılıkları), AIOS Runtime
+  Center ekranı, masaüstü paketleme.
+- **Acceptance:** Windows'ta gerçek bir AIOS node ayağa kalkar; Runtime Center
+  yalnız **gerçek** kaynaklardan (HEAD, artifact/formation/edge/capability
+  sayıları, ledger durumu, node kimliği, platform) beslenir — uydurma
+  "ONLINE" üretmez; AIOS core Electron API'lerine bağımlı hale gelmez.
+- **Owner kararı gerekli:** masaüstü node'un kalıcılık modeli (Formation
+  Memory deposu nerede yaşayacak) ve capability adapter kapsamı.
+- **Priority:** Universal Runtime'ın sıradaki en yüksek kaldıraçlı dilimi.
+
 ### DOC-001 — Canonical documentation synchronization
 
 - **Surface / status:** Devir belgeleri / `OPEN`.
