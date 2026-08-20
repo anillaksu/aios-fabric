@@ -597,6 +597,52 @@ liveProofPlan · priority`
   eylem olurdu; bu FACT test+server-tarafı kanıta dayanır.
 - **Priority:** P1 (premium/error-recovery, §18), kapandı.
 
+### PG-026 — İzinler paneli fetch hatasında yanlış onay durumu gösteriyordu
+
+- **Surface / status:** Control Center / İZİNLER / **`FACT`** (2026-08-20,
+  premium audit üçüncü iterasyon).
+- **Code evidence:** `public/js/app.js:openControlCenter()` içindeki İZİNLER
+  bloğu `getJSON("/approvals")` sonucunu `const state = approvals || {};` ile
+  varsayılana indirgiyordu. `getJSON` ağ hatasında `null` döner
+  (`api.js:getJSON`); bu durumda `state = {}` olup **her** `risk:"ask"`
+  capability satırı `state[cap]` bulunamadığı için varsayılan
+  `["idle", "ONAY BEKLİYOR"]` gösteriyordu.
+- **Current behavior / user impact:** kullanıcının **daha önce gerçekten
+  onayladığı** bir capability (örn. bugün canlıda `script.run`,
+  `clipboard.set`, `whatsapp.send` onaylı), yalnızca `/approvals` isteği ağ
+  hatası yüzünden başarısız olduğunda "ONAY BEKLİYOR" (henüz onaylanmamış)
+  gibi görünüyordu. Gerçek dispatcher/approval durumu **değişmiyordu** —
+  yalnız kullanıcı arayüzünde yanlış görünüyordu. B-13'ün özenle kurduğu
+  "insan onayı" güven modelinde bu tür bir yanlış gösterim, tam da modelin
+  var olma sebebi olan şeffaflığı zedeler (goal §5/§18).
+- **Existing / missing primitive:** `PG-025`'te kurulan
+  `null` (fetch hatası) ↔ gerçek boş veri ayrımı ilkesi zaten var; eksik olan
+  bu ilkenin `screens.js` dışındaki (Control Center, raw DOM) bir yüzeye de
+  taşınmasıydı.
+- **Fix (dar kapsam):** `getJSON("/approvals")` çağrısı `renderApprovals()`
+  adlı yeniden-çağrılabilir bir fonksiyona alındı; `approvals === null` açıkça
+  yakalanıp `.c-error` (registry'nin `ErrorState` bileşeniyle CSS'te birebir
+  aynı sınıf) ile "Onay durumu okunamadı" + TEKRAR DENE gösterilir, hiçbir
+  capability satırı çizilmez. Yalnız `approvals !== null` olduğunda gerçek
+  `state` okunur ve mevcut grant/revoke akışı **hiç değişmeden** çalışır.
+- **Test:** `test/app-approvals-ui.test.ts` — `app.js` Node'da çalıştırılamadığı
+  için (`window`'a top-level bağlı, B-6 notu) `formation-explorer.test.ts` ile
+  aynı desen: kaynak metin okunup yapısal desen doğrulanır (`null` kontrolünün
+  `state` okumasından önce geldiği, hata dalında "ONAY BEKLİYOR" YAZILMADIĞI,
+  retry'ın aynı fonksiyonu tekrar çağırdığı). Eski `app.js` üzerinde **önce
+  çalıştırıldı ve 2/2 düştü**; düzeltmeden sonra 2/2 geçti. Tam suite:
+  yerel+telefon `npm test` **186/186**, `BUILD_OK`.
+- **Live proof:** telefonun gerçek `/approvals` ucu çağrıldı — bugün canlıda
+  6 gerçek onaylı kayıt var (`script.run`, `clipboard.set`, `clipboard.get`,
+  `file.share`, `ui.tap`, `whatsapp.send`); yeni kod bunları `null` sanıp
+  hataya düşürmüyor. `deploy-to-phone.sh` md5 depo == telefon (110 dosya).
+  **Dürüst sınır:** gerçek fetch-hatası senaryosu (backend'i kasten durdurup
+  panelin doğru hata gösterdiğini görsel olarak izlemek) canlıda
+  sahnelenmedi — aynı gerekçeyle (`PG-025`), Fabric'i owner uyurken kasten
+  durdurmak yıkıcı olurdu.
+- **Priority:** P1 (güven/premium, B-13'ün şeffaflık invaryantını korur),
+  kapandı.
+
 ### DOC-001 — Canonical documentation synchronization
 
 - **Surface / status:** Devir belgeleri / `OPEN`.

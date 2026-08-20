@@ -1779,7 +1779,26 @@ function openControlCenter() {
     document.getElementById("cc-approvals-label").hidden = false;
     const host = document.getElementById("cc-approvals");
     const TONE = { granted: ["ok", "ONAYLI"], denied: ["error", "REDDEDİLDİ"], revoked: ["warn", "GERİ ALINDI"] };
-    getJSON("/approvals").then((approvals) => {
+    // getJSON() ag hatasinda sessizce null doner. Onceden bu `|| {}` ile
+    // "hic onay yok" a indirgeniyordu - kullanici DAHA ONCE ONAYLADIGI bir
+    // capability'yi "ONAY BEKLİYOR" olarak görüyordu (gercek dispatcher
+    // durumu degismiyor, yalniz burada YANLIS gorunuyordu - guven sorunu,
+    // goal §5/§18). renderApprovals() TEKRAR DENE ile ayni fetch'i
+    // yeniden calistirir; PG-025'teki fetchFailed ayrimiyla ayni ilke.
+    const renderApprovals = () => {
+      host.innerHTML = "";
+      getJSON("/approvals").then((approvals) => {
+        if (approvals === null) {
+          const err = el("div", "c-error");
+          err.appendChild(el("div", "t", "Onay durumu okunamadı"));
+          err.appendChild(el("div", "d", "Capability'lerin gerçek onay durumu değişmedi; yalnız şu an burada doğrulanamadı."));
+          const retry = el("button", "c-btn", "TEKRAR DENE");
+          retry.dataset.variant = "primary";
+          retry.addEventListener("click", renderApprovals);
+          err.appendChild(retry);
+          host.appendChild(err);
+          return;
+        }
       const state = approvals || {};
       const list = el("div", "c-list");
       askCaps.forEach((cap) => {
@@ -1826,7 +1845,9 @@ function openControlCenter() {
         list.appendChild(row);
       });
       host.appendChild(list);
-    });
+      });
+    };
+    renderApprovals();
   }
 
   const themeHost = document.getElementById("cc-themes");
