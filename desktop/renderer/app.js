@@ -6,38 +6,19 @@ function nowTimeString() {
   return new Date().toLocaleTimeString("tr-TR");
 }
 
-function classifyMatrixClient(snap) {
-  const isAndroidOnline = snap?.nodes?.android?.online === true && !snap?.nodes?.android?.stale;
-  const isChainValid = snap?.evidenceChain?.ok === true && snap?.evidenceChain?.status === "CHAIN_VALID";
-  const hasAttestation = Boolean(snap?.attestation?.latestWitnessId && snap?.attestation.latestWitnessId !== "GENESIS");
-  const hasArtifact = Boolean(snap?.artifact?.artifactId && snap?.artifact?.artifactSha256);
-  const pendingCount = (snap?.pendingApprovals || []).length;
-  const browserStatus = snap?.browser?.status || (snap?.nodes?.browser?.online ? "PROVEN" : "NOT_PROVEN");
-  const isBrowserProven = browserStatus === "PROVEN";
-
-  return [
-    { title: "OBSERVER (100.75.177.88)", status: isAndroidOnline ? "PROVEN" : "STALE", color: isAndroidOnline ? "lime" : "pink" },
-    { title: "EVIDENCE LEDGER", status: isChainValid ? `PROVEN (${snap.evidenceChain.events} events)` : "NOT_PROVEN", color: isChainValid ? "lime" : "pink" },
-    { title: "NODE ATTESTATION", status: hasAttestation ? "PROVEN" : "NOT_PROVEN", color: hasAttestation ? "lime" : "pink" },
-    { title: "BROWSER SENTINEL", status: browserStatus, color: isBrowserProven ? "lime" : browserStatus === "STALE" ? "amber" : "pink" },
-    { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NOT_PROVEN", color: hasArtifact ? "lime" : "pink" },
-    { title: "A2A AUTH GATE", status: "BLOCKED (FAIL-CLOSED)", color: "pink" },
-    { title: "HUMAN CONTROL GATE", status: pendingCount > 0 ? `${pendingCount} REVIEW REQ` : "PROVEN", color: pendingCount > 0 ? "amber" : "lime" },
-  ];
-}
-
 function renderMatrix(matrix = []) {
   const container = document.getElementById("matrix-container");
   if (!container) return;
   container.innerHTML = matrix
-    .map(
-      (m) => `
-      <div class="matrix-item ${m.color}">
+    .map((m) => {
+      const color = m.proven ? "lime" : m.status === "STALE" ? "amber" : "pink";
+      return `
+      <div class="matrix-item ${color}">
         <span class="m-title">${m.title}</span>
-        <span class="m-status ${m.color}">${m.status}</span>
+        <span class="m-status ${color}">${m.status}</span>
       </div>
-    `,
-    )
+    `;
+    })
     .join("");
 }
 
@@ -246,73 +227,92 @@ function submitQuery(queryText) {
 
 async function refreshRelaySnapshot() {
   try {
-    if (!window.aios?.getRelaySnapshot) return;
-    const snap = await window.aios.getRelaySnapshot();
+    const profile = window.innerWidth <= 768 ? "mobile" : window.innerWidth <= 1024 ? "tablet" : "desktop";
+    
+    // 1. Kanonik Projeksiyonu Çek
+    let projection = null;
+    if (window.aios?.getProjection) {
+      projection = await window.aios.getProjection(profile);
+    }
+
+    const snap = window.aios?.getRelaySnapshot ? await window.aios.getRelaySnapshot() : null;
     currentSnapshot = snap;
 
-    // 1. Android Düğüm Durumu
-    const androidBadge = document.getElementById("android-badge");
-    if (snap.nodes.android?.online) {
-      androidBadge.textContent = "● ONLINE";
-      androidBadge.className = "status-badge lime";
-      document.getElementById("android-node-id").textContent = snap.nodes.android.nodeId.slice(0, 24) + "...";
-      document.getElementById("android-agent-name").textContent = `${snap.nodes.android.agentName} v${snap.nodes.android.agentVersion}`;
-    } else {
-      androidBadge.textContent = "● OFFLINE (STALE)";
-      androidBadge.className = "status-badge pink";
-    }
+    if (projection && projection.semanticSlots) {
+      const slots = projection.semanticSlots;
 
-    // 2. Windows Düğüm Durumu
-    document.getElementById("windows-node-id").textContent = snap.nodes.windows.nodeId.slice(0, 24) + "...";
+      // 1. Android Düğüm Durumu (Truthful)
+      const androidBadge = document.getElementById("android-badge");
+      if (slots.nodeOverview.android.online) {
+        androidBadge.textContent = "● ONLINE";
+        androidBadge.className = "status-badge lime";
+      } else if (slots.nodeOverview.android.stale) {
+        androidBadge.textContent = "● STALE";
+        androidBadge.className = "status-badge amber";
+      } else {
+        androidBadge.textContent = "● OFFLINE";
+        androidBadge.className = "status-badge pink";
+      }
+      document.getElementById("android-node-id").textContent = (slots.nodeOverview.android.nodeId || "--").slice(0, 24) + "...";
+      if (snap?.nodes?.android) {
+        document.getElementById("android-agent-name").textContent = `${snap.nodes.android.agentName || "agent"} v${snap.nodes.android.agentVersion || "1.0"}`;
+      }
 
-    // 3. Attestation & Kesişim
-    document.getElementById("header-attest-witness").textContent = (snap.attestation.latestWitnessId || "GENESIS").slice(0, 20) + "...";
-    document.getElementById("header-intersection-count").textContent = `${snap.attestation.allowedCapabilities.length} CAPS`;
-    document.getElementById("inter-hash").textContent = snap.attestation.intersectionHash.slice(0, 20) + "...";
+      // 2. Windows Düğüm Durumu
+      document.getElementById("windows-node-id").textContent = (slots.nodeOverview.windows.nodeId || "--").slice(0, 24) + "...";
 
-    const interList = document.getElementById("intersection-list");
-    if (interList) {
-      interList.innerHTML = snap.attestation.allowedCapabilities
-        .map((c) => `<span class="cap-tag">${c}</span>`)
-        .join("");
-    }
+      // 3. Attestation & Kesişim
+      if (snap?.attestation) {
+        document.getElementById("header-attest-witness").textContent = (snap.attestation.latestWitnessId || "GENESIS").slice(0, 20) + "...";
+        document.getElementById("header-intersection-count").textContent = `${snap.attestation.allowedCapabilities?.length || 0} CAPS`;
+        document.getElementById("inter-hash").textContent = (snap.attestation.intersectionHash || "--").slice(0, 20) + "...";
 
-    // 4. Dağıtık Artifact
-    if (snap.artifact) {
-      document.getElementById("art-id").textContent = snap.artifact.artifactId;
-      document.getElementById("art-sha").textContent = snap.artifact.artifactSha256.slice(0, 24) + "...";
-      document.getElementById("art-lineage").textContent = snap.artifact.lineageWitnessId.slice(0, 24) + "...";
-    }
+        const interList = document.getElementById("intersection-list");
+        if (interList) {
+          interList.innerHTML = (snap.attestation.allowedCapabilities || [])
+            .map((c) => `<span class="cap-tag">${c}</span>`)
+            .join("");
+        }
+      }
 
-    // 5. Browser Node Durumu
-    if (snap.nodes?.browser || snap.browser) {
-      const b = snap.nodes?.browser || snap.browser;
-      const bStatus = b.status || (b.online ? "PROVEN" : "NOT_PROVEN");
-      const bVerdict = b.verdict || "UNKNOWN";
+      // 4. Dağıtık Artifact
+      document.getElementById("art-id").textContent = slots.recentEvidence.latestArtifactId || "NONE";
+      if (snap?.artifact) {
+        document.getElementById("art-sha").textContent = (snap.artifact.artifactSha256 || "--").slice(0, 24) + "...";
+        document.getElementById("art-lineage").textContent = (snap.artifact.lineageWitnessId || "--").slice(0, 24) + "...";
+      }
+
+      // 5. Browser Node Durumu
+      const b = slots.nodeOverview.browser;
       const bNodeIdEl = document.getElementById("browser-node-id");
       const bStatEl = document.getElementById("browser-status-verdict");
       const bDigEl = document.getElementById("browser-digest");
       const bObsEl = document.getElementById("browser-observed-at");
       const bEvEl = document.getElementById("browser-evidence-ref");
 
-      if (bNodeIdEl) bNodeIdEl.textContent = (b.nodeId || b.source_node || "--").slice(0, 24) + "...";
+      if (bNodeIdEl) bNodeIdEl.textContent = (b.nodeId || "--").slice(0, 24) + "...";
       if (bStatEl) {
-        bStatEl.textContent = `${bStatus} (${bVerdict})`;
-        bStatEl.className = `val ${bStatus === "PROVEN" ? "lime" : bStatus === "STALE" ? "amber" : "pink"}`;
+        const bStatus = b.online ? "PROVEN" : "NOT_PROVEN";
+        bStatEl.textContent = `${bStatus} (${b.verdict})`;
+        bStatEl.className = `val ${b.verdict === "PASS" ? "lime" : "pink"}`;
       }
-      if (bDigEl) bDigEl.textContent = (b.proofDigest || b.proof_digest || "--").slice(0, 20) + "...";
-      if (bObsEl) bObsEl.textContent = (b.lastSeen || b.observed_at || "--").slice(11, 19);
-      if (bEvEl) bEvEl.textContent = (b.evidenceRef || b.evidence_ref || "GENESIS").slice(0, 24);
+      if (bDigEl && snap?.browser) bDigEl.textContent = (snap.browser.proofDigest || snap.browser.proof_digest || "--").slice(0, 20) + "...";
+      if (bObsEl && snap?.browser) bObsEl.textContent = (snap.browser.lastSeen || snap.browser.observed_at || "--").slice(11, 19);
+      if (bEvEl && snap?.browser) bEvEl.textContent = (snap.browser.evidenceRef || snap.browser.evidence_ref || "GENESIS").slice(0, 24);
+
+      // 6. Evidence Zincir Durumu & Matris (Doğrudan kanonik projeksiyondan)
+      document.getElementById("latest-hash").textContent = slots.recentEvidence.chainStatus;
+      const policyBadge = document.getElementById("policy-badge");
+      if (policyBadge) {
+        policyBadge.textContent = `PROVEN (${slots.currentReality.provenMatrixCount}/7)`;
+      }
+      renderMatrix(slots.currentReality.matrix || []);
+
+      // 7. Onay Talepleri
+      renderApprovalRequests(slots.pendingHuman.items || []);
     }
-
-    // 6. Evidence Zincir Durumu & Matris
-    document.getElementById("latest-hash").textContent = snap.evidenceChain?.status || "CHAIN_VALID";
-    renderMatrix(classifyMatrixClient(snap));
-
-    // 7. Onay Talepleri
-    renderApprovalRequests(snap.pendingApprovals || []);
   } catch (err) {
-    console.error("Relay snapshot fetch failed", err);
+    console.error("Relay projection fetch failed", err);
   }
 }
 

@@ -21,6 +21,33 @@ export function extractSemanticSlots(canonicalState = {}) {
   const evidence = canonicalState.evidence || {};
   const nodes = reality.nodes || {};
 
+  // Truthful Dynamic Proven Matrix Calculation
+  const isAndroidOnline = Boolean(nodes.android?.online && !nodes.android?.stale);
+  const isChainValid = evidence.status === "CHAIN_VALID";
+  const hasAttestation = Boolean(reality.attestation?.latestWitnessId && reality.attestation?.latestWitnessId !== "GENESIS");
+  const hasArtifact = Boolean(canonicalState.artifacts?.length || canonicalState.latestArtifact);
+  const isBrowserProven = nodes.browser?.verdict === "PASS";
+  const isHumanGateReady = Boolean(requests !== undefined);
+  const isA2aConnected = Boolean(isAndroidOnline && reality.a2a?.authenticated);
+
+  const dynamicMatrix = [
+    { title: "OBSERVER (100.75.177.88)", status: isAndroidOnline ? "PROVEN" : nodes.android?.stale ? "STALE" : "NOT_PROVEN", proven: isAndroidOnline },
+    { title: "EVIDENCE LEDGER", status: isChainValid ? `PROVEN (${evidence.events || 0} events)` : evidence.status ? evidence.status : "NOT_PROVEN", proven: isChainValid },
+    { title: "NODE ATTESTATION", status: hasAttestation ? "PROVEN" : "NOT_PROVEN", proven: hasAttestation },
+    { title: "BROWSER SENTINEL", status: nodes.browser?.verdict || "NOT_PROVEN", proven: isBrowserProven },
+    { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NOT_PROVEN", proven: hasArtifact },
+    { title: "A2A AUTH GATE", status: isA2aConnected ? "CONNECTED (A2A v1.0)" : "FAIL-CLOSED", proven: isA2aConnected },
+    { title: "HUMAN CONTROL GATE", status: requests.pending_count > 0 ? `${requests.pending_count} REVIEW REQ` : "PROVEN", proven: isHumanGateReady },
+  ];
+
+  const provenMatrixCount = dynamicMatrix.filter((m) => m.proven).length;
+
+  const latestArtifactId =
+    canonicalState.artifacts?.[canonicalState.artifacts.length - 1]?.artifactId ||
+    canonicalState.artifacts?.[0]?.artifactId ||
+    canonicalState.latestArtifact?.artifactId ||
+    "NONE";
+
   return {
     primaryAction: {
       type: "ASK_AIOS",
@@ -28,8 +55,9 @@ export function extractSemanticSlots(canonicalState = {}) {
       allowedOperations: ["sensor.battery.read", "browser.proof.read", "wifi.info", "volume.read"],
     },
     currentReality: {
-      digest: reality.digest || "GENESIS",
-      provenMatrixCount: 7,
+      digest: reality.digest || canonicalState.digest || "GENESIS",
+      provenMatrixCount,
+      matrix: dynamicMatrix,
       status: reality.digest ? "PROVEN" : "NOT_PROVEN",
     },
     pendingHuman: {
@@ -53,10 +81,10 @@ export function extractSemanticSlots(canonicalState = {}) {
       eta: runtime.eta?.formatted || "N/A",
     },
     recentEvidence: {
-      chainStatus: evidence.status || "CHAIN_VALID",
+      chainStatus: evidence.status || "UNKNOWN",
       eventsCount: evidence.events || 0,
       latestHash: evidence.latest_hash || "GENESIS",
-      latestArtifactId: canonicalState.artifacts?.[0]?.artifactId || "NONE",
+      latestArtifactId,
     },
     nodeOverview: {
       windows: {
@@ -65,7 +93,7 @@ export function extractSemanticSlots(canonicalState = {}) {
       },
       android: {
         nodeId: nodes.android?.nodeId || "node-android",
-        online: Boolean(nodes.android?.online && !nodes.android?.stale),
+        online: isAndroidOnline,
         stale: Boolean(nodes.android?.stale),
       },
       browser: {
@@ -125,12 +153,17 @@ export function projectCanonicalState(canonicalState = {}, profile = PROJECTION_
   // Deterministik Semantic Slot Hash (Tüm profillerde birebir aynı)
   const semanticSlotHash = sha256(canonicalJson(semanticSlots));
 
-  // Deterministik Projection Hash (Profil spesifik)
+  // Deterministik Projection Hash (Profil ve Layout spesifik)
   const projectionPayload = {
     schema: "aios.surface.v1",
     profile,
     canonical_reality_digest: realityDigest,
     semantic_slots: semanticSlots,
+    layout: {
+      mode: layout.mode,
+      columns: layout.columns,
+      bottomNav: layout.bottomNav,
+    },
     visible_capabilities: visibleCapabilities,
     visible_requests: visibleRequests,
   };

@@ -7,6 +7,7 @@ import { defaultRelay } from "./agent-relay.mjs";
 import { defaultControlPlane } from "./agent-control-plane.mjs";
 import { processJsonRpc } from "./mcp-server.mjs";
 import { defaultOrchestrator } from "./runtime-console.mjs";
+import { projectCanonicalState } from "./surface-projection.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
@@ -20,6 +21,17 @@ function isLoopbackAddress(remoteAddress = "") {
     remoteAddress === "::1" ||
     remoteAddress === "::ffff:127.0.0.1"
   );
+}
+
+function isAuthorizedOperator(req, isLocal) {
+  if (isLocal) return true;
+  const authHeader = req.headers["authorization"] || "";
+  const expectedToken = process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "aios-remote-mcp-bearer-token";
+  const bearerPrefix = "Bearer ";
+  if (authHeader.startsWith(bearerPrefix) && authHeader.slice(bearerPrefix.length).trim() === expectedToken) {
+    return true;
+  }
+  return false;
 }
 
 const MIME = {
@@ -56,6 +68,15 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${hostHeader}`);
 
   // API Endpoints
+  if (url.pathname === "/api/projection") {
+    const profile = url.searchParams.get("profile") || "desktop";
+    const state = await defaultControlPlane.getCanonicalState();
+    const projection = projectCanonicalState(state, profile);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(projection));
+    return;
+  }
+
   if (url.pathname === "/api/relay-snapshot") {
     const snapshot = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -151,6 +172,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/resolve-approval" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote approval operations require valid Bearer token." }));
+      return;
+    }
+
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
@@ -194,6 +221,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/read-battery") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote battery trigger requires valid Bearer token." }));
+      return;
+    }
+
     const r = await fetchJson(`${ANDROID_HOST}/read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -228,6 +261,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/runtime/start" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote runtime trigger requires valid Bearer token." }));
+      return;
+    }
+
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
@@ -247,6 +286,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/runtime/stop" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote runtime stop requires valid Bearer token." }));
+      return;
+    }
+
     const r = defaultOrchestrator.stop();
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(r));
@@ -254,13 +299,19 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/ask" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote execution request requires valid Bearer token." }));
+      return;
+    }
+
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", async () => {
       try {
         const parsed = JSON.parse(body || "{}");
         const prompt = parsed.prompt || "";
-        const result = await defaultControlPlane.askAios(prompt, { requestedBy: "gui-operator" });
+        const result = await defaultControlPlane.askAios(prompt, { requestedBy: "operator" });
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(result));
       } catch (err) {
@@ -272,13 +323,19 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/approve-and-execute" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote execution approval requires valid Bearer token." }));
+      return;
+    }
+
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", async () => {
       try {
         const parsed = JSON.parse(body || "{}");
         const requestId = parsed.requestId;
-        const result = await defaultControlPlane.approveAndExecute(requestId, "gui-operator");
+        const result = await defaultControlPlane.approveAndExecute(requestId, "operator");
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(result));
       } catch (err) {
@@ -307,6 +364,7 @@ const server = createServer(async (req, res) => {
       <script>
         if (!window.aios) {
           window.aios = {
+            getProjection: (profile = 'desktop') => fetch('/api/projection?profile=' + encodeURIComponent(profile)).then(r => r.json()),
             getCanonicalState: () => fetch('/api/canonical-state').then(r => r.json()),
             askAios: (prompt) => fetch('/api/ask', {
               method: 'POST',
