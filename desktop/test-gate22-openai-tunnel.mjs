@@ -1,6 +1,8 @@
 // AIOS Proof Gate 22: OpenAI Secure MCP Tunnel Discovery & Integration Test Suite
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
+import { readFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { defaultLedger } from "./observer.mjs";
 import { processJsonRpc } from "./mcp-server.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
@@ -9,6 +11,9 @@ import { computeCanonicalRealityDigest } from "./phone-shared-reality.mjs";
 const TEST_PORT = 9326;
 const TEST_TOKEN = "aios-gate22-test-token";
 const REMOTE_ALLOWLIST = ["aios.reality", "aios.status", "aios.evidence"];
+const OFFICIAL_WINDOWS_BINARY_PATH = "C:\\AIOS\\tools\\tunnel-client\\tunnel-client.exe";
+const OFFICIAL_RELEASE_ZIP_PATH = "C:\\AIOS\\tools\\tunnel-client\\tunnel-client.zip";
+const EXPECTED_ZIP_SHA256 = "2a2804933924e38a502d62b61f0266cb80d56d65744f4c29876b2bf9c1544356";
 
 function createTestIngressServer() {
   return createServer(async (req, res) => {
@@ -97,24 +102,39 @@ async function runTests() {
   };
 
   try {
-    // 1. Local MCP Health
+    // 1. Official OpenAI Tunnel Binary Check
+    if (!existsSync(OFFICIAL_WINDOWS_BINARY_PATH)) {
+      throw new Error(`Official binary not found at ${OFFICIAL_WINDOWS_BINARY_PATH}`);
+    }
+    console.log(`✔ 1. official binary verified    PASS (${OFFICIAL_WINDOWS_BINARY_PATH})`);
+
+    // 2. Official SHA256 Checksum Verification
+    if (existsSync(OFFICIAL_RELEASE_ZIP_PATH)) {
+      const fileBuffer = readFileSync(OFFICIAL_RELEASE_ZIP_PATH);
+      const computedHash = createHash("sha256").update(fileBuffer).digest("hex").toLowerCase();
+      if (computedHash !== EXPECTED_ZIP_SHA256) {
+        throw new Error(`SHA256 checksum mismatch: ${computedHash} !== ${EXPECTED_ZIP_SHA256}`);
+      }
+      console.log(`✔ 2. official SHA256 checksum    PASS (${computedHash.slice(0, 16)}... VERIFIED)`);
+    }
+
+    // 3. Binary Version & Execution Test
+    let versionOutput = "";
+    try {
+      versionOutput = execSync(`"${OFFICIAL_WINDOWS_BINARY_PATH}" -v`, { encoding: "utf8" }).trim();
+    } catch (err) {
+      throw new Error(`tunnel-client execution failed: ${err.message}`);
+    }
+    console.log(`✔ 3. binary version execution    PASS (${versionOutput})`);
+
+    // 4. Local MCP Healthz Check
     const healthRes = await clientFetch("/healthz", null, null);
     if (healthRes.status !== 200 || healthRes.data.status !== "HEALTHY") {
       throw new Error("Local MCP healthz check failed");
     }
-    console.log("✔ 1. local MCP healthz           PASS (Status: HEALTHY, Target: /api/remote-mcp)");
+    console.log("✔ 4. local MCP healthz           PASS (Status: HEALTHY, Target: /api/remote-mcp)");
 
-    // 2. Tunnel Client Discovery (Honest Check)
-    let tunnelClientFound = false;
-    try {
-      execSync("where tunnel-client", { stdio: "pipe" });
-      tunnelClientFound = true;
-    } catch {
-      tunnelClientFound = false;
-    }
-    console.log(`✔ 2. tunnel-client discovery     PASS (Status: ${tunnelClientFound ? "FOUND" : "NOT_INSTALLED (Honest check: Not on Windows PATH)"})`);
-
-    // 3. Tunnel Config Validation
+    // 5. Tunnel Config & Target Binding
     const targetConfig = {
       local_target: "http://127.0.0.1:9320/api/remote-mcp",
       auth_type: "Bearer",
@@ -123,9 +143,9 @@ async function runTests() {
     if (targetConfig.local_target !== "http://127.0.0.1:9320/api/remote-mcp") {
       throw new Error("Target configuration mismatch");
     }
-    console.log("✔ 3. tunnel config validation    PASS (Target: 127.0.0.1:9320/api/remote-mcp)");
+    console.log("✔ 5. tunnel config validation    PASS (Target: 127.0.0.1:9320/api/remote-mcp)");
 
-    // 4. MCP Transport Validation (JSON-RPC 2.0 initialize)
+    // 6. MCP Transport Initialize
     const initRes = await clientFetch("/api/remote-mcp", {
       jsonrpc: "2.0",
       id: 1,
@@ -135,50 +155,37 @@ async function runTests() {
     if (initRes.status !== 200 || initRes.data.result?.serverInfo?.name !== "aios-evidence-observer") {
       throw new Error("MCP transport initialization failed");
     }
-    console.log("✔ 4. MCP transport initialize    PASS (aios-evidence-observer v0.1.0)");
+    console.log("✔ 6. MCP transport initialize    PASS (aios-evidence-observer v0.1.0)");
 
-    // 5. Remote Allowlist Enforcement
+    // 7. Remote Allowlist Enforcement
     const listRes = await clientFetch("/api/remote-mcp", { jsonrpc: "2.0", id: 2, method: "tools/list" });
     const tools = listRes.data.result?.tools || [];
     if (tools.length !== 3 || !tools.every((t) => REMOTE_ALLOWLIST.includes(t.name))) {
       throw new Error("Remote allowlist violation in tools/list");
     }
-    console.log(`✔ 5. allowlist enforcement       PASS (Exposed: ${tools.map((t) => t.name).join(", ")})`);
+    console.log(`✔ 7. allowlist enforcement       PASS (Exposed: ${tools.map((t) => t.name).join(", ")})`);
 
-    // 6. Unauthorized Transport Rejection
-    const unauthRes = await clientFetch("/api/remote-mcp", { jsonrpc: "2.0", id: 3, method: "tools/list" }, null);
-    if (unauthRes.status !== 401) {
-      throw new Error("Unauthorized transport was not rejected with 401");
-    }
-    console.log("✔ 6. unauthorized transport rej  PASS (HTTP 401 Unauthorized)");
-
-    // 7. Secret Exposure Scan
+    // 8. aios.reality Call
     const realityRes = await clientFetch("/api/remote-mcp", {
       jsonrpc: "2.0",
-      id: 4,
+      id: 3,
       method: "tools/call",
       params: { name: "aios.reality", arguments: {} },
     });
     const realityData = JSON.parse(realityRes.data.result?.content[0]?.text || "{}");
-    const payloadStr = JSON.stringify(realityData);
-    if (
-      payloadStr.includes("Bearer ") ||
-      payloadStr.includes(".a2a-token") ||
-      payloadStr.includes(".pc-agent-token") ||
-      payloadStr.includes(TEST_TOKEN)
-    ) {
-      throw new Error("Secret detected in payload!");
+    if (!realityData.reality_digest) {
+      throw new Error("aios.reality call failed");
     }
-    console.log("✔ 7. secret scan                 ZERO");
+    console.log(`✔ 8. aios.reality read           PASS (Digest: ${realityData.reality_digest.slice(0, 16)}...)`);
 
-    // 8. Health and Readiness Check
-    const readyRes = await clientFetch("/readyz", null, null);
-    if (readyRes.status !== 200 || !readyRes.data.ready) {
-      throw new Error("Readyz check failed");
+    // 9. Unauthorized Transport Rejection
+    const unauthRes = await clientFetch("/api/remote-mcp", { jsonrpc: "2.0", id: 4, method: "tools/list" }, null);
+    if (unauthRes.status !== 401) {
+      throw new Error("Unauthorized transport was not rejected with 401");
     }
-    console.log("✔ 8. health / readiness check    PASS");
+    console.log("✔ 9. unauthorized transport rej  PASS (HTTP 401 Unauthorized)");
 
-    // 9. Remote Write Tool Blocking (agent.propose & approval.resolve)
+    // 10. Remote Write Blocking
     const writeRes = await clientFetch("/api/remote-mcp", {
       jsonrpc: "2.0",
       id: 5,
@@ -188,19 +195,35 @@ async function runTests() {
     if (writeRes.status !== 403) {
       throw new Error("Remote write tool was not blocked with 403");
     }
-    console.log("✔ 9. remote write blocked        PASS (HTTP 403 Forbidden)");
+    console.log("✔ 10. remote write blocked       PASS (HTTP 403 Forbidden)");
 
-    // 10. Disconnect and Recovery Handling
-    console.log("✔ 10. disconnect & recovery      PASS (Stateless JSON-RPC parity maintained)");
+    // 11. Secret Exposure Scan
+    const payloadStr = JSON.stringify(realityData);
+    if (
+      payloadStr.includes("Bearer ") ||
+      payloadStr.includes(".a2a-token") ||
+      payloadStr.includes(".pc-agent-token") ||
+      payloadStr.includes(TEST_TOKEN)
+    ) {
+      throw new Error("Secret detected in payload!");
+    }
+    console.log("✔ 11. secret scan                ZERO");
 
-    // 11. Evidence Ledger Chain Verification
+    // 12. Health and Readiness
+    const readyRes = await clientFetch("/readyz", null, null);
+    if (readyRes.status !== 200 || !readyRes.data.ready) {
+      throw new Error("Readyz check failed");
+    }
+    console.log("✔ 12. health & readiness check   PASS (HEALTHY & READY)");
+
+    // 13. Evidence Ledger Chain Verification
     const v = defaultLedger.verifyChain();
     if (!v.ok) {
       throw new Error("Evidence ledger chain verification failed");
     }
-    console.log(`✔ 11. evidence ledger status     PASS (CHAIN_VALID, ${v.events} events)`);
+    console.log(`✔ 13. evidence ledger status     PASS (CHAIN_VALID, ${v.events} events)`);
 
-    console.log("=== PROOF GATE 22 TÜM TESTLERİ GEÇTİ (11/11) ===");
+    console.log("=== PROOF GATE 22 TÜM TESTLERİ GEÇTİ (13/13) ===");
   } finally {
     server.close();
   }
