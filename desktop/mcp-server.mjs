@@ -354,7 +354,7 @@ async function handleToolCall(name, args = {}) {
       };
     }
     case "agent.propose": {
-      const { requestId, agentId, proposedAction, evidenceReferences = [], rationale = "" } = args;
+      const { requestId, agentId, proposedAction, evidenceReferences = [], rationale = "", realityDigest } = args;
       const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
       const isStale = !snap.nodes?.android?.online || snap.nodes?.android?.stale;
 
@@ -378,14 +378,36 @@ async function handleToolCall(name, args = {}) {
         };
       }
 
-      const digest = computeCanonicalRealityDigest(snap);
+      const currentDigest = computeCanonicalRealityDigest(snap);
+      const targetRealityDigest = realityDigest || currentDigest.canonicalHash;
+
+      // Reality Mismatch Kontrolü
+      if (realityDigest && realityDigest !== currentDigest.canonicalHash) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  ok: false,
+                  status: "BLOCKED",
+                  error: "REALITY_MISMATCH",
+                  detail: "Sunulan reality_digest güncel kanonik gerçeklikle eşleşmiyor.",
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
 
       // Kriptografik Proposal Binding
       const canonicalProposal = {
         agentId: String(agentId || "unknown-agent"),
         evidenceReferences: Array.isArray(evidenceReferences) ? [...evidenceReferences].sort() : [],
         proposedAction: proposedAction || {},
-        reality_digest: digest.canonicalHash,
+        reality_digest: targetRealityDigest,
         requestId: String(requestId || ""),
       };
 
@@ -403,7 +425,7 @@ async function handleToolCall(name, args = {}) {
           proposalHash,
           status: "REVIEW_REQUIRED",
         },
-        metadata: { rationale, reality_digest: digest.canonicalHash },
+        metadata: { rationale, reality_digest: targetRealityDigest },
       });
 
       const response = {
@@ -414,7 +436,7 @@ async function handleToolCall(name, args = {}) {
         status: "REVIEW_REQUIRED",
         evidenceReferences: canonicalProposal.evidenceReferences,
         lineage: {
-          reality_digest: digest.canonicalHash,
+          reality_digest: targetRealityDigest,
           attestation: snap.attestation?.latestWitnessId || "GENESIS",
           evidenceWitness: defaultLedger.getLatestWitnessHash(),
         },
