@@ -1,0 +1,16 @@
+{
+  "attestation_witness": "attest-wit-d9b55fa5a77456e6421031141adf2e3549cffd790aaceef84cce8e95e1f019a7",
+  "human_approval": {
+    "operator_id": "operator-admin",
+    "status": "GRANTED"
+  },
+  "intersection_hash": "6f0b10889cccac087656395eb2dd2f519825cc5750caedda081c763b7da47680",
+  "purpose": "proof-only",
+  "schema": "aios.first-human-approved-artifact.v1",
+  "source_nodes": [
+    "node-9bd0d97dd3c599c25e7fc6c557021343711e6bb0baaedaae2874066713421a0f",
+    "node-e09887136f677275944a6b7ae72e8d814a941a274b836915eb47dd607fda21c4"
+  ],
+  "artifact_id": "art-human-b36dadf7735b07ca32706961",
+  "artifact_sha256": "b36dadf7735b07ca32706961c632c61c85e2e6b6dc3c17a54479163b3392e65b"
+}

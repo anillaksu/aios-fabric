@@ -9,7 +9,11 @@ import {
 } from "./observer.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
 import { buildSharedRealitySummary, querySystemReality } from "./shared-reality.mjs";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROTOCOL_VERSION = "2025-03-26";
 const SERVER_NAME = "aios-evidence-observer";
 const SERVER_VERSION = "0.1.0";
@@ -66,6 +70,21 @@ const TOOLS = [
       required: ["query"],
     },
   },
+  {
+    name: "artifact.latest",
+    description: "Get the latest human-approved or distributed artifact and its metadata.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "artifact.lineage",
+    description: "Get the cryptographic attestation witness lineage and chain status for a given artifact.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "approval.latest",
+    description: "Get the most recent human approval event and operator resolution from the Evidence Ledger.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 async function handleToolCall(name, args = {}) {
@@ -120,6 +139,34 @@ async function handleToolCall(name, args = {}) {
       const result = querySystemReality(String(args.query || ""), snap);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+    case "artifact.latest": {
+      const artifactPath = resolve(__dirname, "artifacts", "first_distributed_artifact.json");
+      let art = null;
+      if (existsSync(artifactPath)) {
+        try {
+          art = JSON.parse(readFileSync(artifactPath, "utf8"));
+        } catch {
+          art = null;
+        }
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify({ ok: Boolean(art), artifact: art }, null, 2) }],
+      };
+    }
+    case "artifact.lineage": {
+      const history = defaultLedger.getHistory(50);
+      const completedEvents = history.filter((e) => e.operation === "artifact.production.completed" || e.operation === "artifact.distributed.created");
+      return {
+        content: [{ type: "text", text: JSON.stringify({ count: completedEvents.length, lineageEvents: completedEvents }, null, 2) }],
+      };
+    }
+    case "approval.latest": {
+      const history = defaultLedger.getHistory(50);
+      const approvalEvents = history.filter((e) => e.operation.startsWith("artifact.production.") || e.operation.startsWith("relay.approval_"));
+      return {
+        content: [{ type: "text", text: JSON.stringify({ count: approvalEvents.length, latestApproval: approvalEvents[0] || null }, null, 2) }],
       };
     }
     default:
