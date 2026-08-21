@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIOS Tunnel Control</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="pulse-icon"></div>
+        <h1>AIOS TUNNEL CONTROL</h1>
+      </div>
+      <div class="badge-group">
+        <span id="runtime-badge" class="badge badge-inactive">SUBPROCESS: STOPPED</span>
+        <span class="badge badge-secure">ZERO SECRET EXPOSURE</span>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <!-- Left Column: Config & Controls -->
+      <section class="card config-card">
+        <h2>Connection & Credentials</h2>
+        <p class="subtitle">Credentials are maintained in volatile session memory only. Never written to disk or git.</p>
+
+        <form id="tunnel-form" onsubmit="return false;">
+          <div class="form-group">
+            <label for="tunnel-id">Tunnel ID</label>
+            <input type="text" id="tunnel-id" placeholder="tunnel_6a87••••72d4" autocomplete="off" spellcheck="false">
+            <small class="field-hint">Masked in logs and persistent displays</small>
+          </div>
+
+          <div class="form-group">
+            <label for="api-key">Runtime API Key</label>
+            <input type="password" id="api-key" placeholder="••••••••••••••••" autocomplete="off" spellcheck="false">
+            <small class="field-hint">Passed strictly via process environment. Never logged.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="mcp-target">MCP Server URL</label>
+            <input type="text" id="mcp-target" value="http://127.0.0.1:9320/api/remote-mcp" readonly spellcheck="false">
+            <small class="field-hint">Single canonical AIOS MCP ingress adapter</small>
+          </div>
+
+          <div class="button-bar">
+            <button id="btn-save" type="button" class="btn btn-secondary">SAVE SESSION</button>
+            <button id="btn-verify" type="button" class="btn btn-outline">VERIFY</button>
+            <button id="btn-start" type="button" class="btn btn-primary">START</button>
+            <button id="btn-stop" type="button" class="btn btn-danger" disabled>STOP</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Right Column: Status Matrix -->
+      <section class="card status-card">
+        <h2>System Status Matrix</h2>
+        <div class="status-grid">
+          <div class="status-item">
+            <span class="status-label">LOCAL MCP</span>
+            <span id="st-local-mcp" class="status-val status-ok">PASS (127.0.0.1:9320)</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">TUNNEL CLIENT</span>
+            <span id="st-tunnel-client" class="status-val status-ok">0.0.12 (VERIFIED)</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">TUNNEL HEALTH</span>
+            <span id="st-tunnel-health" class="status-val status-neutral">READY</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">TUNNEL READY</span>
+            <span id="st-tunnel-ready" class="status-val status-neutral">STANDBY</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">CHATGPT CONNECTOR</span>
+            <span id="st-chatgpt-conn" class="status-val status-neutral">NOT_CONFIGURED</span>
+          </div>
+          <div class="status-item">
+            <span class="status-label">CHATGPT REACHABILITY</span>
+            <span id="st-chatgpt-reach" class="status-val status-warn">NOT_PROVEN</span>
+          </div>
+        </div>
+
+        <div class="allowlist-box">
+          <span class="allowlist-title">REMOTE MCP ALLOWLIST:</span>
+          <span class="tag">aios.reality</span>
+          <span class="tag">aios.status</span>
+          <span class="tag">aios.evidence</span>
+          <span class="tag tag-block">approval.resolve (BLOCKED)</span>
+          <span class="tag tag-block">agent.propose (BLOCKED)</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom: Live Redacted Terminal Log -->
+    <section class="card logs-card">
+      <div class="logs-header">
+        <h2>Live Redacted Subprocess Console</h2>
+        <span class="badge badge-subtle">AUTO-REDACTION FILTER ACTIVE</span>
+      </div>
+      <pre id="log-console" class="log-console">[SYSTEM] AIOS Tunnel Control ready. Official binary: C:\AIOS\tools\tunnel-client\tunnel-client.exe</pre>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
