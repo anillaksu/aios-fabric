@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultRelay } from "./agent-relay.mjs";
+import { processJsonRpc } from "./mcp-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
@@ -45,6 +46,23 @@ const server = createServer(async (req, res) => {
     const snapshot = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(snapshot));
+    return;
+  }
+
+  if (url.pathname === "/api/mcp" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const result = await processJsonRpc(parsed);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32600, message: err.message } }));
+      }
+    });
     return;
   }
 
