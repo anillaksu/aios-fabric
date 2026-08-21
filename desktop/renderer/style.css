@@ -691,3 +691,94 @@ h3 {
   color: #cbd5e1;
 }
 
+/* ASK AIOS Workflow Styles */
+.ask-workflow-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.ask-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proposals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.proposal-chip {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.p-agent {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--cyan);
+}
+
+.p-conf {
+  font-size: 9px;
+  color: var(--lime);
+}
+
+.p-hash {
+  font-size: 8px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.human-gate-action-box {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  padding: 10px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hg-notice {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.hg-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.task-result-box {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(132, 204, 22, 0.3);
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.result-pre {
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: var(--lime);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 6px 0 0 0;
+}
+

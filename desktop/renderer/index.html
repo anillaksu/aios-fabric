@@ -130,26 +130,54 @@
 
           <div class="section-divider"></div>
 
-          <!-- Ask The System Query Deck -->
+          <!-- ASK AIOS: Unified Canonical Operational Center -->
           <div class="ask-deck">
-            <h3>ASK THE SYSTEM (DETERMİNİSTİK SORU-CEVAP)</h3>
+            <h3>💬 ASK AIOS (TEK KANONİK GİRİŞ & İCRA YÜZEYİ)</h3>
             <div class="quick-questions">
-              <button class="btn-chip" onclick="handleQuickQuery('Şu an ne kanıtlandı?')">❓ Ne kanıtlandı?</button>
-              <button class="btn-chip" onclick="handleQuickQuery('Telefon canlı mı?')">📱 Telefon canlı mı?</button>
-              <button class="btn-chip" onclick="handleQuickQuery('Son kanıt ne?')">📜 Son kanıt?</button>
-              <button class="btn-chip" onclick="handleQuickQuery('Hangi capabilityler ortak?')">⚡ Ortak yetenekler?</button>
-              <button class="btn-chip" onclick="handleQuickQuery('Son artifact nedir?')">📦 Son artifact?</button>
+              <button class="btn-chip" onclick="handleQuickAsk('Telefonun pil durumunu kontrol et.')">⚡ Pil Durumu</button>
+              <button class="btn-chip" onclick="handleQuickAsk('Şu an sistemde ne kanıtlandı?')">📜 Ne Kanıtlandı?</button>
+              <button class="btn-chip" onclick="handleQuickAsk('Android ve Windows düğümleri canlı mı?')">📱 Düğüm Durumu</button>
+              <button class="btn-chip" onclick="handleQuickAsk('Ortak yetenek listesini çıkar.')">🔌 Ortak Yetenekler</button>
             </div>
             <div class="query-box">
-              <input type="text" id="query-input" placeholder="Sisteme deterministik soru sorun..." />
-              <button id="btn-submit-query">SORGULA</button>
+              <input type="text" id="ask-aios-input" placeholder="Doğal dil isteği yazın (örn: Telefonun pil durumunu kontrol et)..." />
+              <button id="btn-submit-ask">SEND TO AIOS</button>
             </div>
-            <div class="query-result" id="query-result-box" style="display: none;">
+
+            <!-- Multi-Agent Proposals & Human Gate Review View -->
+            <div class="ask-workflow-card" id="ask-workflow-card" style="display: none;">
               <div class="q-header">
-                <span class="q-title" id="q-status-badge">PROVEN</span>
-                <span class="q-time" id="q-time">--:--:--</span>
+                <span class="q-title" id="ask-request-badge">REQ: NONE</span>
+                <span class="q-time" id="ask-time">--:--:--</span>
               </div>
-              <div class="q-body" id="q-answer-text">--</div>
+              <div class="ask-details" id="ask-details">
+                <div class="info-row"><span class="lbl">Prompt:</span><span class="val cyan" id="ask-prompt-text">--</span></div>
+                <div class="info-row"><span class="lbl">Hedef Yetenek:</span><span class="val lime" id="ask-op-text">--</span></div>
+                <div class="info-row"><span class="lbl">Reality Digest:</span><span class="val pink" id="ask-digest-text">--</span></div>
+              </div>
+
+              <!-- Multi-Agent Proposals Grid -->
+              <div class="proposals-grid" id="proposals-grid">
+                <!-- Injected dynamically -->
+              </div>
+
+              <!-- Human Gate Action Box -->
+              <div class="human-gate-action-box" id="human-gate-action-box">
+                <span class="hg-notice">⚠️ İNSAN OPERATÖR ONAYI BEKLENİYOR (Fail-Closed)</span>
+                <div class="hg-buttons">
+                  <button class="btn-approve" id="btn-hg-approve">✓ APPROVE & EXECUTE</button>
+                  <button class="btn-deny" id="btn-hg-deny">✕ DENY</button>
+                </div>
+              </div>
+
+              <!-- Task Execution Result View -->
+              <div class="task-result-box" id="task-result-box" style="display: none;">
+                <div class="q-header">
+                  <span class="q-title lime">TASK RESULT: COMPLETED</span>
+                  <span class="val cyan" id="task-witness-text">--</span>
+                </div>
+                <pre class="result-pre" id="task-result-pre">--</pre>
+              </div>
             </div>
           </div>
 

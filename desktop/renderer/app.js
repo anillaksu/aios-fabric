@@ -68,6 +68,109 @@ function renderApprovalRequests(requests = []) {
     .join("");
 }
 
+let currentActiveAskRequestId = null;
+
+window.handleQuickAsk = function (promptText) {
+  const input = document.getElementById("ask-aios-input");
+  if (input) {
+    input.value = promptText;
+    submitAskAios(promptText);
+  }
+};
+
+async function submitAskAios(customPrompt) {
+  const input = document.getElementById("ask-aios-input");
+  const prompt = (customPrompt || input?.value || "").trim();
+  if (!prompt || !window.aios?.askAios) return;
+
+  const btn = document.getElementById("btn-submit-ask");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "ORCHESTRATING...";
+  }
+
+  try {
+    const res = await window.aios.askAios(prompt);
+    if (!res || !res.ok) {
+      alert("Hata: " + (res?.error || "Ask failed"));
+      return;
+    }
+
+    currentActiveAskRequestId = res.requestId;
+    const card = document.getElementById("ask-workflow-card");
+    if (card) card.style.display = "flex";
+
+    document.getElementById("ask-request-badge").textContent = res.requestId;
+    document.getElementById("ask-time").textContent = nowTimeString();
+    document.getElementById("ask-prompt-text").textContent = `"${res.prompt}"`;
+    document.getElementById("ask-op-text").textContent = res.operation;
+    document.getElementById("ask-digest-text").textContent = (res.realityDigest || "").slice(0, 24) + "...";
+
+    // Proposals Grid
+    const grid = document.getElementById("proposals-grid");
+    if (grid) {
+      grid.innerHTML = (res.proposals || []).map(p => `
+        <div class="proposal-chip">
+          <span class="p-agent">${p.agentName}</span>
+          <span class="p-conf">${Math.round(p.confidence * 100)}% Match</span>
+          <span class="p-hash">${(p.canonicalHash || "").slice(0, 12)}...</span>
+        </div>
+      `).join("");
+    }
+
+    // Reset task result box and show action buttons
+    document.getElementById("human-gate-action-box").style.display = "block";
+    document.getElementById("task-result-box").style.display = "none";
+  } catch (err) {
+    console.error("Ask AIOS error:", err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "SEND TO AIOS";
+    }
+  }
+}
+
+async function handleHumanGateApprove() {
+  if (!currentActiveAskRequestId || !window.aios?.approveAndExecute) return;
+  const btn = document.getElementById("btn-hg-approve");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "EXECUTING...";
+  }
+
+  try {
+    const res = await window.aios.approveAndExecute(currentActiveAskRequestId);
+    document.getElementById("human-gate-action-box").style.display = "none";
+    const resBox = document.getElementById("task-result-box");
+    if (resBox) {
+      resBox.style.display = "block";
+      document.getElementById("task-witness-text").textContent = `WITNESS: ${(res.taskWitnessId || "N/A").slice(0, 24)}...`;
+      document.getElementById("task-result-pre").textContent = JSON.stringify(res.taskResult, null, 2);
+    }
+    refreshRelaySnapshot();
+  } catch (err) {
+    console.error("Approve and execute failed:", err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "✓ APPROVE & EXECUTE";
+    }
+  }
+}
+
+async function handleHumanGateDeny() {
+  if (!currentActiveAskRequestId || !window.aios?.resolveApproval) return;
+  await window.aios.resolveApproval(currentActiveAskRequestId, "DENY");
+  document.getElementById("human-gate-action-box").style.display = "none";
+  const resBox = document.getElementById("task-result-box");
+  if (resBox) {
+    resBox.style.display = "block";
+    document.getElementById("task-result-pre").textContent = "REQUEST DENIED BY HUMAN OPERATOR (Fail-Closed).";
+  }
+  refreshRelaySnapshot();
+}
+
 window.handleDecision = async function (approvalId, decision) {
   try {
     if (window.aios?.resolveApproval) {
@@ -165,9 +268,11 @@ async function refreshRelaySnapshot() {
     document.getElementById("inter-hash").textContent = snap.attestation.intersectionHash.slice(0, 20) + "...";
 
     const interList = document.getElementById("intersection-list");
-    interList.innerHTML = snap.attestation.allowedCapabilities
-      .map((c) => `<span class="cap-tag">${c}</span>`)
-      .join("");
+    if (interList) {
+      interList.innerHTML = snap.attestation.allowedCapabilities
+        .map((c) => `<span class="cap-tag">${c}</span>`)
+        .join("");
+    }
 
     // 4. Dağıtık Artifact
     if (snap.artifact) {
@@ -248,11 +353,16 @@ async function refreshRuntimeStatus() {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-manual-refresh")?.addEventListener("click", refreshRelaySnapshot);
   document.getElementById("btn-read-battery")?.addEventListener("click", handleReadBattery);
-  document.getElementById("btn-submit-query")?.addEventListener("click", () => submitQuery());
-  document.getElementById("query-input")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") submitQuery();
+  
+  // ASK AIOS Bindings
+  document.getElementById("btn-submit-ask")?.addEventListener("click", () => submitAskAios());
+  document.getElementById("ask-aios-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitAskAios();
   });
+  document.getElementById("btn-hg-approve")?.addEventListener("click", handleHumanGateApprove);
+  document.getElementById("btn-hg-deny")?.addEventListener("click", handleHumanGateDeny);
 
+  // Runtime Controls
   document.getElementById("btn-start-gate24")?.addEventListener("click", async () => {
     if (window.aios?.startRuntimeRun) {
       await window.aios.startRuntimeRun("24");

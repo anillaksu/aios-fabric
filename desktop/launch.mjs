@@ -226,6 +226,42 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/ask" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const prompt = parsed.prompt || "";
+        const result = await defaultControlPlane.askAios(prompt, { requestedBy: "gui-operator" });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/approve-and-execute" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const requestId = parsed.requestId;
+        const result = await defaultControlPlane.approveAndExecute(requestId, "gui-operator");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // Static Files
   let filePath = resolve(__dirname, "renderer", url.pathname === "/" ? "index.html" : url.pathname.slice(1));
   if (!filePath.startsWith(resolve(__dirname, "renderer"))) {
@@ -245,6 +281,16 @@ const server = createServer(async (req, res) => {
         if (!window.aios) {
           window.aios = {
             getCanonicalState: () => fetch('/api/canonical-state').then(r => r.json()),
+            askAios: (prompt) => fetch('/api/ask', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt })
+            }).then(r => r.json()),
+            approveAndExecute: (requestId) => fetch('/api/approve-and-execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requestId })
+            }).then(r => r.json()),
             getAndroidNode: () => fetch('/api/android-node').then(r => r.json()),
             getWindowsNode: () => fetch('/api/windows-node').then(r => r.json()),
             readBattery: () => fetch('/api/read-battery').then(r => r.json()),

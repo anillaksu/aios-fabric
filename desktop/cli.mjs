@@ -29,6 +29,67 @@ async function main() {
       break;
     }
 
+    case "ask": {
+      const promptText = args.slice(1).filter((a) => !a.startsWith("--")).join(" ");
+      if (!promptText) {
+        console.error('Usage: aios ask "<natural language prompt>" [--auto-approve]');
+        process.exit(1);
+      }
+      const reviewObj = await defaultControlPlane.askAios(promptText, { requestedBy: "cli-operator" });
+      if (args.includes("--auto-approve")) {
+        const execRes = await defaultControlPlane.approveAndExecute(reviewObj.requestId, "cli-operator");
+        if (isJson) {
+          console.log(JSON.stringify(execRes, null, 2));
+        } else {
+          console.log("=== AIOS TASK EXECUTED ===");
+          console.log(`REQUEST ID:    ${execRes.requestId}`);
+          console.log(`STATUS:        ${execRes.status}`);
+          console.log(`WITNESS ID:    ${execRes.taskWitnessId}`);
+          console.log(`EVIDENCE HASH: ${execRes.evidenceHash}`);
+          if (execRes.artifact) console.log(`ARTIFACT:      ${execRes.artifact.artifactId}`);
+          console.log(`RESULT:        ${JSON.stringify(execRes.taskResult)}`);
+        }
+      } else {
+        if (isJson) {
+          console.log(JSON.stringify(reviewObj, null, 2));
+        } else {
+          console.log("=== AIOS PROPOSALS & HUMAN GATE REVIEW ===");
+          console.log(`PROMPT:       "${reviewObj.prompt}"`);
+          console.log(`REQUEST ID:   ${reviewObj.requestId}`);
+          console.log(`OPERATION:    ${reviewObj.operation}`);
+          console.log(`REALITY:      ${reviewObj.realityDigest.slice(0, 16)}...`);
+          console.log(`PROPOSALS:    ${reviewObj.proposalsCount} agents proposed actions:`);
+          for (const p of reviewObj.proposals) {
+            console.log(`  -> [${p.agentName}] ${p.proposalId} (Confidence: ${p.confidence * 100}%)`);
+          }
+          console.log(`STATUS:       ${reviewObj.status}`);
+          console.log(`To approve & execute, run: aios approve-and-execute ${reviewObj.requestId}`);
+        }
+      }
+      break;
+    }
+
+    case "approve-and-execute": {
+      const reqId = args[1];
+      if (!reqId) {
+        console.error("Usage: aios approve-and-execute <requestId>");
+        process.exit(1);
+      }
+      const execRes = await defaultControlPlane.approveAndExecute(reqId, "cli-operator");
+      if (isJson) {
+        console.log(JSON.stringify(execRes, null, 2));
+      } else {
+        console.log("=== AIOS TASK EXECUTED ===");
+        console.log(`REQUEST ID:    ${execRes.requestId}`);
+        console.log(`STATUS:        ${execRes.status}`);
+        console.log(`WITNESS ID:    ${execRes.taskWitnessId}`);
+        console.log(`EVIDENCE HASH: ${execRes.evidenceHash}`);
+        if (execRes.artifact) console.log(`ARTIFACT:      ${execRes.artifact.artifactId}`);
+        console.log(`RESULT:        ${JSON.stringify(execRes.taskResult)}`);
+      }
+      break;
+    }
+
     case "reality": {
       const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
       const digest = computeCanonicalRealityDigest(snap);
@@ -214,6 +275,8 @@ async function main() {
 
     default: {
       console.log("AIOS Canonical CLI — Usage:");
+      console.log("  aios ask \"<natural language prompt>\" [--auto-approve] [--json]");
+      console.log("  aios approve-and-execute <requestId> [--json]");
       console.log("  aios status [--json]");
       console.log("  aios reality [--json]");
       console.log("  aios pending [--json]");
