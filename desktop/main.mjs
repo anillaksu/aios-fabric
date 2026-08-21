@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import http from "node:http";
+import { defaultRelay } from "./agent-relay.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,6 +32,14 @@ async function fetchJson(url, options = {}) {
 }
 
 function registerIpcHandlers() {
+  ipcMain.handle("aios:get-relay-snapshot", async () => {
+    return defaultRelay.getSystemSnapshot({ timeoutMs: 3000 });
+  });
+
+  ipcMain.handle("aios:resolve-approval", async (_, { approvalId, decision }) => {
+    return defaultRelay.resolveApprovalRequest(approvalId, decision, "operator-admin");
+  });
+
   ipcMain.handle("aios:get-android-node", async () => {
     const [card, status, caps] = await Promise.all([
       fetchJson(`${ANDROID_HOST}/.well-known/agent-card.json`),
@@ -76,11 +84,11 @@ function registerIpcHandlers() {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1360,
-    height: 880,
+    width: 1400,
+    height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: "AIOS Control Surface — Windows Observer Node",
+    title: "AIOS Control Surface — Windows Observer & Agent Relay Deck",
     backgroundColor: "#0a0c10",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),

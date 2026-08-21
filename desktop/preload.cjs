@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld("aios", {
   readBattery: () => ipcRenderer.invoke("aios:read-battery"),
   getArtifacts: () => ipcRenderer.invoke("aios:get-artifacts"),
   getFormations: () => ipcRenderer.invoke("aios:get-formations"),
+  getRelaySnapshot: () => ipcRenderer.invoke("aios:get-relay-snapshot"),
+  resolveApproval: (approvalId, decision) => ipcRenderer.invoke("aios:resolve-approval", { approvalId, decision }),
 });

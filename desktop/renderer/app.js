@@ -1,4 +1,4 @@
-// AIOS Desktop Control Surface — Renderer Logic
+// AIOS Control Surface — Agent Relay & Human Gate Logic
 
 let witnessHistory = [];
 
@@ -27,9 +27,6 @@ function appendWitness(title, data, target = "http://100.75.177.88:9300") {
     };
     witnessHistory.unshift(item);
     renderWitnessFeed();
-    document.getElementById("latest-hash").textContent = hash;
-    document.getElementById("header-witness-time").textContent = item.timestamp;
-    document.getElementById("witness-count").textContent = `${witnessHistory.length} KAYIT`;
   });
 }
 
@@ -40,7 +37,7 @@ function renderWitnessFeed() {
     return;
   }
   container.innerHTML = witnessHistory
-    .slice(0, 15)
+    .slice(0, 8)
     .map(
       (w) => `
       <div class="witness-card">
@@ -49,82 +46,98 @@ function renderWitnessFeed() {
           <span class="witness-time">${w.timestamp}</span>
         </div>
         <div class="witness-hash">HASH: ${w.hash}</div>
-        <div class="witness-data">${w.data.slice(0, 120)}${w.data.length > 120 ? "..." : ""}</div>
+        <div class="witness-data">${w.data.slice(0, 100)}${w.data.length > 100 ? "..." : ""}</div>
       </div>
     `,
     )
     .join("");
 }
 
-async function refreshAndroidNode() {
-  try {
-    const res = await window.aios.getAndroidNode();
-    const badge = document.getElementById("android-badge");
-    if (res.reachable) {
-      badge.textContent = "● ONLINE (HTTP 200)";
-      badge.className = "status-badge lime";
-    } else {
-      badge.textContent = "● ULAŞILAMIYOR";
-      badge.className = "status-badge pink";
-    }
+function renderApprovalRequests(requests = []) {
+  const container = document.getElementById("approval-list");
+  const badge = document.getElementById("header-pending-count");
+  badge.textContent = `${requests.length} BEKLEYEN`;
 
-    if (res.card) {
-      document.getElementById("android-agent-name").textContent = res.card.name || "Phone AI-OS Fabric";
-      document.getElementById("android-agent-version").textContent = `v${res.card.version || "0.1.0"}`;
-    }
+  if (requests.length === 0) {
+    container.innerHTML = '<div class="feed-empty">Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemede.</div>';
+    return;
+  }
 
-    if (res.status && Array.isArray(res.status.services)) {
-      const container = document.getElementById("android-services");
-      container.innerHTML = res.status.services
-        .map(
-          (s) => `
-        <div class="service-item">
-          <span class="s-name">${s.id}</span>
-          <span class="s-status ${s.status === "online" ? "lime" : "amber"}">${s.status.toUpperCase()}</span>
+  container.innerHTML = requests
+    .map(
+      (r) => `
+      <div class="approval-card">
+        <div class="appr-header">
+          <span class="appr-title">⚠️ ${r.operation}</span>
+          <span class="appr-time">${r.timestamp.slice(11, 19)}</span>
         </div>
-      `,
-        )
-        .join("");
-    }
-
-    if (Array.isArray(res.capabilities)) {
-      document.getElementById("cap-count").textContent = res.capabilities.length;
-      const list = document.getElementById("caps-list");
-      list.innerHTML = res.capabilities
-        .slice(0, 12)
-        .map((c) => `<span class="cap-tag">${c.name}</span>`)
-        .join("");
-    }
-  } catch (err) {
-    console.error("Android node fetch failed", err);
-  }
+        <div class="appr-target">HEDEF: ${r.targetNodeId.slice(0, 24)}...</div>
+        <div class="appr-actions">
+          <button class="btn-approve" onclick="handleDecision('${r.approvalId}', 'APPROVE')">✔ ONAYLA (APPROVE)</button>
+          <button class="btn-deny" onclick="handleDecision('${r.approvalId}', 'DENY')">✖ REDDET (DENY)</button>
+        </div>
+      </div>
+    `,
+    )
+    .join("");
 }
 
-async function refreshWindowsNode() {
+window.handleDecision = async function (approvalId, decision) {
   try {
-    const res = await window.aios.getWindowsNode();
-    const badge = document.getElementById("windows-badge");
-    if (res.reachable) {
-      badge.textContent = "● ONLINE (:9310)";
-      badge.className = "status-badge lime";
+    if (window.aios?.resolveApproval) {
+      await window.aios.resolveApproval(approvalId, decision);
+      appendWitness(`HUMAN_DECISION: ${decision}`, { approvalId, decision });
+      refreshRelaySnapshot();
+    }
+  } catch (err) {
+    console.error("Decision resolution failed", err);
+  }
+};
+
+async function refreshRelaySnapshot() {
+  try {
+    if (!window.aios?.getRelaySnapshot) return;
+    const snap = await window.aios.getRelaySnapshot();
+
+    // 1. Android Düğüm Durumu
+    const androidBadge = document.getElementById("android-badge");
+    if (snap.nodes.android?.online) {
+      androidBadge.textContent = "● ONLINE";
+      androidBadge.className = "status-badge lime";
+      document.getElementById("android-node-id").textContent = snap.nodes.android.nodeId.slice(0, 24) + "...";
+      document.getElementById("android-agent-name").textContent = `${snap.nodes.android.agentName} v${snap.nodes.android.agentVersion}`;
     } else {
-      badge.textContent = "● READY (STANDBY)";
-      badge.className = "status-badge cyan";
+      androidBadge.textContent = "● OFFLINE (STALE)";
+      androidBadge.className = "status-badge pink";
     }
-  } catch (err) {
-    console.error("Windows node fetch failed", err);
-  }
-}
 
-async function refreshFormations() {
-  try {
-    const res = await window.aios.getFormations();
-    if (res.ok && res.data) {
-      document.getElementById("f-count").textContent = (res.data.formations || []).length;
-      document.getElementById("edge-count").textContent = (res.data.provenanceEdges || []).length;
+    // 2. Windows Düğüm Durumu
+    document.getElementById("windows-node-id").textContent = snap.nodes.windows.nodeId.slice(0, 24) + "...";
+
+    // 3. Attestation & Kesişim
+    document.getElementById("header-attest-witness").textContent = (snap.attestation.latestWitnessId || "GENESIS").slice(0, 20) + "...";
+    document.getElementById("header-intersection-count").textContent = `${snap.attestation.allowedCapabilities.length} CAPS`;
+    document.getElementById("inter-hash").textContent = snap.attestation.intersectionHash.slice(0, 20) + "...";
+
+    const interList = document.getElementById("intersection-list");
+    interList.innerHTML = snap.attestation.allowedCapabilities
+      .map((c) => `<span class="cap-tag">${c}</span>`)
+      .join("");
+
+    // 4. Dağıtık Artifact
+    if (snap.artifact) {
+      document.getElementById("art-id").textContent = snap.artifact.artifactId;
+      document.getElementById("art-sha").textContent = snap.artifact.artifactSha256.slice(0, 24) + "...";
+      document.getElementById("art-lineage").textContent = snap.artifact.lineageWitnessId.slice(0, 24) + "...";
     }
+
+    // 5. Evidence Zincir Durumu
+    document.getElementById("latest-hash").textContent = snap.evidenceChain?.status || "CHAIN_VALID";
+
+    // 6. Onay Talepleri
+    renderApprovalRequests(snap.pendingApprovals || []);
   } catch (err) {
-    console.error("Formations fetch failed", err);
+    console.error("Relay snapshot fetch failed", err);
   }
 }
 
@@ -154,21 +167,16 @@ async function handleReadBattery() {
 // Initial Wireup
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-manual-refresh").addEventListener("click", () => {
-    refreshAndroidNode();
-    refreshWindowsNode();
-    refreshFormations();
+    refreshRelaySnapshot();
   });
 
   document.getElementById("btn-read-battery").addEventListener("click", handleReadBattery);
 
   // İlk yükleme
-  refreshAndroidNode();
-  refreshWindowsNode();
-  refreshFormations();
+  refreshRelaySnapshot();
 
-  // Otomatik okuma döngüsü (8 saniye)
+  // Canlı polling (5s)
   setInterval(() => {
-    refreshAndroidNode();
-    refreshWindowsNode();
-  }, 8000);
+    refreshRelaySnapshot();
+  }, 5000);
 });

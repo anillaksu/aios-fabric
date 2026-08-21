@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIOS CONTROL SURFACE // NIGHT CITY DECK</title>
+  <title>AIOS CONTROL SURFACE // AGENT RELAY DECK</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,22 +11,22 @@
     <!-- Top Header -->
     <header class="deck-header">
       <div class="brand">
-        <div class="pulse-indicator online"></div>
-        <span class="brand-title">AIOS · CONTROL SURFACE</span>
-        <span class="brand-badge">WINDOWS OBSERVER NODE</span>
+        <div class="pulse-indicator online" id="global-pulse"></div>
+        <span class="brand-title">AIOS · AGENT RELAY</span>
+        <span class="brand-badge" id="relay-badge">HUMAN CONTROL SURFACE</span>
       </div>
       <div class="header-metrics">
         <div class="metric-item">
-          <span class="label">TARGET</span>
-          <span class="value cyan" id="target-host">100.75.177.88:9300</span>
+          <span class="label">ATTESTATION WITNESS</span>
+          <span class="value cyan" id="header-attest-witness">GENESIS</span>
         </div>
         <div class="metric-item">
-          <span class="label">A2A GATEWAY</span>
-          <span class="value lime" id="a2a-status">ACTIVE</span>
+          <span class="label">INTERSECTION</span>
+          <span class="value lime" id="header-intersection-count">4 CAPS</span>
         </div>
         <div class="metric-item">
-          <span class="label">LAST WITNESS</span>
-          <span class="value pink" id="header-witness-time">--:--:--</span>
+          <span class="label">PENDING REVIEWS</span>
+          <span class="value amber" id="header-pending-count">0 BEKLEYEN</span>
         </div>
         <button class="btn-refresh" id="btn-manual-refresh">⟳ YENİLE</button>
       </div>
@@ -46,16 +46,16 @@
 
         <div class="card-body">
           <div class="info-row">
-            <span class="lbl">Cihaz Kimliği:</span>
-            <span class="val" id="android-device-name">Xiaomi 2210129SG (HyperOS / Android 15)</span>
+            <span class="lbl">Düğüm Kimliği:</span>
+            <span class="val cyan" id="android-node-id">--</span>
           </div>
           <div class="info-row">
-            <span class="lbl">Agent Adı:</span>
-            <span class="val cyan" id="android-agent-name">--</span>
+            <span class="lbl">Ajan Adı:</span>
+            <span class="val" id="android-agent-name">--</span>
           </div>
           <div class="info-row">
-            <span class="lbl">Sürüm:</span>
-            <span class="val" id="android-agent-version">--</span>
+            <span class="lbl">Uç Nokta:</span>
+            <span class="val">http://100.75.177.88:9300</span>
           </div>
 
           <div class="section-divider"></div>
@@ -65,15 +65,15 @@
             <div class="service-item"><span class="s-name">Fabric (9300)</span><span class="s-status lime">ONLINE</span></div>
             <div class="service-item"><span class="s-name">LLM Bridge (9201)</span><span class="s-status lime">ONLINE</span></div>
             <div class="service-item"><span class="s-name">Hermes A2A (8642)</span><span class="s-status lime">ONLINE</span></div>
-            <div class="service-item"><span class="s-name">Watchdog</span><span class="s-status amber">MONITORING</span></div>
+            <div class="service-item"><span class="s-name">Watchdog</span><span class="s-status amber">DOWN</span></div>
           </div>
 
           <div class="section-divider"></div>
 
-          <h3>CANLI DONANIM & SENSÖR</h3>
+          <h3>CANLI DONANIM TELEMETRİSİ</h3>
           <div class="sensor-box" id="sensor-container">
             <div class="sensor-metric">
-              <span class="s-lbl">PİL SEVİYESİ</span>
+              <span class="s-lbl">PİL</span>
               <span class="s-val lime" id="sensor-battery">--%</span>
             </div>
             <div class="sensor-metric">
@@ -89,17 +89,42 @@
         </div>
       </section>
 
-      <!-- Center Column: Real-time Witness & Timeline -->
-      <section class="card timeline-card">
+      <!-- Center Column: Human Control Gate & Approvals -->
+      <section class="card control-card">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">📜</span>
-            <h2>CANLI WITNESS & TASK TIMELINE</h2>
+            <span class="icon">🛡️</span>
+            <h2>HUMAN APPROVAL GATE & RELAY</h2>
           </div>
-          <span class="card-badge" id="witness-count">0 KAYIT</span>
+          <span class="card-badge" id="policy-badge">FAIL-CLOSED STRICT</span>
         </div>
 
         <div class="card-body scrollable">
+          <!-- Pending Approvals Area -->
+          <div class="approval-deck">
+            <h3>BEKLEYEN İNSAN ONAYI TALEPLERİ</h3>
+            <div class="approval-list" id="approval-list">
+              <div class="feed-empty">Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemede.</div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- Distributed Artifact Deck -->
+          <div class="artifact-deck">
+            <h3>SON DAĞITIK ARTIFACT (<span id="art-id">YOK</span>)</h3>
+            <div class="artifact-card" id="artifact-container">
+              <div class="info-row"><span class="lbl">Artifact SHA:</span><span class="val pink" id="art-sha">--</span></div>
+              <div class="info-row"><span class="lbl">Attestation Lineage:</span><span class="val cyan" id="art-lineage">--</span></div>
+              <div class="info-row"><span class="lbl">İnsan Onayı:</span><span class="val lime" id="art-approval">GRANTED (operator-admin)</span></div>
+              <div class="info-row"><span class="lbl">Politika Sonucu:</span><span class="val lime" id="art-policy">ALLOWED</span></div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- Witness Feed -->
+          <h3>CANLI EVIDENCE ZİNCİRİ</h3>
           <div class="witness-feed" id="witness-feed">
             <div class="feed-empty">Henüz witness kaydı bulunmuyor.</div>
           </div>
@@ -107,54 +132,54 @@
 
         <div class="card-footer">
           <div class="hash-box">
-            <span class="hash-lbl">LATEST SHA-256 HASH:</span>
-            <span class="hash-val" id="latest-hash">GENESIS</span>
+            <span class="hash-lbl">EVIDENCE CHAIN STATUS:</span>
+            <span class="hash-val" id="latest-hash">CHAIN_VALID</span>
           </div>
         </div>
       </section>
 
-      <!-- Right Column: Windows Node & Capabilities -->
+      <!-- Right Column: Windows Node & Attestation Matrix -->
       <section class="card node-card windows-card">
         <div class="card-header">
           <div class="card-title">
             <span class="icon">💻</span>
-            <h2>WINDOWS PC AGENT NODE</h2>
+            <h2>WINDOWS OBSERVER NODE</h2>
           </div>
-          <span class="status-badge" id="windows-badge">KONTROL EDİLİYOR...</span>
+          <span class="status-badge" id="windows-badge">ONLINE</span>
         </div>
 
         <div class="card-body">
           <div class="info-row">
+            <span class="lbl">Düğüm Kimliği:</span>
+            <span class="val cyan" id="windows-node-id">--</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">Ajan Rolü:</span>
+            <span class="val">Agent Relay & Control Deck</span>
+          </div>
+          <div class="info-row">
             <span class="lbl">Uç Nokta:</span>
-            <span class="val cyan">127.0.0.1:9310</span>
-          </div>
-          <div class="info-row">
-            <span class="lbl">Rol:</span>
-            <span class="val">Windows Tool Agent (PowerShell / Safe Root)</span>
-          </div>
-          <div class="info-row">
-            <span class="lbl">A2A Peer:</span>
-            <span class="val lime">pc-agent-peer</span>
+            <span class="val">http://127.0.0.1:9310</span>
           </div>
 
           <div class="section-divider"></div>
 
-          <h3>KAYITLI CAPABILITY HAVUZU (<span id="cap-count">0</span>)</h3>
-          <div class="caps-tags" id="caps-list">
+          <h3>ORTAK YETENEK KESİŞİMİ (A ∩ B)</h3>
+          <div class="caps-tags" id="intersection-list">
+            <span class="cap-tag">a2a.delegate</span>
             <span class="cap-tag">sensor.battery.read</span>
-            <span class="cap-tag">wifi.info</span>
             <span class="cap-tag">volume.read</span>
-            <span class="cap-tag">app.list</span>
-            <span class="cap-tag">shizuku.status</span>
+            <span class="cap-tag">wifi.info</span>
           </div>
 
           <div class="section-divider"></div>
 
-          <h3>FORMATION MEMORY KONTROLÜ</h3>
-          <div class="formation-box" id="formation-box">
-            <div class="f-row"><span class="lbl">Root Formations:</span><span class="val lime" id="f-count">--</span></div>
-            <div class="f-row"><span class="lbl">Provenance Edges:</span><span class="val cyan" id="edge-count">--</span></div>
-            <div class="f-row"><span class="lbl">Kimlik Bütünlüğü:</span><span class="val pink">BYTE-IDENTICAL</span></div>
+          <h3>ATTESTATION VE LINEAGE MATRİSİ</h3>
+          <div class="formation-box" id="attestation-box">
+            <div class="f-row"><span class="lbl">Kesişim Hash:</span><span class="val lime" id="inter-hash">--</span></div>
+            <div class="f-row"><span class="lbl">HMAC Doğrulama:</span><span class="val lime">HMAC-SHA256 OK</span></div>
+            <div class="f-row"><span class="lbl">Replay Koruması:</span><span class="val cyan">SINGLE-USE NONCE</span></div>
+            <div class="f-row"><span class="lbl">Secret İzolasyonu:</span><span class="val pink">ZERO TRANSMISSION</span></div>
           </div>
         </div>
       </section>
@@ -164,10 +189,10 @@
     <footer class="deck-footer">
       <div class="footer-left">
         <span class="dot green"></span>
-        <span>Cross-Runtime Deterministic Channel · Fail-Closed</span>
+        <span>Cross-Runtime Agent Relay · Zero Secret Transmission · Human Approval Required</span>
       </div>
       <div class="footer-right">
-        <span>AIOS Universal Runtime v0.1.0 · Windows Control Deck</span>
+        <span>AIOS v0.1.0 · Windows Observer & Relay Host</span>
       </div>
     </footer>
   </div>

@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { defaultRelay } from "./agent-relay.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
@@ -41,6 +41,30 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
 
   // API Endpoints
+  if (url.pathname === "/api/relay-snapshot") {
+    const snapshot = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(snapshot));
+    return;
+  }
+
+  if (url.pathname === "/api/resolve-approval" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const resolved = defaultRelay.resolveApprovalRequest(parsed.approvalId, parsed.decision, "operator-admin");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(resolved));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   if (url.pathname === "/api/android-node") {
     const [card, status, caps] = await Promise.all([
       fetchJson(`${ANDROID_HOST}/.well-known/agent-card.json`),
@@ -108,6 +132,12 @@ const server = createServer(async (req, res) => {
             getWindowsNode: () => fetch('/api/windows-node').then(r => r.json()),
             readBattery: () => fetch('/api/read-battery').then(r => r.json()),
             getFormations: () => fetch('/api/formations').then(r => r.json()),
+            getRelaySnapshot: () => fetch('/api/relay-snapshot').then(r => r.json()),
+            resolveApproval: (approvalId, decision) => fetch('/api/resolve-approval', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ approvalId, decision })
+            }).then(r => r.json()),
           };
         }
       </script>
