@@ -14,4 +14,9 @@ desktop/.runtime/
 desktop/test-*-ledger.jsonl
 native-core/target/
 native-core/Cargo.lock
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/jniLibs/
 

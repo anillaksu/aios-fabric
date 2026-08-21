@@ -12,6 +12,7 @@
 pub mod canonical;
 pub mod evidence;
 pub mod hashing;
+pub mod jni_bridge;
 pub mod node_identity;
 pub mod task_state;
 

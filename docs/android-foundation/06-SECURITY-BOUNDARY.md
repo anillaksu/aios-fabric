@@ -37,8 +37,8 @@ DISCOVERED → UNTRUSTED → OWNER_REVIEW → ADMITTED → CAPABILITY_VERIFIED �
 
 | Cihaz | Bugünkü durum | Not |
 |---|---|---|
-| Xiaomi (mevcut) | `AVAILABLE` (PWA/browser-node seviyesinde) | Native runtime henüz yok — bu durum yalnızca tarayıcı-node için geçerli, native Node Agent için `DISCOVERED` bile değil (native app hiç kurulmadı) |
-| Samsung | **DISCOVERED değil bile** | Mission açık talimatı: otomatik onboard edilmeyecek. Bu görevde Termux kurulumu, paket kurulumu, Android mutasyonu yapılmadı. |
+| Xiaomi 2210129SG (mevcut, ADB ile 2026-08-21'de operatör tarafından bağlandı) | `AVAILABLE` (PWA/browser-node) + `OWNER_REVIEW`→(operatör onayı alındı) native tarafta ama **`ADMITTED` DEĞİL** | Operatör cihazı bağlayıp tam yetki verdi (2026-08-21). Bu, `OWNER_REVIEW` adımını geçerli kılar. Ama `ADMITTED`'e geçiş için native Node Agent'ın kurulu ve çalışır olması gerekir — bu ortamda Android SDK/NDK/Gradle yokluğu nedeniyle bir APK inşa edilemedi, dolayısıyla native taraf hâlâ `DISCOVERED` öncesi. Yalnızca **salt-okunur ADB tanılaması** yapıldı (aşağıdaki capability tablosu), hiçbir kurulum/mutasyon uygulanmadı. |
+| Samsung SM-J730F | **DISCOVERED değil bile** | Mission açık talimatı: otomatik onboard edilmeyecek. Ayrı bir ADB oturumunda (2026-08-21, önceki tur) tespit edildi, dokunulmadı. |
 
 ### DeviceAttestationProvider (Part 6, dürüst placeholder)
 
