@@ -10,8 +10,17 @@ import { defaultOrchestrator } from "./runtime-console.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
+const BIND_HOST = process.env.AIOS_BIND_HOST || "0.0.0.0";
 const ANDROID_HOST = process.env.AIOS_ANDROID_URL || "http://100.75.177.88:9300";
 const WINDOWS_HOST = process.env.AIOS_WINDOWS_URL || "http://127.0.0.1:9310";
+
+function isLoopbackAddress(remoteAddress = "") {
+  return (
+    remoteAddress === "127.0.0.1" ||
+    remoteAddress === "::1" ||
+    remoteAddress === "::ffff:127.0.0.1"
+  );
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -39,9 +48,12 @@ async function fetchJson(url, options = {}) {
   }
 }
 
-// Local HTTP Bridge
+// Local / LAN / Tailscale HTTP Bridge
 const server = createServer(async (req, res) => {
-  const url = new URL(req.url || "/", `http://127.0.0.1:${PORT}`);
+  const clientIp = req.socket.remoteAddress || "";
+  const isLocal = isLoopbackAddress(clientIp);
+  const hostHeader = req.headers["host"] || `127.0.0.1:${PORT}`;
+  const url = new URL(req.url || "/", `http://${hostHeader}`);
 
   // API Endpoints
   if (url.pathname === "/api/relay-snapshot") {
@@ -52,6 +64,21 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/mcp" && req.method === "POST") {
+    // Security Gate: Local Loopback Only
+    if (!isLocal) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          error: {
+            code: -32000,
+            message: "Forbidden: /api/mcp is strictly restricted to local loopback (127.0.0.1).",
+          },
+        }),
+      );
+      return;
+    }
+
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", async () => {
@@ -324,6 +351,9 @@ const server = createServer(async (req, res) => {
   res.end("Not Found");
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[AIOS Control Surface] HTTP Server dinliyor: http://127.0.0.1:${PORT}`);
+server.listen(PORT, BIND_HOST, () => {
+  console.log(`[AIOS Control Surface] HTTP Server dinliyor (${BIND_HOST}:${PORT}):`);
+  console.log(`  Local:     http://127.0.0.1:${PORT}`);
+  console.log(`  Tailscale: http://100.109.236.30:${PORT}`);
+  console.log(`  LAN:       http://192.168.1.13:${PORT}`);
 });
