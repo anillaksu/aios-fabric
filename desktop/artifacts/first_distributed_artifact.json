@@ -1,0 +1,36 @@
+{
+  "allowed_capabilities": [
+    "a2a.delegate",
+    "sensor.battery.read",
+    "volume.read",
+    "wifi.info"
+  ],
+  "attestation_witness_id": "attest-wit-d9b55fa5a77456e6421031141adf2e3549cffd790aaceef84cce8e95e1f019a7",
+  "capability_manifest_hash_a": "c3f84582946fd131ffc7a353691b9befa611dab8f5e8a465ae97a62b7943fcc6",
+  "capability_manifest_hash_b": "4191689feb7024351c4b79217b1d5254d248bfcc80986d0008710a0a70707859",
+  "human_approval": {
+    "operator_id": "operator-admin",
+    "status": "GRANTED"
+  },
+  "intersection_hash": "6f0b10889cccac087656395eb2dd2f519825cc5750caedda081c763b7da47680",
+  "policy_result": "ALLOWED",
+  "schema": "aios.distributed-artifact.v1",
+  "source_nodes": [
+    {
+      "agent_name": "AIOS Windows Control Surface",
+      "agent_version": "0.1.0",
+      "node_id": "node-9bd0d97dd3c599c25e7fc6c557021343711e6bb0baaedaae2874066713421a0f",
+      "platform": "win32"
+    },
+    {
+      "agent_name": "Phone AI-OS Fabric",
+      "agent_version": "0.1.0",
+      "node_id": "node-e09887136f677275944a6b7ae72e8d814a941a274b836915eb47dd607fda21c4",
+      "platform": "android"
+    }
+  ],
+  "artifact_id": "art-dist-e63a5aab1197fad35495c98a",
+  "artifact_sha256": "e63a5aab1197fad35495c98ab2dd3dd4ad2f51d0b44dabc582a5430186642644",
+  "artifact_type": "first_distributed_artifact",
+  "created_from_witness": "attest-wit-d9b55fa5a77456e6421031141adf2e3549cffd790aaceef84cce8e95e1f019a7"
+}
