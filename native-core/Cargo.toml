@@ -1,0 +1,17 @@
+[package]
+name = "aios-core-native"
+version = "0.1.0-design"
+edition = "2021"
+description = "AIOS Core Native (L0) — canonical serialization, hashing, lineage/digest verification. FFI boundary for the Android Runtime Service. See docs/android-foundation/03-NATIVE-CORE-BOUNDARY.md."
+publish = false
+
+[lib]
+name = "aios_core_native"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aios://schema/catalog/v1",
+  "title": "AIOS Artifact Catalog v1",
+  "description": "Machine-readable catalog consumed by the Artifact Store (Part 10). Not a visual marketplace payload — the UI derives its view from this.",
+  "type": "object",
+  "required": ["schema", "generatedAt", "catalogDigest", "artifacts"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "aios.artifact.catalog.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "catalogDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256(canonicalJson(artifacts)) — catalog itself is tamper-evident" },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "aios://schema/artifact/v1" }
+    }
+  }
+}

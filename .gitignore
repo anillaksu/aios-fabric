@@ -12,4 +12,6 @@ fabric-kits.json
 .pc-agent-token
 desktop/.runtime/
 desktop/test-*-ledger.jsonl
+native-core/target/
+native-core/Cargo.lock
 
