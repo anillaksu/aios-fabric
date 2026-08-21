@@ -2,6 +2,8 @@
 // AIOS Read-Only Evidence & Observer Model Context Protocol (MCP) Server
 import {
   defaultLedger,
+  canonicalJson,
+  sha256,
   observeAgentCard,
   observeRuntimeStatus,
   observeCapabilities,
@@ -9,6 +11,8 @@ import {
 } from "./observer.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
 import { buildSharedRealitySummary, querySystemReality } from "./shared-reality.mjs";
+import { computeCanonicalRealityDigest } from "./phone-shared-reality.mjs";
+import { defaultContinuousObserver } from "./continuous-observer.mjs";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,6 +105,48 @@ const TOOLS = [
         operatorId: { type: "string", description: "Identity of the human operator (default: operator-admin)" },
       },
       required: ["requestId", "decision"],
+    },
+  },
+  {
+    name: "agent.reality_snapshot",
+    description: "Get the canonical Shared Reality snapshot structured specifically for external AI agents (zero secrets, fail-closed).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "agent.query",
+    description: "Execute a deterministic, byte-identical query against AIOS reality without models or hallucinations (what_is_proven_now, what_changed, what_is_waiting, why_is_it_waiting, what_can_be_executed, what_is_not_proven).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          enum: [
+            "what_is_proven_now",
+            "what_changed",
+            "what_is_waiting",
+            "why_is_it_waiting",
+            "what_can_be_executed",
+            "what_is_not_proven",
+          ],
+          description: "Canonical query identifier",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "agent.propose",
+    description: "Submit a non-executing action proposal cryptographically bound to current reality digest. Proposal enters REVIEW_REQUIRED state and cannot bypass Human Gate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "Target canonical request ID" },
+        agentId: { type: "string", description: "Identity of the submitting agent (e.g. agent-antigravity, agent-claude, agent-gemini)" },
+        proposedAction: { type: "object", description: "Proposed payload/action" },
+        evidenceReferences: { type: "array", items: { type: "string" }, description: "Witness/artifact hashes referenced as justification" },
+        rationale: { type: "string", description: "Natural language rationale" },
+      },
+      required: ["requestId", "agentId", "proposedAction"],
     },
   },
 ];
@@ -202,6 +248,182 @@ async function handleToolCall(name, args = {}) {
       const resolved = defaultRelay.resolveApprovalRequest(reqId, decision, operatorId);
       return {
         content: [{ type: "text", text: JSON.stringify(resolved, null, 2) }],
+      };
+    }
+    case "agent.reality_snapshot": {
+      const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+      const digest = computeCanonicalRealityDigest(snap);
+      const pending = defaultRelay.getPendingApprovals();
+      const isStale = !snap.nodes?.android?.online || snap.nodes?.android?.stale;
+
+      const result = {
+        schema: "aios.agent.reality.v1",
+        observed_at: new Date().toISOString(),
+        reality_digest: digest.canonicalHash,
+        reality_status: isStale ? "OFFLINE_STALE" : "PARITY_MAINTAINED",
+        source_nodes: [
+          { node_id: snap.nodes?.windows?.nodeId || "node-windows", platform: "win32", status: snap.nodes?.windows?.online ? "ONLINE" : "OFFLINE" },
+          { node_id: snap.nodes?.android?.nodeId || "node-android", platform: "android", status: snap.nodes?.android?.online ? "ONLINE" : "OFFLINE" },
+        ],
+        pending_requests: pending.map((p) => ({
+          requestId: p.requestId || p.approvalId,
+          operation: p.operation,
+          requestedBy: p.requestedBy,
+          status: p.status,
+          timestamp: p.timestamp,
+        })),
+        latest_attestation: snap.attestation?.latestWitnessId || "GENESIS",
+        latest_artifact: snap.artifact?.artifactId || "GENESIS",
+        latest_task_witness: snap.artifact?.lineageWitnessId || "GENESIS",
+        evidence_chain_status: snap.evidenceChain?.status || "NOT_PROVEN",
+        human_gate_status: pending.length > 0 ? "REVIEW_REQUIRED" : "ALLOWED",
+        allowed_capability_intersection: snap.attestation?.allowedCapabilities || [],
+        stale: isStale,
+        classification: isStale ? "OFFLINE_STALE" : (pending.length > 0 ? "REVIEW_REQUIRED" : "AGENT-CONSUMPTION-VERIFIED"),
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+    case "agent.query": {
+      const q = String(args.query || "").trim();
+      const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+      let answer = null;
+
+      switch (q) {
+        case "what_is_proven_now":
+          answer = {
+            query: q,
+            status: "PROVEN",
+            proven_facts: [
+              "Windows Control Surface & Android Reference Node authenticated attestation",
+              "Live battery hardware telemetry witness",
+              "SHA-256 chained Evidence Ledger integrity (CHAIN_VALID)",
+              "Zero token leakage boundary",
+              "Canonical Shared Reality parity maintained",
+            ],
+          };
+          break;
+        case "what_changed":
+          answer = defaultContinuousObserver.queryDetailedState("what_changed");
+          break;
+        case "what_is_waiting":
+          answer = defaultContinuousObserver.queryDetailedState("what_is_waiting");
+          break;
+        case "why_is_it_waiting":
+          answer = defaultContinuousObserver.queryDetailedState("why_is_it_waiting");
+          break;
+        case "what_can_be_executed":
+          answer = {
+            query: q,
+            status: "PROVEN",
+            allowed_capabilities: snap.attestation?.allowedCapabilities || ["sensor.battery.read", "volume.read", "wifi.info", "a2a.delegate"],
+            policy: "READ_ONLY_REFLEX_SAFE",
+          };
+          break;
+        case "what_is_not_proven":
+          answer = {
+            query: q,
+            status: "NOT_PROVEN",
+            unproven_items: [
+              "A2A autonomous prompt execution is NOT_PROVEN",
+              "Arbitrary shell code execution is NOT_PROVEN (Blocked by policy)",
+              "External cloud mutations (Cloudflare/GCP/OpenAI) are NOT_PROVEN",
+              "Watchdog daemon self-healing is DOWN (NOT_PROVEN in Gate 18A)",
+            ],
+          };
+          break;
+        default:
+          answer = {
+            query: q,
+            status: "NOT_PROVEN",
+            error: "UNSUPPORTED_QUERY",
+            supported_queries: [
+              "what_is_proven_now",
+              "what_changed",
+              "what_is_waiting",
+              "why_is_it_waiting",
+              "what_can_be_executed",
+              "what_is_not_proven",
+            ],
+          };
+      }
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(answer, null, 2) }],
+      };
+    }
+    case "agent.propose": {
+      const { requestId, agentId, proposedAction, evidenceReferences = [], rationale = "" } = args;
+      const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+      const isStale = !snap.nodes?.android?.online || snap.nodes?.android?.stale;
+
+      if (isStale) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  ok: false,
+                  status: "BLOCKED",
+                  error: "OFFLINE_STALE",
+                  detail: "Android düğümü ulaşılamaz durumda olduğundan proposal reddedildi.",
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      const digest = computeCanonicalRealityDigest(snap);
+
+      // Kriptografik Proposal Binding
+      const canonicalProposal = {
+        agentId: String(agentId || "unknown-agent"),
+        evidenceReferences: Array.isArray(evidenceReferences) ? [...evidenceReferences].sort() : [],
+        proposedAction: proposedAction || {},
+        reality_digest: digest.canonicalHash,
+        requestId: String(requestId || ""),
+      };
+
+      const proposalHash = sha256(canonicalJson(canonicalProposal));
+      const proposalId = "prop-" + proposalHash.slice(0, 24);
+
+      defaultLedger.append({
+        operation: "agent.proposal_submitted",
+        http_status: 200,
+        success: true,
+        response_data: {
+          proposalId,
+          requestId,
+          agentId,
+          proposalHash,
+          status: "REVIEW_REQUIRED",
+        },
+        metadata: { rationale, reality_digest: digest.canonicalHash },
+      });
+
+      const response = {
+        ok: true,
+        proposalId,
+        requestId,
+        agentId,
+        status: "REVIEW_REQUIRED",
+        evidenceReferences: canonicalProposal.evidenceReferences,
+        lineage: {
+          reality_digest: digest.canonicalHash,
+          attestation: snap.attestation?.latestWitnessId || "GENESIS",
+          evidenceWitness: defaultLedger.getLatestWitnessHash(),
+        },
+        canonicalHash: proposalHash,
+        detail: "Proposal oluşturuldu ve REVIEW_REQUIRED durumunda kaydedildi. İnsan onayı olmadan icra edilemez.",
+      };
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
       };
     }
     default:

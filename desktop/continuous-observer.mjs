@@ -183,7 +183,7 @@ export class ContinuousObserver {
     }
 
     // 3. "Ne üretim bekliyor?" / "What is pending production?"
-    if (q.includes("üretim") || q.includes("bekliyor") || q.includes("pending") || q.includes("talep")) {
+    if (q.includes("üretim") || q.includes("bekliyor") || q.includes("pending") || q.includes("talep") || q.includes("waiting") || q.includes("wait")) {
       const activePending = this.relay.getPendingApprovals();
       return {
         query: queryText,
