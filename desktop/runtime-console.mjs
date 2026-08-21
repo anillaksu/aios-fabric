@@ -26,6 +26,7 @@ export const ALLOWED_STATES = [
 
 export const CANONICAL_GATE_PLANS = {
   "24": [
+    "desktop/test-live-node-discovery.mjs",
     "desktop/test-agent-quota-resume.mjs",
     "desktop/test-scale-fabric.mjs",
     "desktop/test-adaptive-surface.mjs",
@@ -61,6 +62,7 @@ export const CANONICAL_GATE_PLANS = {
     "fabric/test/agent-surface-audit.test.ts",
   ],
   "canonical": [
+    "desktop/test-live-node-discovery.mjs",
     "desktop/test-agent-quota-resume.mjs",
     "desktop/test-scale-fabric.mjs",
     "desktop/test-adaptive-surface.mjs",

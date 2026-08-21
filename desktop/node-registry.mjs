@@ -72,6 +72,56 @@ export class NodeRegistry {
   }
 
   /**
+   * Phase 1: Read-Only Tailscale Node Discovery (Starts as UNTRUSTED)
+   */
+  discoverTailscalePeers(statusJson) {
+    if (!statusJson || !statusJson.Peer) return [];
+    const discovered = [];
+
+    for (const [key, peer] of Object.entries(statusJson.Peer)) {
+      const hostname = peer.HostName || "unknown-peer";
+      const ip = peer.TailscaleIPs?.[0] || "";
+      const os = peer.OS || "unknown";
+      const online = Boolean(peer.Online);
+      const nodeId = `peer-ts-${peer.NodeID || sha256(key).slice(0, 8)}`;
+
+      if (!this.nodes.has(nodeId)) {
+        const record = this.registerNode({
+          nodeId,
+          pool: os.toLowerCase().includes("android") || os.toLowerCase().includes("ios") ? NODE_POOLS.DEVICE : NODE_POOLS.DESKTOP,
+          platform: os,
+          runtime: "tailscale-peer",
+          capabilities: ["aios.status", "aios.reality"],
+          capacity: { concurrency: 2, memoryMb: 4096, cpuCores: 4 },
+          trust: 0.0, // UNTRUSTED initially
+          attestation: "ATTESTATION_REQUIRED",
+          latencyMs: 25,
+        });
+        record.hostname = hostname;
+        record.tailscaleIp = ip;
+        record.health = online ? NODE_HEALTH.ONLINE : NODE_HEALTH.OFFLINE;
+        discovered.push(record);
+      }
+    }
+    return discovered;
+  }
+
+  /**
+   * Phase 2: Attest Discovered Node (Transitions to ATTESTED & AVAILABLE)
+   */
+  attestDiscoveredNode(nodeId, attestationProof = {}) {
+    const node = this.nodes.get(nodeId);
+    if (!node) return { ok: false, error: "NODE_NOT_FOUND" };
+
+    node.attestation = "ATTESTED";
+    node.trust = Math.max(0.8, node.trust || 0.85);
+    node.attestedAt = Date.now();
+    node.attestationProof = attestationProof;
+
+    return { ok: true, node, status: "AVAILABLE" };
+  }
+
+  /**
    * Update node heartbeat and health
    */
   recordHeartbeat(nodeId, health = NODE_HEALTH.ONLINE, latencyMs = null) {
