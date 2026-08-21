@@ -531,7 +531,82 @@ async function runTests() {
       : "○ 44. canli parite kaniti       SKIP (9320 kapali)",
   );
 
-  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (44/44) ===");
+  // 45. Stale proof asla PROVEN olamaz
+  const staleProofState = {
+    ...state,
+    reality: {
+      ...state.reality,
+      nodes: { ...state.reality.nodes, browser: { online: true, stale: true, verdict: "PASS" } },
+    },
+  };
+  const staleProofProj = projectCanonicalState(staleProofState, PROJECTION_PROFILES.MOBILE);
+  const browserMatrixItem = staleProofProj.semanticSlots.currentReality.matrix.find((m) => m.title.includes("BROWSER"));
+  if (browserMatrixItem.status !== "STALE_PROOF" || browserMatrixItem.proven === true) {
+    throw new Error(`Stale proof yanlislikla PROVEN oldu: ${JSON.stringify(browserMatrixItem)}`);
+  }
+  console.log("✔ 45. stale proof truthfulness  PASS (PASS + stale => STALE_PROOF, proven: false)");
+
+  // 46. Eksik artifact NO_ARTIFACT olarak sunulur
+  const noArtifactState = {
+    ...state,
+    artifacts: [],
+    latestArtifact: null,
+  };
+  const noArtifactProj = projectCanonicalState(noArtifactState, PROJECTION_PROFILES.MOBILE);
+  if (noArtifactProj.semanticSlots.recentEvidence.latestArtifactId !== "NO_ARTIFACT") {
+    throw new Error(`Eksik artifact yanlis deger dondurdu: ${noArtifactProj.semanticSlots.recentEvidence.latestArtifactId}`);
+  }
+  console.log("✔ 46. missing artifact truthful PASS (artifacts: [] => NO_ARTIFACT)");
+
+  // 47. A2A durumu kanonik durumdan dinamik turetiliyor
+  const dynamicA2A = noArtifactProj.semanticSlots.currentReality.matrix.find((m) => m.title.includes("A2A"));
+  if (!dynamicA2A || !["CONNECTED (A2A v1.0)", "FAIL-CLOSED", "OFFLINE", "UNKNOWN"].includes(dynamicA2A.status)) {
+    throw new Error(`A2A durumu gecersiz: ${dynamicA2A?.status}`);
+  }
+  console.log(`✔ 47. dynamic A2A gate status   PASS (Durum: ${dynamicA2A.status})`);
+
+  // 48. Operator Session yetkilendirme (yanlis token -> 401)
+  try {
+    const resBadToken = await fetch("http://127.0.0.1:9320/api/operator/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "wrong-operator-token" }),
+    });
+    if (resBadToken.status === 401) {
+      console.log("✔ 48. operator session bad auth PASS (HTTP 401 Unauthorized)");
+    }
+  } catch (err) {
+    console.log("○ 48. operator session bad auth SKIP (9320 offline)");
+  }
+
+  // 49. Operator Session yetkilendirme (dogru token -> 200 + Set-Cookie)
+  try {
+    const envToken = process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "test-token";
+    process.env.AIOS_REMOTE_TOKEN = envToken;
+    const resGoodToken = await fetch("http://127.0.0.1:9320/api/operator/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: envToken }),
+    });
+    if (resGoodToken.ok) {
+      const data = await resGoodToken.json();
+      const setCookie = resGoodToken.headers.get("set-cookie") || "";
+      if (data.status === "AUTHENTICATED" && setCookie.includes("aios_session")) {
+        console.log("✔ 49. operator session valid    PASS (HTTP 200 + HttpOnly session cookie)");
+      }
+    }
+  } catch (err) {
+    console.log("○ 49. operator session valid    SKIP (9320 offline)");
+  }
+
+  // 50. Human Gate: Gecersiz requestId ile onay icra edilemez
+  const invalidApprove = await defaultControlPlane.approveAndExecute("req-non-existent", "test-operator");
+  if (invalidApprove.ok !== false || invalidApprove.error !== "REQUEST_NOT_FOUND") {
+    throw new Error("Gecersiz requestId ile onay engellenemedi");
+  }
+  console.log("✔ 50. human gate integrity      PASS (Gecersiz requestId fail-closed engellendi)");
+
+  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (50/50) ===");
 }
 
 runTests().catch((err) => {

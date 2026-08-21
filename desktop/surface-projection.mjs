@@ -26,17 +26,53 @@ export function extractSemanticSlots(canonicalState = {}) {
   const isChainValid = evidence.status === "CHAIN_VALID";
   const hasAttestation = Boolean(reality.attestation?.latestWitnessId && reality.attestation?.latestWitnessId !== "GENESIS");
   const hasArtifact = Boolean(canonicalState.artifacts?.length || canonicalState.latestArtifact);
-  const isBrowserProven = nodes.browser?.verdict === "PASS";
+
+  // Browser Stale Truthfulness: PASS + stale => STALE_PROOF (NEVER PROVEN)
+  const browserNode = nodes.browser || {};
+  const isBrowserStale = Boolean(browserNode.stale || reality.browser?.stale);
+  let browserStatus = "NOT_PROVEN";
+  let isBrowserProven = false;
+
+  if (browserNode.online || reality.browser) {
+    const verdict = browserNode.verdict || reality.browser?.verdict;
+    if (isBrowserStale) {
+      browserStatus = "STALE_PROOF";
+      isBrowserProven = false; // NEVER PROVEN
+    } else if (verdict === "PASS") {
+      browserStatus = "PROVEN";
+      isBrowserProven = true;
+    } else if (verdict === "INCONCLUSIVE") {
+      browserStatus = "INCONCLUSIVE";
+    } else if (verdict === "FAIL") {
+      browserStatus = "FAILED";
+    } else {
+      browserStatus = "NOT_PROVEN";
+    }
+  } else {
+    browserStatus = "OFFLINE";
+  }
+
+  // A2A Gate Truthfulness
+  let a2aStatus = "UNKNOWN";
+  let isA2aConnected = false;
+  if (!isAndroidOnline) {
+    a2aStatus = "OFFLINE";
+  } else if (reality.a2a?.authenticated) {
+    a2aStatus = "CONNECTED (A2A v1.0)";
+    isA2aConnected = true;
+  } else {
+    a2aStatus = "FAIL-CLOSED";
+  }
+
   const isHumanGateReady = Boolean(requests !== undefined);
-  const isA2aConnected = Boolean(isAndroidOnline && reality.a2a?.authenticated);
 
   const dynamicMatrix = [
     { title: "OBSERVER (100.75.177.88)", status: isAndroidOnline ? "PROVEN" : nodes.android?.stale ? "STALE" : "NOT_PROVEN", proven: isAndroidOnline },
     { title: "EVIDENCE LEDGER", status: isChainValid ? `PROVEN (${evidence.events || 0} events)` : evidence.status ? evidence.status : "NOT_PROVEN", proven: isChainValid },
     { title: "NODE ATTESTATION", status: hasAttestation ? "PROVEN" : "NOT_PROVEN", proven: hasAttestation },
-    { title: "BROWSER SENTINEL", status: nodes.browser?.verdict || "NOT_PROVEN", proven: isBrowserProven },
-    { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NOT_PROVEN", proven: hasArtifact },
-    { title: "A2A AUTH GATE", status: isA2aConnected ? "CONNECTED (A2A v1.0)" : "FAIL-CLOSED", proven: isA2aConnected },
+    { title: "BROWSER SENTINEL", status: browserStatus, proven: isBrowserProven },
+    { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NO_ARTIFACT", proven: hasArtifact },
+    { title: "A2A AUTH GATE", status: a2aStatus, proven: isA2aConnected },
     { title: "HUMAN CONTROL GATE", status: requests.pending_count > 0 ? `${requests.pending_count} REVIEW REQ` : "PROVEN", proven: isHumanGateReady },
   ];
 
@@ -46,7 +82,7 @@ export function extractSemanticSlots(canonicalState = {}) {
     canonicalState.artifacts?.[canonicalState.artifacts.length - 1]?.artifactId ||
     canonicalState.artifacts?.[0]?.artifactId ||
     canonicalState.latestArtifact?.artifactId ||
-    "NONE";
+    "NO_ARTIFACT";
 
   return {
     primaryAction: {

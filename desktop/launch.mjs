@@ -23,8 +23,45 @@ function isLoopbackAddress(remoteAddress = "") {
   );
 }
 
+import { randomBytes } from "node:crypto";
+
+const operatorSessions = new Map();
+const SESSION_TTL_MS = 3600 * 1000; // 1 hour
+
+function parseCookies(cookieHeader = "") {
+  const list = {};
+  cookieHeader.split(";").forEach((cookie) => {
+    let [name, ...rest] = cookie.split("=");
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join("=").trim();
+    if (!value) return;
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
+}
+
+function isValidSession(sessionId) {
+  if (!sessionId) return false;
+  const session = operatorSessions.get(sessionId);
+  if (!session) return false;
+  if (Date.now() > session.expiresAt) {
+    operatorSessions.delete(sessionId);
+    return false;
+  }
+  return true;
+}
+
 function isAuthorizedOperator(req, isLocal) {
   if (isLocal) return true;
+
+  // 1. Check HttpOnly operator session cookie
+  const cookies = parseCookies(req.headers["cookie"] || "");
+  if (cookies.aios_session && isValidSession(cookies.aios_session)) {
+    return true;
+  }
+
+  // 2. Check Authorization Bearer header
   const authHeader = req.headers["authorization"] || "";
   const expectedToken = (process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "").trim();
   if (!expectedToken) {
@@ -117,6 +154,48 @@ const server = createServer(async (req, res) => {
       }),
     );
     return;
+  }
+
+  // Operator Session Management Endpoint (HttpOnly Cookie-based Authentication for Remote Operator)
+  if (url.pathname === "/api/operator/session") {
+    if (req.method === "GET") {
+      const authorized = isAuthorizedOperator(req, isLocal);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, authenticated: authorized, isLocal }));
+      return;
+    }
+
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body || "{}");
+          const providedToken = (parsed.token || "").trim();
+          const expectedToken = (process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "").trim();
+
+          if (!expectedToken || !providedToken || providedToken !== expectedToken) {
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Invalid operator authentication token" }));
+            return;
+          }
+
+          const sessionId = "sess-" + randomBytes(24).toString("hex");
+          const expiresAt = Date.now() + SESSION_TTL_MS;
+          operatorSessions.set(sessionId, { createdAt: Date.now(), expiresAt, role: "operator" });
+
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Set-Cookie": `aios_session=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600`,
+          });
+          res.end(JSON.stringify({ ok: true, status: "AUTHENTICATED", expiresAt }));
+        } catch (err) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: err.message }));
+        }
+      });
+      return;
+    }
   }
 
   if (url.pathname === "/api/relay-snapshot") {
