@@ -126,6 +126,14 @@
 
             <p class="inline-error" id="ask-error" role="alert" hidden></p>
 
+            <!-- Şu an: ne çalışıyor, son sonuç ne -->
+            <section class="ask-now" id="ask-now" aria-labelledby="ask-now-label">
+              <h3 class="section-label" id="ask-now-label">Şu an</h3>
+              <div class="panel">
+                <ul class="semantic-list" id="ask-now-list"></ul>
+              </div>
+            </section>
+
             <!-- Human Gate · ASK akışının kararı -->
             <div class="gate-card" id="ask-workflow-card" hidden>
               <div class="gate-head">
@@ -178,7 +186,9 @@
           <!-- ═══ GERÇEKLİK ═══ -->
           <div class="subslot" data-subslot="reality" id="subslot-reality" role="tabpanel" aria-labelledby="tab-nav-reality">
             <h3 class="section-label">Gerçeklik</h3>
-            <ul class="semantic-list" id="reality-semantic-list" aria-label="Gerçeklik durumu"></ul>
+            <div class="panel">
+              <ul class="semantic-list" id="reality-semantic-list" aria-label="Gerçeklik durumu"></ul>
+            </div>
 
             <details class="disclosure">
               <summary>Düğümler</summary>
@@ -205,10 +215,12 @@
           <!-- ═══ KANIT ═══ -->
           <div class="subslot" data-subslot="evidence" id="subslot-evidence" role="tabpanel" aria-labelledby="tab-nav-evidence">
             <h3 class="section-label">Kanıt</h3>
-            <ul class="semantic-list" id="evidence-semantic-list" aria-label="Kanıt durumu"></ul>
+            <div class="panel">
+              <ul class="semantic-list" id="evidence-semantic-list" aria-label="Kanıt durumu"></ul>
+            </div>
 
             <details class="disclosure">
-              <summary>Son artifact</summary>
+              <summary>Artifact ayrıntısı</summary>
               <div class="disclosure-body">
                 <div class="stat-line"><span class="stat-key">Artifact</span><span class="stat-val mono" id="art-id">&mdash;</span></div>
                 <div class="stat-line"><span class="stat-key">SHA-256</span><span class="stat-val mono" id="art-sha">&mdash;</span></div>

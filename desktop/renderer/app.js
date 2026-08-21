@@ -51,6 +51,7 @@ const RUN_STATE_TEXT = {
    UNKNOWN       -> "Durum bilinmiyor" */
 
 const PROOF_FRESH_MAX_SEC = 120;
+const RUN_STALE_AFTER_SEC = 120;
 
 /** Kanıtın anlamsal karşılığı. Tazelik bilgisi kanıt değerini bastırır. */
 function proofSemantic(verdict, { stale = false, ageSec = null } = {}) {
@@ -76,6 +77,15 @@ const RISK_TEXT = {
   notify: "orta",
   ask: "yüksek",
 };
+
+/** Kanonik ETA metnini insan diline çevirir; sayısal tahmin olduğu gibi kalır. */
+function etaText(formatted) {
+  const v = String(formatted ?? "").trim();
+  if (!v || v === "N/A" || v === "null") return "—";
+  if (v === "ESTIMATING") return "Hesaplanıyor";
+  if (v === "UNKNOWN") return SEMANTIC_TEXT.UNKNOWN;
+  return v;
+}
 
 /** Kanonik teknik durumu insan diline çevirir; bilinmeyen değer olduğu gibi kalır. */
 function semantic(raw) {
@@ -279,8 +289,9 @@ function renderRealitySemantic(matrix = [], nodeOverview = {}) {
     },
     { label: "Tarayıcı", state: browserProof.text, dot: browserProof.dot },
     {
+      // Etiket zaten "Kanıt zinciri"; durum onu tekrar etmez.
       label: "Kanıt zinciri",
-      state: chain.proven ? SEMANTIC_TEXT.CHAIN_VALID : semantic(chain.status),
+      state: chain.proven ? "Bütün" : semantic(chain.status),
       dot: dotClass(chain.status, chain.proven),
     },
     {
@@ -306,6 +317,48 @@ function renderRealitySemantic(matrix = [], nodeOverview = {}) {
 
   renderSemanticList("reality-semantic-list", rows);
   renderRealityStrip(rows);
+}
+
+/** ASK ekranında "şu an ne çalışıyor / son sonuç ne" özeti.
+    Kanonik projeksiyondan okur; yeni veri kaynağı yoktur. */
+function renderAskNow(slots) {
+  const ex = slots.activeExecution || {};
+  const ev = slots.recentEvidence || {};
+  const pending = slots.pendingHuman?.pendingCount || 0;
+
+  const state = String(ex.state || "IDLE").toUpperCase();
+  const hbAge = ex.lastHeartbeat
+    ? (Date.now() - new Date(ex.lastHeartbeat).getTime()) / 1000
+    : null;
+  const runStale = hbAge !== null && hbAge > RUN_STALE_AFTER_SEC;
+
+  let runText, runDot;
+  if (state === "RUNNING" && runStale) { runText = "Yanıt vermiyor"; runDot = "stale"; }
+  else if (state === "RUNNING") { runText = `${RUN_STATE_TEXT.RUNNING} · ${ex.progress || ""}`.trim(); runDot = "running"; }
+  else if (state === "PASSED") { runText = runStale ? SEMANTIC_TEXT.STALE_PROOF : RUN_STATE_TEXT.PASSED; runDot = runStale ? "stale" : "proven"; }
+  else if (state === "FAILED") { runText = RUN_STATE_TEXT.FAILED; runDot = "failed"; }
+  else { runText = RUN_STATE_TEXT[state] || SEMANTIC_TEXT.UNKNOWN; runDot = "offline"; }
+
+  const hasArtifact = ev.latestArtifactId && !["NONE", "NO_ARTIFACT"].includes(ev.latestArtifactId);
+
+  renderSemanticList("ask-now-list", [
+    {
+      label: "Bekleyen karar",
+      state: pending > 0 ? `${pending} istek` : "Yok",
+      dot: pending > 0 ? "waiting" : "proven",
+    },
+    {
+      label: "Çalışma",
+      state: runText,
+      sub: hbAge !== null ? relativeAge(hbAge) : "",
+      dot: runDot,
+    },
+    {
+      label: "Son sonuç",
+      state: hasArtifact ? truncateId(ev.latestArtifactId) : SEMANTIC_TEXT.NOT_PROVEN,
+      dot: hasArtifact ? "proven" : "offline",
+    },
+  ]);
 }
 
 /** ASK ekranının üstünde gerçekliğin tek satırlık nabzı. */
@@ -373,7 +426,7 @@ function renderEvidenceSemantic(slots) {
   const rows = [
     {
       label: "Kanıt zinciri",
-      state: chainValid ? SEMANTIC_TEXT.CHAIN_VALID : semantic(ev.chainStatus),
+      state: chainValid ? "Bütün" : semantic(ev.chainStatus),
       sub: chainValid ? `${ev.eventsCount} olay` : "",
       dot: chainValid ? "proven" : dotClass(ev.chainStatus),
     },
@@ -677,6 +730,7 @@ async function refreshSurface() {
   renderMatrix(slots.currentReality?.matrix || []);
   renderNodesSemantic(slots.nodeOverview || {});
   renderEvidenceSemantic(slots);
+  renderAskNow(slots);
   setIdChip("reality-digest", slots.currentReality?.digest || "");
 
   const policyBadge = document.getElementById("policy-badge");
@@ -772,7 +826,6 @@ function renderServices(services = []) {
 
 /* ══════════════════ ÇALIŞMA (RUN) ══════════════════ */
 
-const RUN_STALE_AFTER_SEC = 120;
 
 async function refreshRuntimeStatus() {
   if (!window.aios?.getRuntimeStatus) return;
@@ -832,7 +885,7 @@ async function refreshRuntimeStatus() {
     const mm = String(Math.floor((elapsedSec % 3600) / 60)).padStart(2, "0");
     const ss = String(elapsedSec % 60).padStart(2, "0");
     setText("rt-elapsed", `${hh}:${mm}:${ss}`);
-    setText("rt-eta", res.eta?.formatted || "—");
+    setText("rt-eta", etaText(res.eta?.formatted));
 
     // Sahte ilerleme yok: toplam adım bilinmiyorsa belirsiz durum.
     const bar = document.getElementById("rt-progress-bar");

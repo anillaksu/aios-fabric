@@ -606,7 +606,79 @@ async function runTests() {
   }
   console.log("✔ 50. human gate integrity      PASS (Gecersiz requestId fail-closed engellendi)");
 
-  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (50/50) ===");
+  /* ============================================================
+     PREMIUM GORSEL SUNUM DEGISMEZLERI
+     ============================================================ */
+
+  // 51. PASS + stale ASLA "Dogrulandi" / "Tamamlandi" okunmaz
+  if (!app.includes('STALE_PROOF: "Kanıt eski"')) {
+    throw new Error("STALE_PROOF -> 'Kanit eski' eslemesi yok");
+  }
+  if (!/function proofSemantic/.test(app)) {
+    throw new Error("Tek kanit-anlam kurali (proofSemantic) yok");
+  }
+  // proofSemantic PASS+stale icin asla PROVEN metnini dondurmemeli
+  const proofBody = app.slice(app.indexOf("function proofSemantic"), app.indexOf("const RISK_TEXT"));
+  if (!/isStale[\s\S]*STALE_PROOF/.test(proofBody)) {
+    throw new Error("PASS + stale durumu STALE_PROOF'a dusurulmuyor");
+  }
+  // RUN yuzeyi de ayni kurali uygular
+  if (!/state === "PASSED"[\s\S]{0,200}isStale \? SEMANTIC_TEXT\.STALE_PROOF/.test(app)) {
+    throw new Error("Biten kosunun eskimis kaniti hala 'Tamamlandi' okunuyor");
+  }
+  console.log("\u2714 51. PASS+stale dogrulugu     PASS (asla 'Dogrulandi'/'Tamamlandi')");
+
+  // 52. dotClass'ta STALE, PROVEN'i bastirir
+  const dotBody = app.slice(app.indexOf("function dotClass"), app.indexOf("function nowTimeString"));
+  const staleIdx = dotBody.indexOf('includes("STALE")');
+  const provenIdx = dotBody.indexOf("proven === true");
+  if (staleIdx === -1 || provenIdx === -1 || staleIdx > provenIdx) {
+    throw new Error("STALE kontrolu PROVEN'den sonra: eski kanit yesil gosterilebilir");
+  }
+  console.log("\u2714 52. stale > proven onceligi   PASS (eski kanit yesil degil)");
+
+  // 53. Ham teknik token birincil yuzeye sizmaz
+  if (!/function etaText/.test(app)) throw new Error("ETA anlamsal eslemesi yok");
+  if (!app.includes('"Hesaplanıyor"')) throw new Error("ESTIMATING -> 'Hesaplaniyor' eslemesi yok");
+  if (/setText\("rt-eta", res\.eta/.test(app)) {
+    throw new Error("ETA ham kanonik metinle basiliyor");
+  }
+  console.log("\u2714 53. ham token sizintisi yok   PASS (ETA anlamsal)");
+
+  // 54. Derinlik TAM UC katman
+  for (const z of ["--z-content:", "--z-floating:", "--z-modal:"]) {
+    if (!css.includes(z)) throw new Error(`Derinlik katmani tanimsiz: ${z}`);
+  }
+  const zHardcoded = (css.match(/z-index:\s*\d+/g) || []);
+  if (zHardcoded.length > 0) {
+    throw new Error(`Token disi z-index: ${zHardcoded.join(", ")}`);
+  }
+  console.log("\u2714 54. derinlik katmanlari       PASS (content/floating/modal, ham z-index yok)");
+
+  // 55. Kisa listeler sinirli yuzeyde toplanir (kazara dev bosluk yok)
+  if (!/\.panel\s*\{/.test(css)) throw new Error(".panel sinirli icerik yuzeyi yok");
+  if (!/id="reality-semantic-list"/.test(html) || !/class="panel"/.test(html)) {
+    throw new Error("Anlamsal listeler sinirli yuzeye alinmamis");
+  }
+  // ASK ve RUN mevcut yuksekligi kullanir
+  if (!/\.deck-grid\.view-run[\s\S]{0,120}flex: 1/.test(css)) {
+    throw new Error("CALISMA ekrani mevcut yuksekligi kullanmiyor");
+  }
+  // SOR ekraninda kalan alan havayla degil kanonik icerikle kapanir:
+  // "Su an" ozeti (bekleyen karar / calisma / son sonuc) tabana yaslanir.
+  if (!/\.deck-grid\.view-ask #ask-now[\s\S]{0,80}margin-top: auto/.test(css)) {
+    throw new Error("SOR ekraninda 'Su an' ozeti kalan alani doldurmuyor");
+  }
+  if (!html.includes('id="ask-now-list"')) {
+    throw new Error("SOR ekraninda 'Su an' ozeti yok");
+  }
+  // Ozet ALTI SORUYU yanitlar: bekleyen karar, calisma, son sonuc
+  for (const label of ["Bekleyen karar", "Çalışma", "Son sonuç"]) {
+    if (!app.includes(label)) throw new Error(`'Su an' ozetinde alan eksik: ${label}`);
+  }
+  console.log("\u2714 55. yukseklik kullanimi       PASS (panel + view-ask/view-run kompozisyon)");
+
+  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (55/55) ===");
 }
 
 runTests().catch((err) => {

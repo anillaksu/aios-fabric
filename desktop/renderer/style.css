@@ -525,6 +525,17 @@ button, .nav-tab, .nav-label, summary {
   overflow-wrap: anywhere;
 }
 
+/* ══════════════════ PANEL ══════════════════
+   Sınırlı içerik yüzeyi: kısa listeler boşlukta yüzmez, bir yüzeyde
+   toplanır. Altta kalan alan kazara boşluk değil, kasıtlı zemindir. */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-4);
+  min-width: 0;
+}
+
 /* ══════════════════ SEMANTIC LIST ══════════════════ */
 .semantic-list { list-style: none; display: flex; flex-direction: column; }
 
@@ -1243,9 +1254,19 @@ button, .nav-tab, .nav-label, summary {
   #card-runtime::before { display: none; }
   #card-runtime > .card-body { padding: 0; }
 
-  /* ÇALIŞMA ekranı mevcut yüksekliği kullanır. */
-  .deck-grid.view-run                { flex: 1; min-height: 0; }
+  /* ÇALIŞMA ve SOR ekranları mevcut yüksekliği kullanır;
+     kazara dev boş alan kalmaz. */
+  .deck-grid.view-run,
+  .deck-grid.view-ask                { flex: 1; min-height: 0; }
   .deck-grid.view-run #card-runtime  { flex: 1; min-height: 0; }
+  .deck-grid.view-ask #card-center,
+  .deck-grid.view-ask #card-center > .card-body,
+  .deck-grid.view-ask #subslot-ask   { flex: 1; min-height: 0; }
+
+  /* Komut yüzeyi dikey olarak kompoze edilir: gerçeklik nabzı ve komut
+     grubu üstte, "şu an" özeti kalan alanı doldurur. Boşluk havayla
+     değil, kanonik içerikle kapanır. */
+  .deck-grid.view-ask #ask-now { margin-top: auto; }
 
   /* Sekme projeksiyonu: aynı kanonik veri, farklı görünürlük */
   .deck-grid > section.card { display: none; }
