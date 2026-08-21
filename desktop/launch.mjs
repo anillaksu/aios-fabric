@@ -66,6 +66,61 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/remote-mcp" && req.method === "POST") {
+    const authHeader = req.headers["authorization"] || "";
+    const expectedToken = process.env.AIOS_REMOTE_MCP_TOKEN || "aios-remote-mcp-bearer-token";
+    const bearerPrefix = "Bearer ";
+
+    if (!authHeader.startsWith(bearerPrefix) || authHeader.slice(bearerPrefix.length).trim() !== expectedToken) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message: "Unauthorized: Invalid or missing remote Bearer token" } }));
+      return;
+    }
+
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const REMOTE_ALLOWLIST = ["aios.reality", "aios.status", "aios.evidence"];
+
+        if (parsed.method === "tools/list") {
+          const fullList = await processJsonRpc(parsed);
+          const filteredTools = (fullList.result?.tools || []).filter((t) => REMOTE_ALLOWLIST.includes(t.name));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { tools: filteredTools } }));
+          return;
+        }
+
+        if (parsed.method === "tools/call") {
+          const toolName = parsed.params?.name;
+          if (!REMOTE_ALLOWLIST.includes(toolName)) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: parsed.id,
+                error: {
+                  code: -32600,
+                  message: `Tool '${toolName}' is forbidden on the remote public surface. Only read-only allowlist tools are permitted.`,
+                },
+              }),
+            );
+            return;
+          }
+        }
+
+        const result = await processJsonRpc(parsed);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32600, message: err.message } }));
+      }
+    });
+    return;
+  }
+
   if (url.pathname === "/api/resolve-approval" && req.method === "POST") {
     let body = "";
     req.on("data", (c) => (body += c));
