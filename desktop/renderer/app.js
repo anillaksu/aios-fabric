@@ -16,14 +16,21 @@ const SEMANTIC_TEXT = {
   CHAIN_BROKEN: "Kanıt zinciri kırık",
   PROVEN: "Doğrulandı",
   NOT_PROVEN: "Kanıt yok",
-  STALE: "Eski veri",
+  NO_ARTIFACT: "Kanıt yok",
+  // Kanonik katman PASS + stale durumunu STALE_PROOF olarak üretir.
+  // Bu ASLA "Doğrulandı" okunmaz.
+  STALE_PROOF: "Kanıt eski",
+  STALE: "Kanıt eski",
   OFFLINE: "Çevrimdışı",
-  UNKNOWN: "Bilinmiyor",
+  UNKNOWN: "Durum bilinmiyor",
   PASS: "Doğrulandı",
   FAIL: "Başarısız",
-  INCONCLUSIVE: "Sonuçsuz",
+  FAILED: "Başarısız",
+  INCONCLUSIVE: "Sonuç belirsiz",
   "FAIL-CLOSED": "Erişim kapalı",
   BLOCKED: "Erişim kapalı",
+  CONNECTED: "Bağlı",
+  REVIEW: "Karar bekliyor",
 };
 
 const RUN_STATE_TEXT = {
@@ -33,6 +40,36 @@ const RUN_STATE_TEXT = {
   FAILED: "Başarısız",
   STOPPED: "Durduruldu",
 };
+
+/* ══════════════════ KANIT DOĞRULUĞU ══════════════════
+   Tek kural, her yüzeyde aynı:
+   PASS + taze   -> "Doğrulandı"
+   PASS + eski   -> "Kanıt eski"      (asla "Doğrulandı" / "Tamamlandı")
+   INCONCLUSIVE  -> "Sonuç belirsiz"
+   NOT_PROVEN    -> "Kanıt yok"
+   OFFLINE       -> "Çevrimdışı"
+   UNKNOWN       -> "Durum bilinmiyor" */
+
+const PROOF_FRESH_MAX_SEC = 120;
+
+/** Kanıtın anlamsal karşılığı. Tazelik bilgisi kanıt değerini bastırır. */
+function proofSemantic(verdict, { stale = false, ageSec = null } = {}) {
+  const v = String(verdict ?? "").trim().toUpperCase();
+  const isStale = stale || (ageSec !== null && ageSec > PROOF_FRESH_MAX_SEC);
+
+  if (v === "OFFLINE") return { text: SEMANTIC_TEXT.OFFLINE, dot: "offline", proven: false };
+  if (v === "STALE_PROOF" || v === "STALE") return { text: SEMANTIC_TEXT.STALE_PROOF, dot: "stale", proven: false };
+  if (v === "INCONCLUSIVE") return { text: SEMANTIC_TEXT.INCONCLUSIVE, dot: "stale", proven: false };
+  if (v === "FAIL" || v === "FAILED") return { text: SEMANTIC_TEXT.FAILED, dot: "failed", proven: false };
+  if (v === "NOT_PROVEN" || v === "NO_ARTIFACT") return { text: SEMANTIC_TEXT.NOT_PROVEN, dot: "offline", proven: false };
+  if (v === "PASS" || v === "PROVEN") {
+    return isStale
+      ? { text: SEMANTIC_TEXT.STALE_PROOF, dot: "stale", proven: false }
+      : { text: SEMANTIC_TEXT.PROVEN, dot: "proven", proven: true };
+  }
+  if (v === "" || v === "UNKNOWN") return { text: SEMANTIC_TEXT.UNKNOWN, dot: "offline", proven: false };
+  return { text: semantic(v), dot: dotClass(v), proven: false };
+}
 
 const RISK_TEXT = {
   safe: "düşük",
@@ -53,12 +90,16 @@ function semantic(raw) {
 
 /** Anlamsal duruma karşılık gelen nokta sınıfı. */
 function dotClass(raw, proven) {
-  if (proven === true) return "proven";
   const key = String(raw || "").toUpperCase();
-  if (key.startsWith("PROVEN") || key === "PASS") return "proven";
+  // STALE her zaman PROVEN'i bastırır: eski kanıt yeşil gösterilmez.
   if (key.includes("STALE")) return "stale";
+  if (proven === true) return "proven";
+  if (key.startsWith("PROVEN") || key === "PASS") return "proven";
   if (key.includes("OFFLINE")) return "offline";
   if (key.includes("REVIEW") || key.includes("WAITING")) return "waiting";
+  if (key.includes("INCONCLUSIVE")) return "stale";
+  if (key.includes("NO_ARTIFACT") || key.includes("NOT_PROVEN")) return "offline";
+  if (key.includes("CONNECTED")) return "proven";
   if (key.includes("FAIL") || key.includes("BLOCK")) return "blocked";
   if (key.includes("RUNNING")) return "running";
   if (key === "UNKNOWN" || key === "") return "offline";
@@ -187,10 +228,12 @@ function renderSemanticList(containerId, rows) {
   container.innerHTML = rows
     .map(
       (r) => `
-      <li class="semantic-row">
+      <li class="semantic-row" data-state="${escapeHtml(r.dot)}">
         <span class="status-dot ${r.dot}" aria-hidden="true"></span>
         <span class="semantic-label">${escapeHtml(r.label)}</span>
-        <span class="semantic-state">${escapeHtml(r.state)}</span>
+        <span class="semantic-state">${escapeHtml(r.state)}${
+          r.sub ? `<span class="semantic-sub">${escapeHtml(r.sub)}</span>` : ""
+        }</span>
       </li>`,
     )
     .join("");
@@ -212,16 +255,73 @@ function matrixLabel(title) {
   return title;
 }
 
-/** PRIMARY: anlamsal gerçeklik listesi. Hash, URL, protokol yok. */
-function renderRealitySemantic(matrix = []) {
-  renderSemanticList(
-    "reality-semantic-list",
-    matrix.map((m) => ({
-      label: matrixLabel(m.title),
-      state: semantic(m.status),
-      dot: dotClass(m.status, m.proven),
-    })),
-  );
+/** Matristen tek bir kanonik satırı bulur. */
+function matrixRow(matrix, title) {
+  return matrix.find((m) => m.title === title || String(m.title).startsWith(title)) || {};
+}
+
+/** PRIMARY: dört satırlık kompakt gerçeklik. Dev teknik matris değil. */
+function renderRealitySemantic(matrix = [], nodeOverview = {}) {
+  const observer = matrixRow(matrix, "OBSERVER");
+  const browser = matrixRow(matrix, "BROWSER SENTINEL");
+  const chain = matrixRow(matrix, "EVIDENCE LEDGER");
+  const gate = matrixRow(matrix, "A2A AUTH GATE");
+
+  const a = nodeOverview.android || {};
+  const browserProof = proofSemantic(browser.status);
+  const gateProof = String(gate.status || "").toUpperCase();
+
+  const rows = [
+    {
+      label: "Telefon",
+      state: a.online ? "Bağlı" : a.stale ? SEMANTIC_TEXT.STALE_PROOF : SEMANTIC_TEXT.OFFLINE,
+      dot: a.online ? "proven" : a.stale ? "stale" : "offline",
+    },
+    { label: "Tarayıcı", state: browserProof.text, dot: browserProof.dot },
+    {
+      label: "Kanıt zinciri",
+      state: chain.proven ? SEMANTIC_TEXT.CHAIN_VALID : semantic(chain.status),
+      dot: dotClass(chain.status, chain.proven),
+    },
+    {
+      label: "Erişim",
+      state: gateProof.includes("CONNECTED") ? "Açık"
+        : gateProof.includes("FAIL-CLOSED") ? "Kontrollü"
+          : gateProof === "OFFLINE" ? SEMANTIC_TEXT.OFFLINE
+            : SEMANTIC_TEXT.UNKNOWN,
+      dot: gateProof.includes("CONNECTED") ? "proven"
+        : gateProof.includes("FAIL-CLOSED") ? "waiting"
+          : "offline",
+    },
+  ];
+
+  // Gözlemci satırı yalnızca telefondan ayrıştığında ayrıca gösterilir.
+  if (observer.status && !observer.proven && a.online) {
+    rows.splice(1, 0, {
+      label: "Gözlemci",
+      state: semantic(observer.status),
+      dot: dotClass(observer.status, observer.proven),
+    });
+  }
+
+  renderSemanticList("reality-semantic-list", rows);
+  renderRealityStrip(rows);
+}
+
+/** ASK ekranının üstünde gerçekliğin tek satırlık nabzı. */
+function renderRealityStrip(rows) {
+  const strip = document.getElementById("reality-strip");
+  if (!strip) return;
+  strip.innerHTML = rows
+    .map(
+      (r) => `
+      <li class="reality-pip">
+        <span class="status-dot ${r.dot}" aria-hidden="true"></span>
+        <span class="reality-pip-label">${escapeHtml(r.label)}</span>
+        <span>${escapeHtml(r.state)}</span>
+      </li>`,
+    )
+    .join("");
 }
 
 /** DETAIL: teknik matris, disclosure altında. */
@@ -267,20 +367,20 @@ function renderNodesSemantic(nodeOverview = {}) {
 
 function renderEvidenceSemantic(slots) {
   const ev = slots.recentEvidence || {};
+  const chainValid = ev.chainStatus === "CHAIN_VALID";
+  const hasArtifact = ev.latestArtifactId && !["NONE", "NO_ARTIFACT"].includes(ev.latestArtifactId);
+
   const rows = [
     {
       label: "Kanıt zinciri",
-      state: ev.chainStatus === "CHAIN_VALID"
-        ? `${SEMANTIC_TEXT.CHAIN_VALID} · ${ev.eventsCount} olay`
-        : semantic(ev.chainStatus),
-      dot: ev.chainStatus === "CHAIN_VALID" ? "proven" : dotClass(ev.chainStatus),
+      state: chainValid ? SEMANTIC_TEXT.CHAIN_VALID : semantic(ev.chainStatus),
+      sub: chainValid ? `${ev.eventsCount} olay` : "",
+      dot: chainValid ? "proven" : dotClass(ev.chainStatus),
     },
     {
       label: "Son artifact",
-      state: ev.latestArtifactId && ev.latestArtifactId !== "NONE"
-        ? truncateId(ev.latestArtifactId)
-        : "Yok",
-      dot: ev.latestArtifactId && ev.latestArtifactId !== "NONE" ? "proven" : "offline",
+      state: hasArtifact ? truncateId(ev.latestArtifactId) : SEMANTIC_TEXT.NOT_PROVEN,
+      dot: hasArtifact ? "proven" : "offline",
     },
     {
       label: "Gerçeklik",
@@ -479,9 +579,13 @@ async function handleHumanGateApprove() {
     if (resBox) {
       resBox.hidden = false;
       const ok = res && res.ok !== false;
-      setText("task-result-title", ok ? "Tamamlandı" : "Başarısız");
+      // Sonuç anlamsal doğrulukla etiketlenir: taze PASS "Kanıtlandı",
+      // eskimiş kanıt asla "Tamamlandı" okunmaz.
+      const verdict = res?.taskResult?.verdict || res?.verdict || (ok ? "PASS" : "FAIL");
+      const proof = proofSemantic(verdict, { stale: Boolean(res?.stale) });
+      setText("task-result-title", ok ? proof.text : SEMANTIC_TEXT.FAILED);
       const dot = document.getElementById("task-result-dot");
-      if (dot) dot.className = `status-dot ${ok ? "proven" : "failed"}`;
+      if (dot) dot.className = `status-dot ${ok ? proof.dot : "failed"}`;
       setText("task-result-summary", ok ? summarizeTaskResult(res.taskResult) : (res?.error || "İşlem başarısız."));
       setIdChip("task-witness-text", res?.taskWitnessId || "");
       const pre = document.getElementById("task-result-pre");
@@ -569,7 +673,7 @@ async function refreshSurface() {
   const slots = projection.semanticSlots;
 
   // ── PRIMARY: gerçeklik ──
-  renderRealitySemantic(slots.currentReality?.matrix || []);
+  renderRealitySemantic(slots.currentReality?.matrix || [], slots.nodeOverview || {});
   renderMatrix(slots.currentReality?.matrix || []);
   renderNodesSemantic(slots.nodeOverview || {});
   renderEvidenceSemantic(slots);
@@ -678,23 +782,43 @@ async function refreshRuntimeStatus() {
 
     const state = res.state || "IDLE";
     const ageSec = res.heartbeat_age_sec;
-    // Biten bir koşu "canlı" olarak okunmaz: yaş eşiği aşılmışsa STALE.
     const isRunning = state === "RUNNING";
-    const isStale = isRunning && ageSec !== undefined && ageSec > RUN_STALE_AFTER_SEC;
+    const isStale = ageSec !== undefined && ageSec > RUN_STALE_AFTER_SEC;
 
-    setText("run-headline", isStale ? "Yanıt vermiyor" : (RUN_STATE_TEXT[state] || state));
+    // Çalışan bir koşu heartbeat'i kesildiyse "çalışıyor" okunmaz.
+    // Biten bir koşunun kanıtı eskidiyse "Tamamlandı" okunmaz: kanıt eskidir.
+    let headline;
+    let dotState;
+    if (isRunning && isStale) {
+      headline = "Yanıt vermiyor";
+      dotState = "stale";
+    } else if (isRunning) {
+      headline = RUN_STATE_TEXT.RUNNING;
+      dotState = "running";
+    } else if (state === "PASSED") {
+      headline = isStale ? SEMANTIC_TEXT.STALE_PROOF : RUN_STATE_TEXT.PASSED;
+      dotState = isStale ? "stale" : "proven";
+    } else if (state === "FAILED") {
+      headline = RUN_STATE_TEXT.FAILED;
+      dotState = "failed";
+    } else {
+      headline = RUN_STATE_TEXT[state] || state;
+      dotState = "offline";
+    }
+
+    setText("run-headline", headline);
     setText("run-age", ageSec !== undefined ? relativeAge(ageSec) : "");
 
-    const dot = document.getElementById("run-dot");
-    if (dot) {
-      dot.className = `status-dot ${
-        isStale ? "stale"
-          : state === "RUNNING" ? "running"
-            : state === "PASSED" ? "proven"
-              : state === "FAILED" ? "failed"
-                : "offline"
-      }`;
+    // Eskimiş bir PASS koşusunda gerçek sonuç ikincil satırda korunur.
+    const runFact = document.getElementById("run-fact");
+    if (runFact) {
+      const showFact = !isRunning && isStale && (state === "PASSED" || state === "FAILED");
+      runFact.hidden = !showFact;
+      if (showFact) runFact.textContent = `Son koşu ${RUN_STATE_TEXT[state] || state}`;
     }
+
+    const dot = document.getElementById("run-dot");
+    if (dot) dot.className = `status-dot ${dotState}`;
 
     setText("runtime-state-badge", state);
     setText("runtime-liveness-badge", isStale ? "STALE" : (res.liveness || "STANDBY"));
@@ -889,6 +1013,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   document.getElementById("btn-refresh-runtime")?.addEventListener("click", refreshRuntimeStatus);
+
+  // Yazılım klavyesi ASK alanını örtmemeli: görünür viewport ile
+  // alt boşluk eşitlenir ve odaklı alan görünüre kaydırılır.
+  const vv = window.visualViewport;
+  if (vv) {
+    const syncKeyboardInset = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--keyboard-inset", `${Math.round(inset)}px`);
+      document.body.dataset.keyboard = inset > 80 ? "open" : "closed";
+    };
+    vv.addEventListener("resize", syncKeyboardInset);
+    vv.addEventListener("scroll", syncKeyboardInset);
+    syncKeyboardInset();
+  }
+
+  document.getElementById("ask-aios-input")?.addEventListener("focus", () => {
+    // Kaydırma, klavye yerleşimi tamamlandıktan sonra yapılır.
+    setTimeout(() => {
+      document.getElementById("ask-aios-input")?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 250);
+  });
 
   // Profil sınırı geçildiğinde kanonik projeksiyon yeniden istenir.
   let lastProfile = activeProfile();

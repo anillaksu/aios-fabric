@@ -15,41 +15,41 @@
 </head>
 <body>
   <div class="deck-container">
-    <!-- STATUS BAR (glass) -->
+
+    <!-- ══ STATUS BAR · glass, floating layer ══ -->
     <header class="deck-header" role="banner">
       <div class="brand">
-        <span class="pulse-indicator online" id="global-pulse" aria-hidden="true"></span>
+        <span class="pulse-indicator" id="global-pulse" aria-hidden="true"></span>
         <span class="brand-title">AIOS</span>
-        <span class="freshness-chip" id="freshness-chip" role="status" aria-live="polite">Bağlanıyor</span>
         <span class="pwa-badge" id="pwa-mode-badge" hidden>STANDALONE</span>
       </div>
-      <div class="header-metrics">
-        <div class="metric-item">
-          <span class="label">ATTESTATION WITNESS</span>
-          <span class="value cyan" id="header-attest-witness">GENESIS</span>
+      <div class="header-right">
+        <span class="freshness-chip" id="freshness-chip" role="status" aria-live="polite">Bağlanıyor</span>
+        <div class="header-metrics">
+          <div class="metric-item">
+            <span class="label">WITNESS</span>
+            <span class="value cyan" id="header-attest-witness">GENESIS</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">KESİŞİM</span>
+            <span class="value lime" id="header-intersection-count">0 CAPS</span>
+          </div>
+          <div class="metric-item">
+            <span class="label">BEKLEYEN</span>
+            <span class="value amber" id="header-pending-count">0 BEKLEYEN</span>
+          </div>
+          <button class="btn-refresh" id="btn-manual-refresh" type="button">Yenile</button>
         </div>
-        <div class="metric-item">
-          <span class="label">INTERSECTION</span>
-          <span class="value lime" id="header-intersection-count">0 CAPS</span>
-        </div>
-        <div class="metric-item">
-          <span class="label">PENDING REVIEWS</span>
-          <span class="value amber" id="header-pending-count">0 BEKLEYEN</span>
-        </div>
-        <button class="btn-refresh" id="btn-manual-refresh" type="button">Yenile</button>
       </div>
     </header>
 
-    <!-- CONTENT -->
+    <!-- ══ CONTENT · base layer ══ -->
     <main class="deck-grid" id="main-deck-grid">
 
-      <!-- Telefon düğümü (ikincil) -->
-      <section class="card node-card android-card" data-slot="nodes" id="card-android" aria-labelledby="h-android">
+      <!-- ── Telefon düğümü (ikincil) ── -->
+      <section class="card node-card" data-slot="nodes" id="card-android" aria-labelledby="h-android">
         <div class="card-header">
-          <div class="card-title">
-            <span class="icon" aria-hidden="true">&#128241;</span>
-            <h2 id="h-android">Telefon</h2>
-          </div>
+          <h2 id="h-android" class="card-heading">Telefon</h2>
           <span class="status-badge" id="android-badge">Bağlanıyor</span>
         </div>
 
@@ -63,10 +63,10 @@
             <span class="stat-val" id="android-node-id">&mdash;</span>
           </div>
 
-          <h3>Sistem servisleri</h3>
+          <h3 class="section-label">Sistem servisleri</h3>
           <div class="services-list" id="android-services"></div>
 
-          <h3>Donanım telemetrisi</h3>
+          <h3 class="section-label">Donanım</h3>
           <div class="sensor-box" id="sensor-container">
             <div class="sensor-metric">
               <span class="s-lbl">PİL</span>
@@ -92,35 +92,41 @@
         </div>
       </section>
 
-      <!-- Merkez: SOR / GERÇEKLİK / KARARLAR / KANIT -->
+      <!-- ── Merkez yüzey ── -->
       <section class="card control-card" data-slot="reality" id="card-center">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="icon" aria-hidden="true">&#127760;</span>
-            <h2 id="center-heading">Şu an ne kanıtlandı?</h2>
-          </div>
+        <div class="card-header desktop-only-header">
+          <h2 id="center-heading" class="card-heading">Şu an ne kanıtlandı?</h2>
           <span class="card-badge" id="policy-badge">&mdash;</span>
         </div>
 
         <div class="card-body scrollable">
 
-          <!-- SOR -->
+          <!-- ═══ SOR · komut yüzeyi ═══ -->
           <div class="subslot" data-subslot="ask" id="subslot-ask" role="tabpanel" aria-labelledby="tab-nav-ask">
-            <div class="query-box">
-              <label class="sr-only" for="ask-aios-input">AIOS için doğal dil isteği</label>
-              <input type="text" id="ask-aios-input" autocomplete="off" placeholder="Ne yapmak istiyorsun?" />
-              <button id="btn-submit-ask" type="button">Gönder</button>
-            </div>
 
-            <div class="quick-questions" role="group" aria-label="Hazır istekler">
-              <button class="btn-chip" type="button" data-ask="Telefonun pil durumunu kontrol et.">Pil durumu</button>
-              <button class="btn-chip" type="button" data-ask="Şu an sistemde ne kanıtlandı?">Ne kanıtlandı?</button>
-              <button class="btn-chip" type="button" data-ask="Tarayıcı reklam durumunu kontrol et.">Tarayıcı</button>
-              <button class="btn-chip" type="button" data-ask="Ortak yetenek listesini çıkar.">Yetenekler</button>
+            <!-- Gerçekliğin tek satırlık nabzı -->
+            <ul class="reality-strip" id="reality-strip" aria-label="Gerçeklik özeti"></ul>
+
+            <div class="ask-hero">
+              <h2 class="ask-prompt-label" id="ask-hero-label">Ne yapmak istiyorsun?</h2>
+
+              <label class="sr-only" for="ask-aios-input">AIOS için doğal dil isteği</label>
+              <input class="ask-field" type="text" id="ask-aios-input" autocomplete="off"
+                     enterkeyhint="send" placeholder="Telefonun pil durumunu kontrol et&hellip;" />
+
+              <button class="btn-send" id="btn-submit-ask" type="button">Gönder</button>
+
+              <div class="quick-questions" role="group" aria-label="Hazır istekler">
+                <button class="btn-chip" type="button" data-ask="Telefonun pil durumunu kontrol et.">Pil durumu</button>
+                <button class="btn-chip" type="button" data-ask="Tarayıcı reklam durumunu kanıtla.">Tarayıcı kanıtı</button>
+                <button class="btn-chip" type="button" data-ask="Ne kanıtlandı?">Ne kanıtlandı?</button>
+                <button class="btn-chip" type="button" data-ask="Ne değişti?">Ne değişti?</button>
+              </div>
             </div>
 
             <p class="inline-error" id="ask-error" role="alert" hidden></p>
 
+            <!-- Human Gate · ASK akışının kararı -->
             <div class="gate-card" id="ask-workflow-card" hidden>
               <div class="gate-head">
                 <span class="status-dot waiting" aria-hidden="true"></span>
@@ -130,7 +136,7 @@
               <p class="gate-what" id="ask-prompt-text">&mdash;</p>
 
               <dl class="gate-facts">
-                <div class="gate-fact"><dt>Yapılacak</dt><dd id="ask-op-text">&mdash;</dd></div>
+                <div class="gate-fact"><dt>Ne</dt><dd id="ask-op-text">&mdash;</dd></div>
                 <div class="gate-fact"><dt>Neden</dt><dd id="ask-why-text">&mdash;</dd></div>
                 <div class="gate-fact"><dt>Öneren</dt><dd id="ask-by-text">&mdash;</dd></div>
                 <div class="gate-fact"><dt>Risk</dt><dd id="ask-risk-text">&mdash;</dd></div>
@@ -142,7 +148,7 @@
                 <div class="disclosure-body">
                   <div class="stat-line"><span class="stat-key">İstek</span><span class="stat-val mono" id="ask-request-badge">&mdash;</span></div>
                   <div class="stat-line"><span class="stat-key">Zaman</span><span class="stat-val mono" id="ask-time">&mdash;</span></div>
-                  <h3>Ajan önerileri</h3>
+                  <h3 class="section-label">Ajan önerileri</h3>
                   <div class="proposals-grid" id="proposals-grid"></div>
                 </div>
               </details>
@@ -155,7 +161,7 @@
               <div class="result-box" id="task-result-box" hidden>
                 <div class="result-head">
                   <span class="status-dot proven" id="task-result-dot" aria-hidden="true"></span>
-                  <span id="task-result-title">Tamamlandı</span>
+                  <span class="result-title" id="task-result-title">Kanıtlandı</span>
                 </div>
                 <p class="result-summary" id="task-result-summary">&mdash;</p>
                 <details class="disclosure">
@@ -169,8 +175,9 @@
             </div>
           </div>
 
-          <!-- GERÇEKLİK -->
+          <!-- ═══ GERÇEKLİK ═══ -->
           <div class="subslot" data-subslot="reality" id="subslot-reality" role="tabpanel" aria-labelledby="tab-nav-reality">
+            <h3 class="section-label">Gerçeklik</h3>
             <ul class="semantic-list" id="reality-semantic-list" aria-label="Gerçeklik durumu"></ul>
 
             <details class="disclosure">
@@ -182,7 +189,7 @@
             </details>
 
             <details class="disclosure">
-              <summary>Kanıt matrisi (teknik)</summary>
+              <summary>Kanıt matrisi</summary>
               <div class="disclosure-body">
                 <div class="matrix-grid" id="matrix-container"></div>
                 <div class="stat-line"><span class="stat-key">Reality digest</span><span class="stat-val mono" id="reality-digest">&mdash;</span></div>
@@ -190,13 +197,14 @@
             </details>
           </div>
 
-          <!-- KARARLAR -->
+          <!-- ═══ KARARLAR ═══ -->
           <div class="subslot" data-subslot="requests" id="subslot-requests" role="tabpanel" aria-labelledby="tab-nav-requests">
             <div class="approval-list" id="approval-list" aria-live="polite"></div>
           </div>
 
-          <!-- KANIT -->
+          <!-- ═══ KANIT ═══ -->
           <div class="subslot" data-subslot="evidence" id="subslot-evidence" role="tabpanel" aria-labelledby="tab-nav-evidence">
+            <h3 class="section-label">Kanıt</h3>
             <ul class="semantic-list" id="evidence-semantic-list" aria-label="Kanıt durumu"></ul>
 
             <details class="disclosure">
@@ -215,7 +223,7 @@
               <div class="disclosure-body">
                 <div class="stat-line"><span class="stat-key">Kesişim</span><span class="stat-val mono" id="inter-hash">&mdash;</span></div>
                 <div class="stat-line"><span class="stat-key">Zincir başı</span><span class="stat-val mono" id="latest-hash">&mdash;</span></div>
-                <h3>Ortak yetenekler</h3>
+                <h3 class="section-label">Ortak yetenekler</h3>
                 <div class="caps-tags" id="intersection-list"></div>
               </div>
             </details>
@@ -236,13 +244,10 @@
         </div>
       </section>
 
-      <!-- Bilgisayar düğümü (ikincil) -->
-      <section class="card node-card windows-card" data-slot="nodes" id="card-windows" aria-labelledby="h-windows">
+      <!-- ── Bilgisayar düğümü (ikincil) ── -->
+      <section class="card node-card" data-slot="nodes" id="card-windows" aria-labelledby="h-windows">
         <div class="card-header">
-          <div class="card-title">
-            <span class="icon" aria-hidden="true">&#128187;</span>
-            <h2 id="h-windows">Bilgisayar</h2>
-          </div>
+          <h2 id="h-windows" class="card-heading">Bilgisayar</h2>
           <span class="status-badge" id="windows-badge">Bağlı</span>
         </div>
 
@@ -256,7 +261,7 @@
             <span class="stat-val" id="windows-node-id">&mdash;</span>
           </div>
 
-          <h3>Tarayıcı düğümü</h3>
+          <h3 class="section-label">Tarayıcı düğümü</h3>
           <div class="stat-line">
             <span class="stat-key">Durum</span>
             <span class="stat-val" id="browser-status-verdict">&mdash;</span>
@@ -278,29 +283,36 @@
         </div>
       </section>
 
-      <!-- ÇALIŞMA -->
+      <!-- ═══ ÇALIŞMA ═══ -->
       <section class="card runtime-console-card" data-slot="runtime" id="card-runtime" aria-labelledby="h-runtime">
-        <div class="card-header">
-          <div class="card-title">
-            <span class="icon" aria-hidden="true">&#9889;</span>
-            <h2 id="h-runtime">Çalışma</h2>
-          </div>
+        <div class="card-header desktop-only-header">
+          <h2 id="h-runtime" class="card-heading">Çalışma</h2>
           <div class="header-actions">
             <span class="status-badge" id="runtime-state-badge">IDLE</span>
             <span class="liveness-badge" id="runtime-liveness-badge">STANDBY</span>
           </div>
         </div>
 
-        <div class="card-body runtime-body scrollable">
-          <div class="run-summary">
-            <span class="status-dot" id="run-dot" aria-hidden="true"></span>
-            <span class="run-headline" id="run-headline">Beklemede</span>
-            <span class="run-age" id="run-age"></span>
-          </div>
+        <div class="card-body runtime-body">
+          <div class="run-hero">
+            <div class="run-summary">
+              <span class="status-dot" id="run-dot" aria-hidden="true"></span>
+              <span class="run-headline" id="run-headline">Beklemede</span>
+            </div>
+            <div class="run-meta">
+              <span class="run-age" id="run-age"></span>
+              <span class="run-fact" id="run-fact" hidden></span>
+            </div>
 
-          <div class="progress-bar-container" role="progressbar" id="rt-progress-bar"
-               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Çalışma ilerlemesi">
-            <div class="progress-bar-fill" id="rt-progress-fill" style="width: 0%"></div>
+            <div class="progress-bar-container" role="progressbar" id="rt-progress-bar"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Çalışma ilerlemesi">
+              <div class="progress-bar-fill" id="rt-progress-fill" style="width: 0%"></div>
+            </div>
+
+            <div class="run-step">
+              <span class="run-step-key">Şu anki adım</span>
+              <span class="run-step-val" id="rt-current-step">&mdash;</span>
+            </div>
           </div>
 
           <div class="runtime-metrics-grid">
@@ -322,18 +334,13 @@
             </div>
           </div>
 
-          <div class="stat-line">
-            <span class="stat-key">Şu anki adım</span>
-            <span class="stat-val" id="rt-current-step">&mdash;</span>
-          </div>
-
           <div class="runtime-controls">
             <button class="btn-run" id="btn-start-gate24" type="button">Başlat</button>
             <button class="btn-stop" id="btn-stop-runtime" type="button">Durdur</button>
             <button class="btn-secondary" id="btn-refresh-runtime" type="button">Yenile</button>
           </div>
 
-          <details class="disclosure">
+          <details class="disclosure run-log-disclosure" open>
             <summary>Olay akışı</summary>
             <div class="disclosure-body">
               <div class="stat-line"><span class="stat-key">Run ID</span><span class="stat-val mono" id="rt-run-id">&mdash;</span></div>
@@ -344,32 +351,42 @@
       </section>
     </main>
 
-    <!-- TAB BAR (glass) -->
+    <!-- ══ TAB BAR · glass, floating layer ══ -->
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav" role="tablist" aria-label="AIOS ana gezinme">
       <button class="nav-tab active" type="button" role="tab" data-tab="ask" id="tab-nav-ask"
               aria-selected="true" aria-controls="subslot-ask">
-        <span class="nav-icon" aria-hidden="true">&#128172;</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5h16v11H8l-4 4V5z"/>
+        </svg>
         <span class="nav-label">Sor</span>
       </button>
       <button class="nav-tab" type="button" role="tab" data-tab="reality" id="tab-nav-reality"
               aria-selected="false" aria-controls="subslot-reality">
-        <span class="nav-icon" aria-hidden="true">&#127760;</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4a13 13 0 0 1 0 16a13 13 0 0 1 0-16z"/>
+        </svg>
         <span class="nav-label">Gerçeklik</span>
       </button>
       <button class="nav-tab" type="button" role="tab" data-tab="requests" id="tab-nav-requests"
               aria-selected="false" aria-controls="subslot-requests">
-        <span class="nav-icon" aria-hidden="true">&#9888;&#65039;</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 4l8 14H4l8-14z"/><path d="M12 10v4M12 16.5v.01"/>
+        </svg>
         <span class="nav-label">Kararlar</span>
         <span class="nav-badge" id="nav-pending-badge" hidden>0</span>
       </button>
       <button class="nav-tab" type="button" role="tab" data-tab="run" id="tab-nav-run"
               aria-selected="false" aria-controls="card-runtime">
-        <span class="nav-icon" aria-hidden="true">&#9889;</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 3L5 14h6l-1 7l8-11h-6l1-7z"/>
+        </svg>
         <span class="nav-label">Çalışma</span>
       </button>
       <button class="nav-tab" type="button" role="tab" data-tab="evidence" id="tab-nav-evidence"
               aria-selected="false" aria-controls="subslot-evidence">
-        <span class="nav-icon" aria-hidden="true">&#128220;</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/>
+        </svg>
         <span class="nav-label">Kanıt</span>
       </button>
     </nav>

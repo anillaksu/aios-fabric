@@ -8,6 +8,8 @@ import { defaultControlPlane } from "./agent-control-plane.mjs";
 import { processJsonRpc } from "./mcp-server.mjs";
 import { defaultOrchestrator } from "./runtime-console.mjs";
 import { projectCanonicalState } from "./surface-projection.mjs";
+import { defaultFabricEngine } from "./fabric-engine.mjs";
+import { defaultNodeRegistry } from "./node-registry.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
@@ -202,6 +204,30 @@ const server = createServer(async (req, res) => {
     const snapshot = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(snapshot));
+    return;
+  }
+
+  // Scale Fabric Distributed Metrics & Nodes
+  if (url.pathname === "/api/fabric/metrics") {
+    const metrics = defaultFabricEngine.getFabricMetrics();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, metrics }));
+    return;
+  }
+
+  if (url.pathname === "/api/fabric/nodes") {
+    const nodeMetrics = defaultNodeRegistry.getNodeMetrics();
+    const nodes = Array.from(defaultNodeRegistry.nodes.values());
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, nodeMetrics, nodes }));
+    return;
+  }
+
+  if (url.pathname === "/api/fabric/tasks") {
+    const tasks = Array.from(defaultFabricEngine.tasks.values());
+    const queue = defaultFabricEngine.queue;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, totalTasks: tasks.length, queueDepth: queue.length, tasks, queue }));
     return;
   }
 

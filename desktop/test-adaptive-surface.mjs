@@ -393,7 +393,7 @@ async function runTests() {
   const requiredSemantics = {
     CHAIN_VALID: "Kanıt zinciri bütün",
     PROVEN: "Doğrulandı",
-    STALE: "Eski veri",
+    STALE: "Kanıt eski",
     OFFLINE: "Çevrimdışı",
     NOT_PROVEN: "Kanıt yok",
   };
