@@ -5,6 +5,7 @@ import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultRelay } from "./agent-relay.mjs";
 import { processJsonRpc } from "./mcp-server.mjs";
+import { defaultOrchestrator } from "./runtime-console.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 9320;
@@ -183,6 +184,40 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Runtime Console Endpoints
+  if (url.pathname === "/api/runtime/status") {
+    const status = defaultOrchestrator.getStatus();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(status));
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/start" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body || "{}");
+        const gate = parsed.gate || "24";
+        // Start run asynchronously
+        defaultOrchestrator.run({ gate });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, status: "RUNNING", gate }));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/stop" && req.method === "POST") {
+    const r = defaultOrchestrator.stop();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(r));
+    return;
+  }
+
   // Static Files
   let filePath = resolve(__dirname, "renderer", url.pathname === "/" ? "index.html" : url.pathname.slice(1));
   if (!filePath.startsWith(resolve(__dirname, "renderer"))) {
@@ -206,6 +241,13 @@ const server = createServer(async (req, res) => {
             readBattery: () => fetch('/api/read-battery').then(r => r.json()),
             getFormations: () => fetch('/api/formations').then(r => r.json()),
             getRelaySnapshot: () => fetch('/api/relay-snapshot').then(r => r.json()),
+            getRuntimeStatus: () => fetch('/api/runtime/status').then(r => r.json()),
+            startRuntimeRun: (gate) => fetch('/api/runtime/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ gate })
+            }).then(r => r.json()),
+            stopRuntimeRun: () => fetch('/api/runtime/stop', { method: 'POST' }).then(r => r.json()),
             resolveApproval: (approvalId, decision) => fetch('/api/resolve-approval', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

@@ -230,6 +230,65 @@
           </div>
         </div>
       </section>
+
+      <!-- Full-Width Bottom Section: Canonical Runtime Execution Console -->
+      <section class="card runtime-console-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">⚡</span>
+            <h2>AIOS RUNTIME EXECUTION CONSOLE // ORCHESTRATOR</h2>
+          </div>
+          <div class="header-actions">
+            <span class="status-badge" id="runtime-state-badge">IDLE</span>
+            <span class="liveness-badge" id="runtime-liveness-badge">STANDBY</span>
+          </div>
+        </div>
+
+        <div class="card-body runtime-body">
+          <div class="runtime-metrics-grid">
+            <div class="r-metric">
+              <span class="r-lbl">RUN ID</span>
+              <span class="r-val cyan" id="rt-run-id">NONE</span>
+            </div>
+            <div class="r-metric">
+              <span class="r-lbl">PROGRESS</span>
+              <span class="r-val lime" id="rt-progress">0 / 0</span>
+            </div>
+            <div class="r-metric">
+              <span class="r-lbl">CURRENT STEP</span>
+              <span class="r-val" id="rt-current-step">IDLE</span>
+            </div>
+            <div class="r-metric">
+              <span class="r-lbl">HEARTBEAT</span>
+              <span class="r-val" id="rt-heartbeat">N/A</span>
+            </div>
+            <div class="r-metric">
+              <span class="r-lbl">ELAPSED</span>
+              <span class="r-val" id="rt-elapsed">00:00:00</span>
+            </div>
+            <div class="r-metric">
+              <span class="r-lbl">OBSERVATIONAL ETA</span>
+              <span class="r-val amber" id="rt-eta">N/A</span>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="rt-progress-fill" style="width: 0%"></div>
+          </div>
+
+          <!-- Live Event Log -->
+          <div class="runtime-log-box" id="rt-log-box">
+            <div class="rt-log-line">Orchestrator hazır. Gate 24 regression veya özel plan başlatılabilir.</div>
+          </div>
+
+          <div class="runtime-controls">
+            <button class="btn-run" id="btn-start-gate24">▶ START GATE 24</button>
+            <button class="btn-stop" id="btn-stop-runtime">⏹ STOP</button>
+            <button class="btn-refresh" id="btn-refresh-runtime">⟳ STATUS</button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer -->

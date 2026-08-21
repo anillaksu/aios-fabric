@@ -207,6 +207,43 @@ async function handleReadBattery() {
   }
 }
 
+async function refreshRuntimeStatus() {
+  if (!window.aios?.getRuntimeStatus) return;
+  try {
+    const res = await window.aios.getRuntimeStatus();
+    if (!res || !res.ok) return;
+
+    document.getElementById("rt-run-id").textContent = res.run_id ? res.run_id.slice(0, 24) + "..." : "NONE";
+    document.getElementById("runtime-state-badge").textContent = res.state || "IDLE";
+    document.getElementById("runtime-liveness-badge").textContent = res.liveness || "STANDBY";
+    document.getElementById("rt-progress").textContent = `${res.step_index || 0} / ${res.step_total || 0}`;
+    document.getElementById("rt-current-step").textContent = res.current_step ? res.current_step.replace("desktop/", "") : "IDLE";
+    document.getElementById("rt-heartbeat").textContent = res.heartbeat_age_sec !== undefined ? `${res.heartbeat_age_sec}s ago` : "N/A";
+
+    const elapsedSec = Math.floor((res.elapsed_ms || 0) / 1000);
+    const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const ss = String(elapsedSec % 60).padStart(2, "0");
+    document.getElementById("rt-elapsed").textContent = `00:${mm}:${ss}`;
+
+    document.getElementById("rt-eta").textContent = res.eta?.formatted || "N/A";
+
+    const pct = res.step_total > 0 ? Math.round(((res.step_index || 0) / res.step_total) * 100) : 0;
+    document.getElementById("rt-progress-fill").style.width = `${pct}%`;
+
+    if (res.last_event) {
+      const box = document.getElementById("rt-log-box");
+      if (box && !box.textContent.includes(res.last_event)) {
+        const line = document.createElement("div");
+        line.className = "rt-log-line";
+        line.textContent = `[${nowTimeString()}] ${res.last_event}`;
+        box.prepend(line);
+      }
+    }
+  } catch (err) {
+    console.error("Runtime status fetch error:", err);
+  }
+}
+
 // Initial Wireup
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-manual-refresh")?.addEventListener("click", refreshRelaySnapshot);
@@ -216,9 +253,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") submitQuery();
   });
 
+  document.getElementById("btn-start-gate24")?.addEventListener("click", async () => {
+    if (window.aios?.startRuntimeRun) {
+      await window.aios.startRuntimeRun("24");
+      refreshRuntimeStatus();
+    }
+  });
+
+  document.getElementById("btn-stop-runtime")?.addEventListener("click", async () => {
+    if (window.aios?.stopRuntimeRun) {
+      await window.aios.stopRuntimeRun();
+      refreshRuntimeStatus();
+    }
+  });
+
+  document.getElementById("btn-refresh-runtime")?.addEventListener("click", refreshRuntimeStatus);
+
   refreshRelaySnapshot();
+  refreshRuntimeStatus();
 
   setInterval(() => {
     refreshRelaySnapshot();
   }, 5000);
+
+  setInterval(() => {
+    refreshRuntimeStatus();
+  }, 1000);
 });

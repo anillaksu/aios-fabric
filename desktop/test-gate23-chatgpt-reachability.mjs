@@ -81,12 +81,13 @@ async function runTests() {
   console.log("=== AIOS PROOF GATE 23: FIRST REAL CHATGPT REACHABILITY TESTS ===");
 
   const server = createTestIngressServer();
-  await new Promise((resolve) => server.listen(TEST_PORT, "127.0.0.1", resolve));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const activePort = server.address().port;
 
   const clientFetch = async (endpoint, payload, token = TEST_TOKEN) => {
     const headers = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`http://127.0.0.1:${TEST_PORT}${endpoint}`, {
+    const res = await fetch(`http://127.0.0.1:${activePort}${endpoint}`, {
       method: payload ? "POST" : "GET",
       headers,
       body: payload ? JSON.stringify(payload) : undefined,
@@ -99,7 +100,7 @@ async function runTests() {
     // 1. Tunnel Manager Pre-Flight Check
     const mgr = new TunnelManager({
       binaryPath: DEFAULT_BINARY_PATH,
-      mcpServerUrl: `http://127.0.0.1:${TEST_PORT}/api/remote-mcp`,
+      mcpServerUrl: `http://127.0.0.1:${activePort}/api/remote-mcp`,
     });
     const vResult = await mgr.verify();
     if (!vResult.binaryExists || !vResult.version) {
