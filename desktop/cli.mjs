@@ -252,6 +252,50 @@ async function main() {
       break;
     }
 
+    case "browser": {
+      const subCmd = args[1] || "status";
+      const { defaultBrowserAdapter } = await import("./adapters/browser-adapter.mjs");
+      const obs = defaultBrowserAdapter.readProofObservation();
+
+      if (subCmd === "status") {
+        if (isJson) console.log(JSON.stringify(obs, null, 2));
+        else {
+          console.log("=== AIOS BROWSER NODE STATUS ===");
+          console.log(`NODE ID:        ${obs.sourceNode}`);
+          console.log(`STATUS:         ${obs.status}`);
+          console.log(`VERDICT:        ${obs.verdict}`);
+          console.log(`STALE:          ${obs.stale ? "YES" : "NO"}`);
+          console.log(`PROOF DIGEST:   ${obs.proofDigest}`);
+          console.log(`OBSERVED AT:    ${obs.observedAt}`);
+          console.log(`EVIDENCE REF:   ${obs.evidenceRef}`);
+        }
+      } else if (subCmd === "proof") {
+        if (isJson) console.log(JSON.stringify(obs, null, 2));
+        else {
+          console.log("=== AIOS BROWSER AD-SENTINEL PROOF ===");
+          console.log(`VERDICT:        ${obs.verdict} (${obs.status})`);
+          console.log(`MODE:           ${obs.mode}`);
+          console.log(`COUNTS:         Passed: ${obs.counts?.passed}, Failed: ${obs.counts?.failed}, Total: ${obs.counts?.total}`);
+          console.log(`GENERATED AT:   ${obs.generatedAt}`);
+          console.log(`EXTENSION ID:   ${obs.extensionId || "N/A"}`);
+        }
+      } else if (subCmd === "evidence") {
+        const ref = defaultBrowserAdapter.recordObservationEvidence(obs);
+        const chain = defaultLedger.verifyChain();
+        if (isJson) {
+          console.log(JSON.stringify({ evidenceRef: ref, chainStatus: chain.status, events: chain.events }, null, 2));
+        } else {
+          console.log("=== AIOS BROWSER EVIDENCE LINEAGE ===");
+          console.log(`RECORDED WITNESS: ${ref}`);
+          console.log(`CHAIN STATUS:     ${chain.status} (${chain.events} events)`);
+        }
+      } else {
+        console.error("Usage: aios browser <status|proof|evidence> [--json]");
+        process.exit(1);
+      }
+      break;
+    }
+
     case "doctor": {
       const doc = {
         core: "AIOS Unified Canonical Control Plane",

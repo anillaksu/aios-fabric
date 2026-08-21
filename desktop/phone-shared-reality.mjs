@@ -15,6 +15,9 @@ export function computeCanonicalRealityDigest(snapshot = {}) {
   const canonicalPayload = {
     android_node_id: snapshot.nodes?.android?.nodeId || "unknown",
     attestation_witness: snapshot.attestation?.latestWitnessId || "GENESIS",
+    browser_node_id: snapshot.nodes?.browser?.nodeId || snapshot.browser?.source_node || "NONE",
+    browser_proof_digest: snapshot.nodes?.browser?.proofDigest || snapshot.browser?.proof_digest || "NONE",
+    browser_status: snapshot.browser?.status || (snapshot.nodes?.browser?.online ? "PROVEN" : "NOT_PROVEN"),
     capability_manifest_hash_a: snapshot.attestation?.capabilityManifestHashA || "c3f84582946fd131ffc7a353691b9befa611dab8f5e8a465ae97a62b7943fcc6",
     capability_manifest_hash_b: snapshot.attestation?.capabilityManifestHashB || "4191689feb7024351c4b79217b1d5254d248bfcc80986d0008710a0a70707859",
     connection_state: isAndroidOnline ? "ONLINE" : "OFFLINE_STALE",
@@ -33,6 +36,7 @@ export function computeCanonicalRealityDigest(snapshot = {}) {
   const classifications = {
     windows_node_id: snapshot.nodes?.windows?.nodeId ? "PROVEN" : "NOT_PROVEN",
     android_node_id: isAndroidOnline ? "PROVEN" : "STALE",
+    browser_status: snapshot.browser?.status || (snapshot.nodes?.browser?.online ? "PROVEN" : "NOT_PROVEN"),
     attestation_witness: hasAttestation ? "PROVEN" : "NOT_PROVEN",
     capability_manifest_hash_a: "PROVEN",
     capability_manifest_hash_b: isAndroidOnline ? "PROVEN" : "STALE",

@@ -12,11 +12,14 @@ function classifyMatrixClient(snap) {
   const hasAttestation = Boolean(snap?.attestation?.latestWitnessId && snap?.attestation.latestWitnessId !== "GENESIS");
   const hasArtifact = Boolean(snap?.artifact?.artifactId && snap?.artifact?.artifactSha256);
   const pendingCount = (snap?.pendingApprovals || []).length;
+  const browserStatus = snap?.browser?.status || (snap?.nodes?.browser?.online ? "PROVEN" : "NOT_PROVEN");
+  const isBrowserProven = browserStatus === "PROVEN";
 
   return [
     { title: "OBSERVER (100.75.177.88)", status: isAndroidOnline ? "PROVEN" : "STALE", color: isAndroidOnline ? "lime" : "pink" },
     { title: "EVIDENCE LEDGER", status: isChainValid ? `PROVEN (${snap.evidenceChain.events} events)` : "NOT_PROVEN", color: isChainValid ? "lime" : "pink" },
     { title: "NODE ATTESTATION", status: hasAttestation ? "PROVEN" : "NOT_PROVEN", color: hasAttestation ? "lime" : "pink" },
+    { title: "BROWSER SENTINEL", status: browserStatus, color: isBrowserProven ? "lime" : browserStatus === "STALE" ? "amber" : "pink" },
     { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NOT_PROVEN", color: hasArtifact ? "lime" : "pink" },
     { title: "A2A AUTH GATE", status: "BLOCKED (FAIL-CLOSED)", color: "pink" },
     { title: "HUMAN CONTROL GATE", status: pendingCount > 0 ? `${pendingCount} REVIEW REQ` : "PROVEN", color: pendingCount > 0 ? "amber" : "lime" },
@@ -281,11 +284,32 @@ async function refreshRelaySnapshot() {
       document.getElementById("art-lineage").textContent = snap.artifact.lineageWitnessId.slice(0, 24) + "...";
     }
 
-    // 5. Evidence Zincir Durumu & Matris
+    // 5. Browser Node Durumu
+    if (snap.nodes?.browser || snap.browser) {
+      const b = snap.nodes?.browser || snap.browser;
+      const bStatus = b.status || (b.online ? "PROVEN" : "NOT_PROVEN");
+      const bVerdict = b.verdict || "UNKNOWN";
+      const bNodeIdEl = document.getElementById("browser-node-id");
+      const bStatEl = document.getElementById("browser-status-verdict");
+      const bDigEl = document.getElementById("browser-digest");
+      const bObsEl = document.getElementById("browser-observed-at");
+      const bEvEl = document.getElementById("browser-evidence-ref");
+
+      if (bNodeIdEl) bNodeIdEl.textContent = (b.nodeId || b.source_node || "--").slice(0, 24) + "...";
+      if (bStatEl) {
+        bStatEl.textContent = `${bStatus} (${bVerdict})`;
+        bStatEl.className = `val ${bStatus === "PROVEN" ? "lime" : bStatus === "STALE" ? "amber" : "pink"}`;
+      }
+      if (bDigEl) bDigEl.textContent = (b.proofDigest || b.proof_digest || "--").slice(0, 20) + "...";
+      if (bObsEl) bObsEl.textContent = (b.lastSeen || b.observed_at || "--").slice(11, 19);
+      if (bEvEl) bEvEl.textContent = (b.evidenceRef || b.evidence_ref || "GENESIS").slice(0, 24);
+    }
+
+    // 6. Evidence Zincir Durumu & Matris
     document.getElementById("latest-hash").textContent = snap.evidenceChain?.status || "CHAIN_VALID";
     renderMatrix(classifyMatrixClient(snap));
 
-    // 6. Onay Talepleri
+    // 7. Onay Talepleri
     renderApprovalRequests(snap.pendingApprovals || []);
   } catch (err) {
     console.error("Relay snapshot fetch failed", err);

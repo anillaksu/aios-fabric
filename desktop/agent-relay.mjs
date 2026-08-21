@@ -121,12 +121,44 @@ export class AgentRelay {
 
     const activePending = this.getPendingApprovals();
 
+    // 6. Browser Node Observation (AdSentinel Proof)
+    let browserObs = null;
+    try {
+      const { defaultBrowserAdapter } = await import("./adapters/browser-adapter.mjs");
+      browserObs = defaultBrowserAdapter.readProofObservation();
+    } catch {
+      browserObs = null;
+    }
+
+    const browserData = browserObs ? {
+      nodeId: browserObs.sourceNode,
+      platform: "browser",
+      runtime: "chromium",
+      agentName: "ai_browser",
+      agentVersion: "2.0.0",
+      online: browserObs.status === "PROVEN" || browserObs.status === "INCONCLUSIVE",
+      lastSeen: browserObs.observedAt,
+      stale: browserObs.stale === true,
+      verdict: browserObs.verdict,
+      proofDigest: browserObs.proofDigest,
+      evidenceRef: browserObs.evidenceRef,
+    } : null;
+
     return {
       timestamp: now,
       nodes: {
         windows: windowsData,
         android: androidData,
+        browser: browserData,
       },
+      browser: browserObs ? {
+        status: browserObs.status,
+        proof_digest: browserObs.proofDigest,
+        verdict: browserObs.verdict,
+        observed_at: browserObs.observedAt,
+        source_node: browserObs.sourceNode,
+        evidence_ref: browserObs.evidenceRef,
+      } : null,
       attestation: {
         intersectionHash: intersection.intersectionHash,
         allowedCapabilities: intersection.commonCapabilities,

@@ -26,6 +26,7 @@ export const ALLOWED_STATES = [
 
 export const CANONICAL_GATE_PLANS = {
   "24": [
+    "desktop/test-browser-node-integration.mjs",
     "desktop/test-aios-operational-surface.mjs",
     "desktop/test-canonical-consolidation.mjs",
     "desktop/test-runtime-console.mjs",
@@ -57,6 +58,7 @@ export const CANONICAL_GATE_PLANS = {
     "fabric/test/agent-surface-audit.test.ts",
   ],
   "canonical": [
+    "desktop/test-browser-node-integration.mjs",
     "desktop/test-aios-operational-surface.mjs",
     "desktop/test-canonical-consolidation.mjs",
     "desktop/test-runtime-console.mjs",

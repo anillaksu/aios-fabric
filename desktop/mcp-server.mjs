@@ -196,6 +196,16 @@ const TOOLS = [
     description: "Read the latest verified and human-approved artifacts produced by AIOS (READ-ONLY).",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "browser.proof.read",
+    description: "Read the latest AdSentinel YouTube browser extension proof and deterministic test verification status (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "browser.telemetry.read",
+    description: "Read browser runtime telemetry and ad suppression observations from Chromium node (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 async function handleToolCall(name, args = {}) {
@@ -525,6 +535,15 @@ async function handleToolCall(name, args = {}) {
     }
     case "aios.artifacts": {
       return handleToolCall("artifact.latest", args);
+    }
+    case "browser.proof.read":
+    case "browser.telemetry.read": {
+      const { defaultBrowserAdapter } = await import("./adapters/browser-adapter.mjs");
+      const obs = defaultBrowserAdapter.readProofObservation(args.customProof);
+      defaultBrowserAdapter.recordObservationEvidence(obs);
+      return {
+        content: [{ type: "text", text: JSON.stringify(obs, null, 2) }],
+      };
     }
     default:
       throw new Error(`Unknown read-only tool: ${name}`);
