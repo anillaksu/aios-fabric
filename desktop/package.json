@@ -1,0 +1,11 @@
+{
+  "name": "aios-control-surface",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AIOS Desktop Control Surface & Node Observer (Windows Electron)",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron ."
+  }
+}

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIOS CONTROL SURFACE // NIGHT CITY DECK</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="deck-container">
+    <!-- Top Header -->
+    <header class="deck-header">
+      <div class="brand">
+        <div class="pulse-indicator online"></div>
+        <span class="brand-title">AIOS · CONTROL SURFACE</span>
+        <span class="brand-badge">WINDOWS OBSERVER NODE</span>
+      </div>
+      <div class="header-metrics">
+        <div class="metric-item">
+          <span class="label">TARGET</span>
+          <span class="value cyan" id="target-host">100.75.177.88:9300</span>
+        </div>
+        <div class="metric-item">
+          <span class="label">A2A GATEWAY</span>
+          <span class="value lime" id="a2a-status">ACTIVE</span>
+        </div>
+        <div class="metric-item">
+          <span class="label">LAST WITNESS</span>
+          <span class="value pink" id="header-witness-time">--:--:--</span>
+        </div>
+        <button class="btn-refresh" id="btn-manual-refresh">⟳ YENİLE</button>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="deck-grid">
+      <!-- Left Column: Android Reference Node -->
+      <section class="card node-card android-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">📱</span>
+            <h2>ANDROID REFERENCE NODE</h2>
+          </div>
+          <span class="status-badge" id="android-badge">BAĞLANIYOR...</span>
+        </div>
+
+        <div class="card-body">
+          <div class="info-row">
+            <span class="lbl">Cihaz Kimliği:</span>
+            <span class="val" id="android-device-name">Xiaomi 2210129SG (HyperOS / Android 15)</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">Agent Adı:</span>
+            <span class="val cyan" id="android-agent-name">--</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">Sürüm:</span>
+            <span class="val" id="android-agent-version">--</span>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <h3>SİSTEM SERVİSLERİ</h3>
+          <div class="services-list" id="android-services">
+            <div class="service-item"><span class="s-name">Fabric (9300)</span><span class="s-status lime">ONLINE</span></div>
+            <div class="service-item"><span class="s-name">LLM Bridge (9201)</span><span class="s-status lime">ONLINE</span></div>
+            <div class="service-item"><span class="s-name">Hermes A2A (8642)</span><span class="s-status lime">ONLINE</span></div>
+            <div class="service-item"><span class="s-name">Watchdog</span><span class="s-status amber">MONITORING</span></div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <h3>CANLI DONANIM & SENSÖR</h3>
+          <div class="sensor-box" id="sensor-container">
+            <div class="sensor-metric">
+              <span class="s-lbl">PİL SEVİYESİ</span>
+              <span class="s-val lime" id="sensor-battery">--%</span>
+            </div>
+            <div class="sensor-metric">
+              <span class="s-lbl">SICAKLIK</span>
+              <span class="s-val" id="sensor-temp">--°C</span>
+            </div>
+            <div class="sensor-metric">
+              <span class="s-lbl">DURUM</span>
+              <span class="s-val cyan" id="sensor-status">--</span>
+            </div>
+          </div>
+          <button class="btn-action" id="btn-read-battery">⚡ CANLI PİL WITNESS ÜRET</button>
+        </div>
+      </section>
+
+      <!-- Center Column: Real-time Witness & Timeline -->
+      <section class="card timeline-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">📜</span>
+            <h2>CANLI WITNESS & TASK TIMELINE</h2>
+          </div>
+          <span class="card-badge" id="witness-count">0 KAYIT</span>
+        </div>
+
+        <div class="card-body scrollable">
+          <div class="witness-feed" id="witness-feed">
+            <div class="feed-empty">Henüz witness kaydı bulunmuyor.</div>
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <div class="hash-box">
+            <span class="hash-lbl">LATEST SHA-256 HASH:</span>
+            <span class="hash-val" id="latest-hash">GENESIS</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Windows Node & Capabilities -->
+      <section class="card node-card windows-card">
+        <div class="card-header">
+          <div class="card-title">
+            <span class="icon">💻</span>
+            <h2>WINDOWS PC AGENT NODE</h2>
+          </div>
+          <span class="status-badge" id="windows-badge">KONTROL EDİLİYOR...</span>
+        </div>
+
+        <div class="card-body">
+          <div class="info-row">
+            <span class="lbl">Uç Nokta:</span>
+            <span class="val cyan">127.0.0.1:9310</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">Rol:</span>
+            <span class="val">Windows Tool Agent (PowerShell / Safe Root)</span>
+          </div>
+          <div class="info-row">
+            <span class="lbl">A2A Peer:</span>
+            <span class="val lime">pc-agent-peer</span>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <h3>KAYITLI CAPABILITY HAVUZU (<span id="cap-count">0</span>)</h3>
+          <div class="caps-tags" id="caps-list">
+            <span class="cap-tag">sensor.battery.read</span>
+            <span class="cap-tag">wifi.info</span>
+            <span class="cap-tag">volume.read</span>
+            <span class="cap-tag">app.list</span>
+            <span class="cap-tag">shizuku.status</span>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <h3>FORMATION MEMORY KONTROLÜ</h3>
+          <div class="formation-box" id="formation-box">
+            <div class="f-row"><span class="lbl">Root Formations:</span><span class="val lime" id="f-count">--</span></div>
+            <div class="f-row"><span class="lbl">Provenance Edges:</span><span class="val cyan" id="edge-count">--</span></div>
+            <div class="f-row"><span class="lbl">Kimlik Bütünlüğü:</span><span class="val pink">BYTE-IDENTICAL</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="deck-footer">
+      <div class="footer-left">
+        <span class="dot green"></span>
+        <span>Cross-Runtime Deterministic Channel · Fail-Closed</span>
+      </div>
+      <div class="footer-right">
+        <span>AIOS Universal Runtime v0.1.0 · Windows Control Deck</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
