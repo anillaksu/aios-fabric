@@ -1,4 +1,4 @@
-// AIOS Continuous Observer, Change Detection & Autonomous Request Engine (Gate 16)
+// AIOS Continuous Observer, Change Detection & Autonomous Request Engine (Gate 16 & 17)
 import { canonicalJson, sha256, defaultLedger } from "./observer.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
 import { classifyProvenMatrix, querySystemReality } from "./shared-reality.mjs";
@@ -126,6 +126,16 @@ export class ContinuousObserver {
       this.ledger,
     );
 
+    // Ortak Relay Havuzuna Kanonik Olarak Kaydedilir (Phone + Windows + MCP için)
+    this.relay.registerPendingRequest({
+      requestId: req.requestId,
+      operation: "artifact.production",
+      requestedBy: `continuous-observer (${triggerReason})`,
+      targetNodeId: snap.nodes?.android?.nodeId || "node-android",
+      sourceNodeId: snap.nodes?.windows?.nodeId || "node-windows",
+      payload: { attestationWitnessId, taskWitnessId, sourceRealityHash },
+    });
+
     return {
       ok: true,
       requestId: req.requestId,
@@ -174,16 +184,13 @@ export class ContinuousObserver {
 
     // 3. "Ne üretim bekliyor?" / "What is pending production?"
     if (q.includes("üretim") || q.includes("bekliyor") || q.includes("pending") || q.includes("talep")) {
-      const history = this.ledger.getHistory(30);
-      const pendingRequests = history.filter((e) => e.operation === "artifact.production.review_required" || e.operation === "task.delegation.review_required");
-      const activePending = pendingRequests.slice(0, 5);
-
+      const activePending = this.relay.getPendingApprovals();
       return {
         query: queryText,
         domain: "PENDING_PRODUCTION",
         status: activePending.length > 0 ? "REVIEW_REQUIRED" : "PROVEN",
         answer: activePending.length > 0
-          ? `Şu anda onay bekleyen ${activePending.length} talep bulunmaktadır. (${activePending.map((p) => p.response_data?.requestId || p.operation).join(", ")})`
+          ? `Şu anda onay bekleyen ${activePending.length} talep bulunmaktadır. (${activePending.map((p) => p.requestId || p.approvalId).join(", ")})`
           : "Şu anda bekleyen üretim talebi bulunmuyor. Tüm talepler çözümlendi veya sistem güvenli beklemede.",
         pendingCount: activePending.length,
         activePending,

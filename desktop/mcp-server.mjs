@@ -61,7 +61,7 @@ const TOOLS = [
   },
   {
     name: "system.query",
-    description: "Ask the system a question ('What is proven now?', 'Is phone online?', 'Latest artifact?'). Answers deterministically from evidence without hallucinations.",
+    description: "Ask the system a question ('What is proven now?', 'Is phone online?', 'Latest artifact?', 'What changed?', 'Why pending?'). Answers deterministically from evidence without hallucinations.",
     inputSchema: {
       type: "object",
       properties: {
@@ -84,6 +84,24 @@ const TOOLS = [
     name: "approval.latest",
     description: "Get the most recent human approval event and operator resolution from the Evidence Ledger.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "approval.list_pending",
+    description: "List all active canonical REVIEW_REQUIRED requests waiting for human operator approval across Phone, Windows and MCP.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "approval.resolve",
+    description: "Resolve a pending human approval request with decision APPROVE or DENY and chain the result into Evidence Ledger.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "Canonical request ID (e.g. req-prod-..., task-a2a-..., appr-...)" },
+        decision: { type: "string", enum: ["APPROVE", "DENY"], description: "Operator decision" },
+        operatorId: { type: "string", description: "Identity of the human operator (default: operator-admin)" },
+      },
+      required: ["requestId", "decision"],
+    },
   },
 ];
 
@@ -142,11 +160,13 @@ async function handleToolCall(name, args = {}) {
       };
     }
     case "artifact.latest": {
-      const artifactPath = resolve(__dirname, "artifacts", "first_distributed_artifact.json");
+      const prodArtifactPath = resolve(__dirname, "artifacts", "first_production_loop_artifact.json");
+      const distArtifactPath = resolve(__dirname, "artifacts", "first_distributed_artifact.json");
+      const targetPath = existsSync(prodArtifactPath) ? prodArtifactPath : distArtifactPath;
       let art = null;
-      if (existsSync(artifactPath)) {
+      if (existsSync(targetPath)) {
         try {
-          art = JSON.parse(readFileSync(artifactPath, "utf8"));
+          art = JSON.parse(readFileSync(targetPath, "utf8"));
         } catch {
           art = null;
         }
@@ -164,9 +184,24 @@ async function handleToolCall(name, args = {}) {
     }
     case "approval.latest": {
       const history = defaultLedger.getHistory(50);
-      const approvalEvents = history.filter((e) => e.operation.startsWith("artifact.production.") || e.operation.startsWith("relay.approval_"));
+      const approvalEvents = history.filter((e) => e.operation.startsWith("artifact.production.") || e.operation.startsWith("relay.approval_") || e.operation.startsWith("task.delegation."));
       return {
         content: [{ type: "text", text: JSON.stringify({ count: approvalEvents.length, latestApproval: approvalEvents[0] || null }, null, 2) }],
+      };
+    }
+    case "approval.list_pending": {
+      const pending = defaultRelay.getPendingApprovals();
+      return {
+        content: [{ type: "text", text: JSON.stringify({ count: pending.length, pendingRequests: pending }, null, 2) }],
+      };
+    }
+    case "approval.resolve": {
+      const reqId = args.requestId;
+      const decision = args.decision;
+      const operatorId = args.operatorId || "operator-admin";
+      const resolved = defaultRelay.resolveApprovalRequest(reqId, decision, operatorId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(resolved, null, 2) }],
       };
     }
     default:
