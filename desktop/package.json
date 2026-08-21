@@ -5,7 +5,11 @@
   "description": "AIOS Desktop Control Surface & Node Observer (Windows Electron)",
   "type": "module",
   "main": "main.mjs",
+  "bin": {
+    "aios": "./cli.mjs"
+  },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "aios": "node ./cli.mjs"
   }
 }

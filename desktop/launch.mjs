@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultRelay } from "./agent-relay.mjs";
+import { defaultControlPlane } from "./agent-control-plane.mjs";
 import { processJsonRpc } from "./mcp-server.mjs";
 import { defaultOrchestrator } from "./runtime-console.mjs";
 
@@ -184,6 +185,13 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/canonical-state") {
+    const state = await defaultControlPlane.getCanonicalState();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(state));
+    return;
+  }
+
   // Runtime Console Endpoints
   if (url.pathname === "/api/runtime/status") {
     const status = defaultOrchestrator.getStatus();
@@ -236,6 +244,7 @@ const server = createServer(async (req, res) => {
       <script>
         if (!window.aios) {
           window.aios = {
+            getCanonicalState: () => fetch('/api/canonical-state').then(r => r.json()),
             getAndroidNode: () => fetch('/api/android-node').then(r => r.json()),
             getWindowsNode: () => fetch('/api/windows-node').then(r => r.json()),
             readBattery: () => fetch('/api/read-battery').then(r => r.json()),

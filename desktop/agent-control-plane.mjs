@@ -1,7 +1,7 @@
-// AIOS Canonical Agent Control Plane Engine (Gate 18C)
 import { canonicalJson, sha256, defaultLedger } from "./observer.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
 import { computeCanonicalRealityDigest } from "./phone-shared-reality.mjs";
+import { defaultOrchestrator } from "./runtime-console.mjs";
 
 export class AgentControlPlane {
   constructor(ledger = defaultLedger, relay = defaultRelay) {
@@ -250,6 +250,72 @@ export class AgentControlPlane {
       })),
       evidenceChainStatus: snap.evidenceChain?.status || "UNKNOWN",
       humanGateStatus: activeRequests.length > 0 ? "REVIEW_REQUIRED" : "ALLOWED",
+    };
+  }
+
+  /**
+   * 6. SINGLE CANONICAL STATE MODEL
+   * Consolidates all system dimensions into a unified, deterministic object:
+   * { reality, runtime, requests, agents, approvals, execution, artifacts, evidence }
+   */
+  async getCanonicalState() {
+    const snap = await this.relay.getSystemSnapshot({ timeoutMs: 2500 });
+    const realityDigest = computeCanonicalRealityDigest(snap);
+    const runtimeStatus = defaultOrchestrator.getStatus();
+    const evidenceChain = this.ledger.verifyChain();
+    const history = this.ledger.getHistory(30);
+
+    const pendingRequests = Array.from(this.requests.values()).filter((r) => r.status === "REVIEW_REQUIRED");
+    const activeProposals = Array.from(this.proposalsByRequest.entries()).map(([reqId, props]) => ({
+      requestId: reqId,
+      proposalsCount: props.length,
+      agents: props.map((p) => p.agentId),
+    }));
+
+    const artifacts = snap.artifact?.artifactId ? [snap.artifact] : [];
+
+    return {
+      schema: "aios.canonical.state.v1",
+      timestamp: new Date().toISOString(),
+      reality: {
+        digest: realityDigest.canonicalHash,
+        nodes: snap.nodes,
+        capabilities: snap.nodes?.android?.capabilities || [],
+      },
+      runtime: {
+        run_id: runtimeStatus.run_id,
+        state: runtimeStatus.state,
+        liveness: runtimeStatus.liveness,
+        progress: `${runtimeStatus.step_index || 0} / ${runtimeStatus.step_total || 0}`,
+        current_step: runtimeStatus.current_step,
+        heartbeat_age_sec: runtimeStatus.heartbeat_age_sec,
+        elapsed_ms: runtimeStatus.elapsed_ms,
+        eta: runtimeStatus.eta,
+      },
+      requests: {
+        pending_count: pendingRequests.length,
+        items: pendingRequests,
+      },
+      agents: {
+        active_count: activeProposals.length,
+        items: activeProposals,
+      },
+      approvals: {
+        pending: snap.pendingApprovals || [],
+      },
+      execution: {
+        last_event: runtimeStatus.last_event,
+        last_executed: history[0]?.operation || null,
+      },
+      artifacts: {
+        latest: snap.artifact || null,
+        items: artifacts,
+      },
+      evidence: {
+        status: evidenceChain.status,
+        events: evidenceChain.events,
+        latest_hash: evidenceChain.latestHash || history[0]?.current_witness_hash || "GENESIS",
+      },
     };
   }
 }
