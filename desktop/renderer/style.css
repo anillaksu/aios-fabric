@@ -782,3 +782,221 @@ h3 {
   margin: 6px 0 0 0;
 }
 
+/* ==========================================================================
+   AIOS ADAPTIVE PRESENTATION PROJECTION (MOBILE, TABLET & CONTAINER QUERIES)
+   ========================================================================== */
+
+/* Safe area insets & dynamic viewport root */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  min-height: 100dvh;
+  padding: max(10px, var(--safe-top)) max(10px, var(--safe-right)) max(10px, var(--safe-bottom)) max(10px, var(--safe-left));
+  overflow-x: hidden;
+}
+
+.deck-container {
+  min-height: calc(100dvh - 20px);
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: deck;
+}
+
+.pwa-badge {
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--cyan);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  font-weight: 700;
+}
+
+/* Mobile Bottom Navigation (Hidden by default on Desktop) */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(56px + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: rgba(11, 15, 25, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.nav-tab {
+  flex: 1;
+  height: 52px;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.nav-tab.active {
+  color: var(--cyan);
+}
+
+.nav-icon {
+  font-size: 16px;
+}
+
+.nav-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nav-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 16px);
+  background: var(--amber);
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 10px;
+}
+
+/* Touch Target Compliance (Minimum 44px on touch devices) */
+button, input[type="text"], .btn-chip, .btn-action, .btn-approve, .btn-deny {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.btn-chip {
+  min-height: 36px;
+  padding: 6px 12px;
+}
+
+/* Tablet Projection (Split-Pane / 2 Columns) */
+@media (max-width: 1024px) {
+  .deck-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .runtime-console-card {
+    grid-column: span 2;
+  }
+}
+
+/* Mobile Projection (Single-Column Focus View) */
+@media (max-width: 768px) {
+  .deck-container {
+    padding-bottom: 64px;
+  }
+
+  .deck-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .header-metrics {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .metric-item {
+    font-size: 9px;
+  }
+
+  .deck-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* In mobile view, cards toggle visibility based on active tab */
+  .deck-grid > section.card {
+    display: none;
+  }
+
+  .deck-grid.view-ask #card-center {
+    display: flex;
+  }
+  .deck-grid.view-ask #card-center #subslot-ask {
+    display: block;
+  }
+  .deck-grid.view-ask #card-center #matrix-container,
+  .deck-grid.view-ask #card-center #subslot-requests,
+  .deck-grid.view-ask #card-center #subslot-evidence {
+    display: none;
+  }
+
+  .deck-grid.view-reality #card-center {
+    display: flex;
+  }
+  .deck-grid.view-reality #card-center #matrix-container {
+    display: grid;
+  }
+  .deck-grid.view-reality #card-center #subslot-ask,
+  .deck-grid.view-reality #card-center #subslot-requests,
+  .deck-grid.view-reality #card-center #subslot-evidence {
+    display: none;
+  }
+
+  .deck-grid.view-requests #card-center {
+    display: flex;
+  }
+  .deck-grid.view-requests #card-center #subslot-requests {
+    display: block;
+  }
+  .deck-grid.view-requests #card-center #matrix-container,
+  .deck-grid.view-requests #card-center #subslot-ask,
+  .deck-grid.view-requests #card-center #subslot-evidence {
+    display: none;
+  }
+
+  .deck-grid.view-run #card-runtime {
+    display: flex;
+  }
+
+  .deck-grid.view-nodes #card-android,
+  .deck-grid.view-nodes #card-windows {
+    display: flex;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  .deck-footer {
+    display: none;
+  }
+
+  .human-gate-action-box .hg-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn-approve, .btn-deny {
+    width: 100%;
+    min-height: 48px;
+    font-size: 13px;
+  }
+}
+
+

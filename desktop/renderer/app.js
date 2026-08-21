@@ -373,8 +373,53 @@ async function refreshRuntimeStatus() {
   }
 }
 
+let currentMobileView = "ask";
+
+window.switchMobileView = function (tabName) {
+  currentMobileView = tabName;
+
+  const updateDOM = () => {
+    const grid = document.getElementById("main-deck-grid");
+    if (grid) {
+      grid.className = `deck-grid view-${tabName}`;
+    }
+    const tabs = document.querySelectorAll(".nav-tab");
+    tabs.forEach((t) => {
+      if (t.getAttribute("data-tab") === tabName) {
+        t.classList.add("active");
+      } else {
+        t.classList.remove("active");
+      }
+    });
+  };
+
+  // Progressive enhancement: View Transition API
+  if (document.startViewTransition) {
+    document.startViewTransition(() => updateDOM());
+  } else {
+    updateDOM();
+  }
+};
+
 // Initial Wireup
 document.addEventListener("DOMContentLoaded", () => {
+  // PWA Standalone Mode Detection
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const pwaBadge = document.getElementById("pwa-mode-badge");
+  if (pwaBadge) {
+    pwaBadge.style.display = isStandalone ? "inline-block" : "none";
+  }
+
+  // Register PWA Service Worker (Progressive Enhancement)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("PWA ServiceWorker registration skipped:", err.message);
+    });
+  }
+
+  // Set initial mobile view
+  switchMobileView("ask");
+
   document.getElementById("btn-manual-refresh")?.addEventListener("click", refreshRelaySnapshot);
   document.getElementById("btn-read-battery")?.addEventListener("click", handleReadBattery);
   

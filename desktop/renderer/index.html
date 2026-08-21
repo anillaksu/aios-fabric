@@ -2,8 +2,13 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AIOS CONTROL SURFACE // SHARED REALITY DECK</title>
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,6 +19,7 @@
         <div class="pulse-indicator online" id="global-pulse"></div>
         <span class="brand-title">AIOS · SHARED REALITY</span>
         <span class="brand-badge" id="relay-badge">CROSS-RUNTIME DECK</span>
+        <span class="pwa-badge" id="pwa-mode-badge" style="display: none;">STANDALONE</span>
       </div>
       <div class="header-metrics">
         <div class="metric-item">
@@ -33,9 +39,9 @@
     </header>
 
     <!-- Main Grid -->
-    <main class="deck-grid">
+    <main class="deck-grid" id="main-deck-grid">
       <!-- Left Column: Android Reference Node -->
-      <section class="card node-card android-card">
+      <section class="card node-card android-card" data-slot="nodes" id="card-android">
         <div class="card-header">
           <div class="card-title">
             <span class="icon">📱</span>
@@ -90,7 +96,7 @@
       </section>
 
       <!-- Center Column: Shared Reality & Proven Matrix & Ask System -->
-      <section class="card control-card">
+      <section class="card control-card" data-slot="reality" id="card-center">
         <div class="card-header">
           <div class="card-title">
             <span class="icon">🌐</span>
@@ -131,12 +137,12 @@
           <div class="section-divider"></div>
 
           <!-- ASK AIOS: Unified Canonical Operational Center -->
-          <div class="ask-deck">
+          <div class="ask-deck" data-subslot="ask" id="subslot-ask">
             <h3>💬 ASK AIOS (TEK KANONİK GİRİŞ & İCRA YÜZEYİ)</h3>
             <div class="quick-questions">
               <button class="btn-chip" onclick="handleQuickAsk('Telefonun pil durumunu kontrol et.')">⚡ Pil Durumu</button>
               <button class="btn-chip" onclick="handleQuickAsk('Şu an sistemde ne kanıtlandı?')">📜 Ne Kanıtlandı?</button>
-              <button class="btn-chip" onclick="handleQuickAsk('Android ve Windows düğümleri canlı mı?')">📱 Düğüm Durumu</button>
+              <button class="btn-chip" onclick="handleQuickAsk('Tarayıcı reklam durumunu kontrol et.')">🌐 Tarayıcı AdSentinel</button>
               <button class="btn-chip" onclick="handleQuickAsk('Ortak yetenek listesini çıkar.')">🔌 Ortak Yetenekler</button>
             </div>
             <div class="query-box">
@@ -184,7 +190,7 @@
           <div class="section-divider"></div>
 
           <!-- Pending Approvals Area -->
-          <div class="approval-deck">
+          <div class="approval-deck" data-subslot="requests" id="subslot-requests">
             <h3>BEKLEYEN İNSAN ONAYI TALEPLERİ</h3>
             <div class="approval-list" id="approval-list">
               <div class="feed-empty">Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemede.</div>
@@ -194,7 +200,7 @@
           <div class="section-divider"></div>
 
           <!-- Distributed Artifact Deck -->
-          <div class="artifact-deck">
+          <div class="artifact-deck" data-subslot="evidence" id="subslot-evidence">
             <h3>SON DAĞITIK ARTIFACT (<span id="art-id">YOK</span>)</h3>
             <div class="artifact-card" id="artifact-container">
               <div class="info-row"><span class="lbl">Artifact SHA:</span><span class="val pink" id="art-sha">--</span></div>
@@ -214,7 +220,7 @@
       </section>
 
       <!-- Right Column: Windows Node & Attestation Matrix -->
-      <section class="card node-card windows-card">
+      <section class="card node-card windows-card" data-slot="nodes" id="card-windows">
         <div class="card-header">
           <div class="card-title">
             <span class="icon">💻</span>
@@ -272,7 +278,7 @@
       </section>
 
       <!-- Full-Width Bottom Section: Canonical Runtime Execution Console -->
-      <section class="card runtime-console-card">
+      <section class="card runtime-console-card" data-slot="runtime" id="card-runtime">
         <div class="card-header">
           <div class="card-title">
             <span class="icon">⚡</span>
@@ -285,28 +291,29 @@
         </div>
 
         <div class="card-body runtime-body">
+          <!-- Runtime Metrics Grid -->
           <div class="runtime-metrics-grid">
-            <div class="r-metric">
-              <span class="r-lbl">RUN ID</span>
+            <div class="rt-metric">
+              <span class="r-lbl">MASTER RUN ID</span>
               <span class="r-val cyan" id="rt-run-id">NONE</span>
             </div>
-            <div class="r-metric">
-              <span class="r-lbl">PROGRESS</span>
+            <div class="rt-metric">
+              <span class="r-lbl">STEP PROGRESS</span>
               <span class="r-val lime" id="rt-progress">0 / 0</span>
             </div>
-            <div class="r-metric">
+            <div class="rt-metric">
               <span class="r-lbl">CURRENT STEP</span>
               <span class="r-val" id="rt-current-step">IDLE</span>
             </div>
-            <div class="r-metric">
+            <div class="rt-metric">
               <span class="r-lbl">HEARTBEAT</span>
               <span class="r-val" id="rt-heartbeat">N/A</span>
             </div>
-            <div class="r-metric">
-              <span class="r-lbl">ELAPSED</span>
+            <div class="rt-metric">
+              <span class="r-lbl">ELAPSED TIME</span>
               <span class="r-val" id="rt-elapsed">00:00:00</span>
             </div>
-            <div class="r-metric">
+            <div class="rt-metric">
               <span class="r-lbl">OBSERVATIONAL ETA</span>
               <span class="r-val amber" id="rt-eta">N/A</span>
             </div>
@@ -330,6 +337,31 @@
         </div>
       </section>
     </main>
+
+    <!-- Mobile Bottom Navigation (Touch-optimized 44px+) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+      <button class="nav-tab active" data-tab="ask" id="tab-nav-ask" onclick="switchMobileView('ask')">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">ASK</span>
+      </button>
+      <button class="nav-tab" data-tab="reality" id="tab-nav-reality" onclick="switchMobileView('reality')">
+        <span class="nav-icon">🌐</span>
+        <span class="nav-label">REALITY</span>
+      </button>
+      <button class="nav-tab" data-tab="requests" id="tab-nav-requests" onclick="switchMobileView('requests')">
+        <span class="nav-icon">⚠️</span>
+        <span class="nav-label">REQUESTS</span>
+        <span class="nav-badge" id="nav-pending-badge" style="display:none">0</span>
+      </button>
+      <button class="nav-tab" data-tab="run" id="tab-nav-run" onclick="switchMobileView('run')">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">RUN</span>
+      </button>
+      <button class="nav-tab" data-tab="nodes" id="tab-nav-nodes" onclick="switchMobileView('nodes')">
+        <span class="nav-icon">💻</span>
+        <span class="nav-label">NODES</span>
+      </button>
+    </nav>
 
     <!-- Footer -->
     <footer class="deck-footer">
