@@ -230,6 +230,84 @@ export class FabricEngine {
   }
 
   /**
+   * Resume from a validated checkpoint with Reality Revalidation & Lineage check
+   */
+  resumeFromCheckpoint(taskId, checkpointDigest, currentRealityDigest) {
+    const task = this.tasks.get(taskId);
+    if (!task) return { ok: false, error: "TASK_NOT_FOUND", status: "BLOCKED" };
+
+    const history = this.checkpoints.get(taskId) || [];
+    if (history.length === 0) {
+      return { ok: false, error: "NO_CHECKPOINTS_FOUND", status: "BLOCKED" };
+    }
+
+    const latestCheckpoint = history[history.length - 1];
+
+    // Rule 1: Outdated checkpoint rejection
+    if (checkpointDigest && checkpointDigest !== latestCheckpoint.checkpointDigest) {
+      return {
+        ok: false,
+        error: "OUTDATED_CHECKPOINT_BLOCKED",
+        status: "BLOCKED",
+        detail: `Attempted to resume from outdated checkpoint ${checkpointDigest.slice(0, 16)} when latest is ${latestCheckpoint.checkpointDigest.slice(0, 16)}`,
+      };
+    }
+
+    // Rule 2: Reality Revalidation (Mismatched reality blocks auto-resume)
+    if (currentRealityDigest && latestCheckpoint.realityDigest !== currentRealityDigest) {
+      this.transitionTask(taskId, TASK_STATES.PAUSED, {
+        reason: "REALITY_MISMATCH",
+        checkpointReality: latestCheckpoint.realityDigest,
+        currentReality: currentRealityDigest,
+      });
+      return {
+        ok: false,
+        error: "REALITY_MISMATCH",
+        status: "BLOCKED",
+        detail: "Current reality digest diverges from checkpoint reality; re-planning required",
+      };
+    }
+
+    return {
+      ok: true,
+      task,
+      checkpoint: latestCheckpoint,
+      status: "ALLOWED",
+    };
+  }
+
+  /**
+   * Handle provider/agent quota limitation without task loss or duplication
+   */
+  handleQuotaLimited(taskId, agentOrProviderId, reason = "Rate limit / quota exceeded") {
+    const task = this.tasks.get(taskId);
+    if (!task) return null;
+
+    // Release active lease immediately
+    const lease = this.leases.get(taskId);
+    if (lease) {
+      lease.active = false;
+      this.nodeRegistry.releaseTaskSlot(lease.nodeId);
+    }
+
+    // Mark provider as quota limited in fallback graph
+    this.fallbackGraph.setProviderStatus(agentOrProviderId, PROVIDER_HEALTH.QUOTA_LIMITED);
+
+    // Transition to REASSIGNABLE under same taskId and lineage
+    task.retryCount++;
+    this.transitionTask(taskId, TASK_STATES.REASSIGNABLE, {
+      failureDomain: "QUOTA_LIMITED",
+      agentOrProviderId,
+      reason,
+      retryCount: task.retryCount,
+    });
+
+    this.enqueueTask(taskId);
+    this.metrics.totalReassignments++;
+    return { ok: true, taskId, state: TASK_STATES.REASSIGNABLE };
+  }
+
+  /**
    * 6. Sweep expired leases and mark tasks REASSIGNABLE (Work Stealing / Handoff)
    */
   sweepLeases() {
