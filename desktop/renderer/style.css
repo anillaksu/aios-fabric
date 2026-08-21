@@ -280,6 +280,134 @@ h3 {
   color: #000;
 }
 
+/* Matrix Grid */
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.matrix-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid var(--lime);
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+}
+
+.matrix-item.pink {
+  border-left-color: var(--pink);
+}
+
+.matrix-item.amber {
+  border-left-color: var(--amber);
+}
+
+.m-title {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.m-status {
+  font-weight: 700;
+}
+
+/* Ask The System Deck */
+.ask-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.btn-chip {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--cyan);
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-chip:hover {
+  background: var(--cyan);
+  color: #000;
+}
+
+.query-box {
+  display: flex;
+  gap: 6px;
+}
+
+.query-box input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.query-box input:focus {
+  outline: none;
+  border-color: var(--cyan);
+}
+
+.query-box button {
+  background: var(--cyan);
+  color: #000;
+  border: none;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.query-result {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-left: 3px solid var(--cyan);
+  padding: 8px 10px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.q-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.q-title {
+  font-weight: 700;
+}
+
+.q-time {
+  color: var(--text-muted);
+}
+
+.q-body {
+  font-size: 11px;
+  color: var(--text-main);
+}
+
 /* Approval Cards */
 .approval-list {
   display: flex;
@@ -362,61 +490,6 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-/* Timeline */
-.witness-feed {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.feed-empty {
-  color: var(--text-muted);
-  text-align: center;
-  padding: 12px 0;
-  font-style: italic;
-  font-size: 11px;
-}
-
-.witness-card {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-left: 3px solid var(--cyan);
-  padding: 6px 8px;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.witness-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-}
-
-.witness-title {
-  font-weight: 700;
-  color: var(--lime);
-}
-
-.witness-time {
-  color: var(--text-muted);
-}
-
-.witness-hash {
-  font-size: 9px;
-  color: var(--pink);
-  word-break: break-all;
-}
-
-.witness-data {
-  font-size: 10px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 3px 6px;
-  border-radius: 3px;
-  color: var(--text-muted);
 }
 
 .card-footer {

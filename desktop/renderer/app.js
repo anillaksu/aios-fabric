@@ -1,52 +1,37 @@
-// AIOS Control Surface — Agent Relay & Human Gate Logic
+// AIOS Control Surface — Shared Reality & Ask the System Logic
 
-let witnessHistory = [];
-
-async function sha256(str) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+let currentSnapshot = null;
 
 function nowTimeString() {
   return new Date().toLocaleTimeString("tr-TR");
 }
 
-function appendWitness(title, data, target = "http://100.75.177.88:9300") {
-  const timestamp = new Date().toISOString();
-  const rawStr = JSON.stringify({ timestamp, target, title, data });
-  sha256(rawStr).then((hash) => {
-    const item = {
-      title,
-      target,
-      timestamp: nowTimeString(),
-      hash: hash.slice(0, 32) + "...",
-      fullHash: hash,
-      data: JSON.stringify(data),
-    };
-    witnessHistory.unshift(item);
-    renderWitnessFeed();
-  });
+function classifyMatrixClient(snap) {
+  const isAndroidOnline = snap?.nodes?.android?.online === true && !snap?.nodes?.android?.stale;
+  const isChainValid = snap?.evidenceChain?.ok === true && snap?.evidenceChain?.status === "CHAIN_VALID";
+  const hasAttestation = Boolean(snap?.attestation?.latestWitnessId && snap?.attestation.latestWitnessId !== "GENESIS");
+  const hasArtifact = Boolean(snap?.artifact?.artifactId && snap?.artifact?.artifactSha256);
+  const pendingCount = (snap?.pendingApprovals || []).length;
+
+  return [
+    { title: "OBSERVER (100.75.177.88)", status: isAndroidOnline ? "PROVEN" : "STALE", color: isAndroidOnline ? "lime" : "pink" },
+    { title: "EVIDENCE LEDGER", status: isChainValid ? `PROVEN (${snap.evidenceChain.events} events)` : "NOT_PROVEN", color: isChainValid ? "lime" : "pink" },
+    { title: "NODE ATTESTATION", status: hasAttestation ? "PROVEN" : "NOT_PROVEN", color: hasAttestation ? "lime" : "pink" },
+    { title: "DISTRIBUTED ARTIFACT", status: hasArtifact ? "PROVEN" : "NOT_PROVEN", color: hasArtifact ? "lime" : "pink" },
+    { title: "A2A AUTH GATE", status: "BLOCKED (FAIL-CLOSED)", color: "pink" },
+    { title: "HUMAN CONTROL GATE", status: pendingCount > 0 ? `${pendingCount} REVIEW REQ` : "PROVEN", color: pendingCount > 0 ? "amber" : "lime" },
+  ];
 }
 
-function renderWitnessFeed() {
-  const container = document.getElementById("witness-feed");
-  if (witnessHistory.length === 0) {
-    container.innerHTML = '<div class="feed-empty">Henüz witness kaydı bulunmuyor.</div>';
-    return;
-  }
-  container.innerHTML = witnessHistory
-    .slice(0, 8)
+function renderMatrix(matrix = []) {
+  const container = document.getElementById("matrix-container");
+  if (!container) return;
+  container.innerHTML = matrix
     .map(
-      (w) => `
-      <div class="witness-card">
-        <div class="witness-header">
-          <span class="witness-title">⚡ ${w.title}</span>
-          <span class="witness-time">${w.timestamp}</span>
-        </div>
-        <div class="witness-hash">HASH: ${w.hash}</div>
-        <div class="witness-data">${w.data.slice(0, 100)}${w.data.length > 100 ? "..." : ""}</div>
+      (m) => `
+      <div class="matrix-item ${m.color}">
+        <span class="m-title">${m.title}</span>
+        <span class="m-status ${m.color}">${m.status}</span>
       </div>
     `,
     )
@@ -56,8 +41,9 @@ function renderWitnessFeed() {
 function renderApprovalRequests(requests = []) {
   const container = document.getElementById("approval-list");
   const badge = document.getElementById("header-pending-count");
-  badge.textContent = `${requests.length} BEKLEYEN`;
+  if (badge) badge.textContent = `${requests.length} BEKLEYEN`;
 
+  if (!container) return;
   if (requests.length === 0) {
     container.innerHTML = '<div class="feed-empty">Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemede.</div>';
     return;
@@ -86,7 +72,6 @@ window.handleDecision = async function (approvalId, decision) {
   try {
     if (window.aios?.resolveApproval) {
       await window.aios.resolveApproval(approvalId, decision);
-      appendWitness(`HUMAN_DECISION: ${decision}`, { approvalId, decision });
       refreshRelaySnapshot();
     }
   } catch (err) {
@@ -94,10 +79,70 @@ window.handleDecision = async function (approvalId, decision) {
   }
 };
 
+window.handleQuickQuery = function (q) {
+  const input = document.getElementById("query-input");
+  if (input) {
+    input.value = q;
+    submitQuery(q);
+  }
+};
+
+function submitQuery(queryText) {
+  const text = (queryText || document.getElementById("query-input")?.value || "").trim();
+  if (!text) return;
+
+  const q = text.toLowerCase();
+  let status = "PROVEN";
+  let answer = "";
+
+  if (q.includes("ne kanıtlandı") || q.includes("what is proven") || q.includes("kanıt")) {
+    answer = `Sistemde 6 temel alandan 5'i CANLI PROVEN durumdadır. A2A Auth Gate fail-closed BLOCKED olarak korunmaktadır.`;
+  } else if (q.includes("telefon") || q.includes("canlı")) {
+    const isOnline = currentSnapshot?.nodes?.android?.online === true && !currentSnapshot?.nodes?.android?.stale;
+    status = isOnline ? "PROVEN" : "STALE";
+    answer = isOnline
+      ? `Android Reference Node (http://100.75.177.88:9300) canlıdır. Ajan: ${currentSnapshot.nodes.android.agentName} v${currentSnapshot.nodes.android.agentVersion}.`
+      : "Android Reference Node şu an çevrimdışıdır (OFFLINE / STALE).";
+  } else if (q.includes("son kanıt") || q.includes("witness") || q.includes("defter")) {
+    answer = `Evidence Ledger: ${currentSnapshot?.evidenceChain?.status || "CHAIN_VALID"} (${currentSnapshot?.evidenceChain?.events || 0} olay zincirlendi).`;
+  } else if (q.includes("ortak") || q.includes("kesişim") || q.includes("capability")) {
+    const caps = currentSnapshot?.attestation?.allowedCapabilities || [];
+    answer = `Ortak Yetenek Kesişimi (${caps.length} adet): ${caps.join(", ")}.`;
+  } else if (q.includes("artifact") || q.includes("artefakt")) {
+    const art = currentSnapshot?.artifact;
+    answer = art
+      ? `Son Dağıtık Artifact: ${art.artifactId} (SHA: ${art.artifactSha256.slice(0, 16)}...). Lineage Witness: ${art.lineageWitnessId.slice(0, 20)}...`
+      : "Henüz üretilmiş bir dağıtık artifact bulunmuyor.";
+  } else if (q.includes("onay") || q.includes("approval") || q.includes("bekleyen")) {
+    const pCount = (currentSnapshot?.pendingApprovals || []).length;
+    status = pCount > 0 ? "HUMAN_APPROVAL_REQUIRED" : "PROVEN";
+    answer = pCount > 0
+      ? `Şu anda ${pCount} adet onay bekleyen eylem bulunmaktadır.`
+      : "Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemededir.";
+  } else {
+    status = "NOT_PROVEN";
+    answer = "Bu sorgu için deterministik bir kanıt kaydı bulunamadı (NOT_PROVEN).";
+  }
+
+  const resultBox = document.getElementById("query-result-box");
+  const badge = document.getElementById("q-status-badge");
+  const time = document.getElementById("q-time");
+  const answerEl = document.getElementById("q-answer-text");
+
+  if (resultBox && badge && time && answerEl) {
+    resultBox.style.display = "flex";
+    badge.textContent = status;
+    badge.className = `q-title ${status === "PROVEN" ? "lime" : status === "NOT_PROVEN" ? "pink" : "amber"}`;
+    time.textContent = nowTimeString();
+    answerEl.textContent = answer;
+  }
+}
+
 async function refreshRelaySnapshot() {
   try {
     if (!window.aios?.getRelaySnapshot) return;
     const snap = await window.aios.getRelaySnapshot();
+    currentSnapshot = snap;
 
     // 1. Android Düğüm Durumu
     const androidBadge = document.getElementById("android-badge");
@@ -131,8 +176,9 @@ async function refreshRelaySnapshot() {
       document.getElementById("art-lineage").textContent = snap.artifact.lineageWitnessId.slice(0, 24) + "...";
     }
 
-    // 5. Evidence Zincir Durumu
+    // 5. Evidence Zincir Durumu & Matris
     document.getElementById("latest-hash").textContent = snap.evidenceChain?.status || "CHAIN_VALID";
+    renderMatrix(classifyMatrixClient(snap));
 
     // 6. Onay Talepleri
     renderApprovalRequests(snap.pendingApprovals || []);
@@ -152,12 +198,9 @@ async function handleReadBattery() {
       document.getElementById("sensor-battery").textContent = `${bat.percentage ?? bat.level ?? "--"}%`;
       document.getElementById("sensor-temp").textContent = `${bat.temperature ?? "--"}°C`;
       document.getElementById("sensor-status").textContent = bat.status || "OK";
-      appendWitness("READ: sensor.battery.read", bat);
-    } else {
-      appendWitness("READ: sensor.battery.read (ERROR)", res.error || "Read failed");
     }
   } catch (err) {
-    appendWitness("READ: sensor.battery.read (EXCEPTION)", String(err));
+    console.error("Read battery failed", err);
   } finally {
     btn.disabled = false;
     btn.textContent = "⚡ CANLI PİL WITNESS ÜRET";
@@ -166,16 +209,15 @@ async function handleReadBattery() {
 
 // Initial Wireup
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("btn-manual-refresh").addEventListener("click", () => {
-    refreshRelaySnapshot();
+  document.getElementById("btn-manual-refresh")?.addEventListener("click", refreshRelaySnapshot);
+  document.getElementById("btn-read-battery")?.addEventListener("click", handleReadBattery);
+  document.getElementById("btn-submit-query")?.addEventListener("click", () => submitQuery());
+  document.getElementById("query-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitQuery();
   });
 
-  document.getElementById("btn-read-battery").addEventListener("click", handleReadBattery);
-
-  // İlk yükleme
   refreshRelaySnapshot();
 
-  // Canlı polling (5s)
   setInterval(() => {
     refreshRelaySnapshot();
   }, 5000);

@@ -7,6 +7,8 @@ import {
   observeCapabilities,
   observeBattery,
 } from "./observer.mjs";
+import { defaultRelay } from "./agent-relay.mjs";
+import { buildSharedRealitySummary, querySystemReality } from "./shared-reality.mjs";
 
 const PROTOCOL_VERSION = "2025-03-26";
 const SERVER_NAME = "aios-evidence-observer";
@@ -48,6 +50,22 @@ const TOOLS = [
     description: "Read live battery hardware telemetry from the Android phone, chain the witness into Evidence Ledger, and return the result.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "shared_reality.snapshot",
+    description: "Get the unified Shared Reality snapshot between Windows and Android nodes including 'What is Proven Now?' matrix.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "system.query",
+    description: "Ask the system a question ('What is proven now?', 'Is phone online?', 'Latest artifact?'). Answers deterministically from evidence without hallucinations.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural language query to match against proven evidence." },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 async function handleToolCall(name, args = {}) {
@@ -88,6 +106,20 @@ async function handleToolCall(name, args = {}) {
       const res = await observeBattery();
       return {
         content: [{ type: "text", text: JSON.stringify({ ok: res.ok, evidence: res.evidence, battery: res.data?.data }, null, 2) }],
+      };
+    }
+    case "shared_reality.snapshot": {
+      const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+      const summary = buildSharedRealitySummary(snap);
+      return {
+        content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
+      };
+    }
+    case "system.query": {
+      const snap = await defaultRelay.getSystemSnapshot({ timeoutMs: 2500 });
+      const result = querySystemReality(String(args.query || ""), snap);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
     }
     default:
@@ -159,7 +191,7 @@ if (process.argv[1] && process.argv[1].endsWith("mcp-server.mjs")) {
         const req = JSON.parse(line);
         const res = await processJsonRpc(req);
         if (res) process.stdout.write(JSON.stringify(res) + "\n");
-      } catch (err) {
+      } catch {
         process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }) + "\n");
       }
     }

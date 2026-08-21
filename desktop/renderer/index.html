@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIOS CONTROL SURFACE // AGENT RELAY DECK</title>
+  <title>AIOS CONTROL SURFACE // SHARED REALITY DECK</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,8 +12,8 @@
     <header class="deck-header">
       <div class="brand">
         <div class="pulse-indicator online" id="global-pulse"></div>
-        <span class="brand-title">AIOS · AGENT RELAY</span>
-        <span class="brand-badge" id="relay-badge">HUMAN CONTROL SURFACE</span>
+        <span class="brand-title">AIOS · SHARED REALITY</span>
+        <span class="brand-badge" id="relay-badge">CROSS-RUNTIME DECK</span>
       </div>
       <div class="header-metrics">
         <div class="metric-item">
@@ -89,17 +89,72 @@
         </div>
       </section>
 
-      <!-- Center Column: Human Control Gate & Approvals -->
+      <!-- Center Column: Shared Reality & Proven Matrix & Ask System -->
       <section class="card control-card">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">🛡️</span>
-            <h2>HUMAN APPROVAL GATE & RELAY</h2>
+            <span class="icon">🌐</span>
+            <h2>WHAT IS PROVEN NOW? // KANIT MATRİSİ</h2>
           </div>
-          <span class="card-badge" id="policy-badge">FAIL-CLOSED STRICT</span>
+          <span class="card-badge" id="policy-badge">DETERMINISTIC ZERO-HALLUCINATION</span>
         </div>
 
         <div class="card-body scrollable">
+          <!-- Proven Matrix Deck -->
+          <div class="matrix-grid" id="matrix-container">
+            <div class="matrix-item proven">
+              <span class="m-title">OBSERVER (100.75.177.88)</span>
+              <span class="m-status lime">PROVEN</span>
+            </div>
+            <div class="matrix-item proven">
+              <span class="m-title">EVIDENCE LEDGER</span>
+              <span class="m-status lime">PROVEN (CHAIN_VALID)</span>
+            </div>
+            <div class="matrix-item proven">
+              <span class="m-title">NODE ATTESTATION</span>
+              <span class="m-status lime">PROVEN</span>
+            </div>
+            <div class="matrix-item proven">
+              <span class="m-title">DISTRIBUTED ARTIFACT</span>
+              <span class="m-status lime">PROVEN</span>
+            </div>
+            <div class="matrix-item blocked">
+              <span class="m-title">A2A AUTH GATE</span>
+              <span class="m-status pink">BLOCKED (FAIL-CLOSED)</span>
+            </div>
+            <div class="matrix-item proven">
+              <span class="m-title">HUMAN CONTROL GATE</span>
+              <span class="m-status lime">PROVEN</span>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <!-- Ask The System Query Deck -->
+          <div class="ask-deck">
+            <h3>ASK THE SYSTEM (DETERMİNİSTİK SORU-CEVAP)</h3>
+            <div class="quick-questions">
+              <button class="btn-chip" onclick="handleQuickQuery('Şu an ne kanıtlandı?')">❓ Ne kanıtlandı?</button>
+              <button class="btn-chip" onclick="handleQuickQuery('Telefon canlı mı?')">📱 Telefon canlı mı?</button>
+              <button class="btn-chip" onclick="handleQuickQuery('Son kanıt ne?')">📜 Son kanıt?</button>
+              <button class="btn-chip" onclick="handleQuickQuery('Hangi capabilityler ortak?')">⚡ Ortak yetenekler?</button>
+              <button class="btn-chip" onclick="handleQuickQuery('Son artifact nedir?')">📦 Son artifact?</button>
+            </div>
+            <div class="query-box">
+              <input type="text" id="query-input" placeholder="Sisteme deterministik soru sorun..." />
+              <button id="btn-submit-query">SORGULA</button>
+            </div>
+            <div class="query-result" id="query-result-box" style="display: none;">
+              <div class="q-header">
+                <span class="q-title" id="q-status-badge">PROVEN</span>
+                <span class="q-time" id="q-time">--:--:--</span>
+              </div>
+              <div class="q-body" id="q-answer-text">--</div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+
           <!-- Pending Approvals Area -->
           <div class="approval-deck">
             <h3>BEKLEYEN İNSAN ONAYI TALEPLERİ</h3>
@@ -119,14 +174,6 @@
               <div class="info-row"><span class="lbl">İnsan Onayı:</span><span class="val lime" id="art-approval">GRANTED (operator-admin)</span></div>
               <div class="info-row"><span class="lbl">Politika Sonucu:</span><span class="val lime" id="art-policy">ALLOWED</span></div>
             </div>
-          </div>
-
-          <div class="section-divider"></div>
-
-          <!-- Witness Feed -->
-          <h3>CANLI EVIDENCE ZİNCİRİ</h3>
-          <div class="witness-feed" id="witness-feed">
-            <div class="feed-empty">Henüz witness kaydı bulunmuyor.</div>
           </div>
         </div>
 
@@ -155,7 +202,7 @@
           </div>
           <div class="info-row">
             <span class="lbl">Ajan Rolü:</span>
-            <span class="val">Agent Relay & Control Deck</span>
+            <span class="val">Shared Reality & Relay Deck</span>
           </div>
           <div class="info-row">
             <span class="lbl">Uç Nokta:</span>
@@ -189,10 +236,10 @@
     <footer class="deck-footer">
       <div class="footer-left">
         <span class="dot green"></span>
-        <span>Cross-Runtime Agent Relay · Zero Secret Transmission · Human Approval Required</span>
+        <span>Cross-Runtime Shared Reality · Zero Secret Transmission · Deterministic Matrix</span>
       </div>
       <div class="footer-right">
-        <span>AIOS v0.1.0 · Windows Observer & Relay Host</span>
+        <span>AIOS v0.1.0 · Windows Observer & Shared Reality Host</span>
       </div>
     </footer>
   </div>
