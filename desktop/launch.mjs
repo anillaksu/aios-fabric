@@ -39,7 +39,15 @@ const MIME = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".svg": "image/svg+xml; charset=utf-8",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
 };
+
+// Binary türler utf8 olarak okunamaz; Buffer olarak servis edilir.
+const BINARY_EXT = new Set([".png", ".ico", ".woff2"]);
 
 async function fetchJson(url, options = {}) {
   const timeoutMs = options.timeoutMs || 4000;
@@ -69,11 +77,42 @@ const server = createServer(async (req, res) => {
 
   // API Endpoints
   if (url.pathname === "/api/projection") {
-    const profile = url.searchParams.get("profile") || "desktop";
+    const requested = (url.searchParams.get("profile") || "desktop")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    // TEK kanonik state okumasi. Coklu profil istendiginde tum projeksiyonlar
+    // ayni state'ten uretilir; parite ancak boyle gozlemlenebilir.
     const state = await defaultControlPlane.getCanonicalState();
-    const projection = projectCanonicalState(state, profile);
+
+    if (requested.length === 1) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(projectCanonicalState(state, requested[0])));
+      return;
+    }
+
+    const projections = {};
+    for (const profile of requested) {
+      projections[profile] = projectCanonicalState(state, profile);
+    }
+    const slotHashes = [...new Set(Object.values(projections).map((p) => p.semanticSlotHash))];
+    const realityDigests = [...new Set(Object.values(projections).map((p) => p.realityDigest))];
+
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(projection));
+    res.end(
+      JSON.stringify({
+        schema: "aios.surface.projection.parity.v1",
+        realityDigest: realityDigests.length === 1 ? realityDigests[0] : null,
+        realityDigestParity: realityDigests.length === 1,
+        semanticSlotHash: slotHashes.length === 1 ? slotHashes[0] : null,
+        semanticSlotParity: slotHashes.length === 1,
+        projectionHashes: Object.fromEntries(
+          Object.entries(projections).map(([k, v]) => [k, v.projectionHash]),
+        ),
+        projections,
+      }),
+    );
     return;
   }
 
@@ -356,6 +395,14 @@ const server = createServer(async (req, res) => {
 
   if (existsSync(filePath)) {
     const ext = extname(filePath);
+
+    if (BINARY_EXT.has(ext)) {
+      const buf = readFileSync(filePath);
+      res.writeHead(200, { "Content-Type": MIME[ext], "Cache-Control": "public, max-age=86400" });
+      res.end(buf);
+      return;
+    }
+
     let content = readFileSync(filePath, "utf8");
 
     // In HTTP mode, mock window.aios bridge to call /api/* routes seamlessly

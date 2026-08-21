@@ -76,7 +76,11 @@ export function extractSemanticSlots(canonicalState = {}) {
       liveness: runtime.liveness || "STANDBY",
       progress: runtime.progress || "0 / 0",
       currentStep: runtime.current_step || "IDLE",
-      heartbeatAgeSec: runtime.heartbeat_age_sec || 0,
+      // Duvar saatinden türeyen "yaş" hash'lenen slotlara giremez: hiçbir
+      // kanonik değişiklik olmadan semantic_slot_hash'i her saniye kaydırır ve
+      // "aynı state + aynı profil -> byte-özdeş" değişmezini gözlemlenemez kılar.
+      // Kanonik olan mutlak zaman damgasıdır; yaş sunum katmanında hesaplanır.
+      lastHeartbeat: runtime.last_heartbeat || null,
       elapsedMs: runtime.elapsed_ms || 0,
       eta: runtime.eta?.formatted || "N/A",
     },

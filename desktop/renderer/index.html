@@ -3,23 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#070B10">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>AIOS CONTROL SURFACE // SHARED REALITY DECK</title>
+  <title>AIOS Control Surface</title>
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="deck-container">
-    <!-- Top Header -->
-    <header class="deck-header">
+    <!-- STATUS BAR (glass) -->
+    <header class="deck-header" role="banner">
       <div class="brand">
-        <div class="pulse-indicator online" id="global-pulse"></div>
-        <span class="brand-title">AIOS · SHARED REALITY</span>
-        <span class="brand-badge" id="relay-badge">CROSS-RUNTIME DECK</span>
-        <span class="pwa-badge" id="pwa-mode-badge" style="display: none;">STANDALONE</span>
+        <span class="pulse-indicator online" id="global-pulse" aria-hidden="true"></span>
+        <span class="brand-title">AIOS</span>
+        <span class="freshness-chip" id="freshness-chip" role="status" aria-live="polite">Bağlanıyor</span>
+        <span class="pwa-badge" id="pwa-mode-badge" hidden>STANDALONE</span>
       </div>
       <div class="header-metrics">
         <div class="metric-item">
@@ -28,261 +30,260 @@
         </div>
         <div class="metric-item">
           <span class="label">INTERSECTION</span>
-          <span class="value lime" id="header-intersection-count">4 CAPS</span>
+          <span class="value lime" id="header-intersection-count">0 CAPS</span>
         </div>
         <div class="metric-item">
           <span class="label">PENDING REVIEWS</span>
           <span class="value amber" id="header-pending-count">0 BEKLEYEN</span>
         </div>
-        <button class="btn-refresh" id="btn-manual-refresh">⟳ YENİLE</button>
+        <button class="btn-refresh" id="btn-manual-refresh" type="button">Yenile</button>
       </div>
     </header>
 
-    <!-- Main Grid -->
+    <!-- CONTENT -->
     <main class="deck-grid" id="main-deck-grid">
-      <!-- Left Column: Android Reference Node -->
-      <section class="card node-card android-card" data-slot="nodes" id="card-android">
+
+      <!-- Telefon düğümü (ikincil) -->
+      <section class="card node-card android-card" data-slot="nodes" id="card-android" aria-labelledby="h-android">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">📱</span>
-            <h2>ANDROID REFERENCE NODE</h2>
+            <span class="icon" aria-hidden="true">&#128241;</span>
+            <h2 id="h-android">Telefon</h2>
           </div>
-          <span class="status-badge" id="android-badge">BAĞLANIYOR...</span>
+          <span class="status-badge" id="android-badge">Bağlanıyor</span>
         </div>
 
         <div class="card-body">
-          <div class="info-row">
-            <span class="lbl">Düğüm Kimliği:</span>
-            <span class="val cyan" id="android-node-id">--</span>
+          <div class="stat-line">
+            <span class="stat-key">Ajan</span>
+            <span class="stat-val" id="android-agent-name">&mdash;</span>
           </div>
-          <div class="info-row">
-            <span class="lbl">Ajan Adı:</span>
-            <span class="val" id="android-agent-name">--</span>
-          </div>
-          <div class="info-row">
-            <span class="lbl">Uç Nokta:</span>
-            <span class="val">http://100.75.177.88:9300</span>
+          <div class="stat-line">
+            <span class="stat-key">Kimlik</span>
+            <span class="stat-val" id="android-node-id">&mdash;</span>
           </div>
 
-          <div class="section-divider"></div>
+          <h3>Sistem servisleri</h3>
+          <div class="services-list" id="android-services"></div>
 
-          <h3>SİSTEM SERVİSLERİ</h3>
-          <div class="services-list" id="android-services">
-            <div class="service-item"><span class="s-name">Fabric (9300)</span><span class="s-status lime">ONLINE</span></div>
-            <div class="service-item"><span class="s-name">LLM Bridge (9201)</span><span class="s-status lime">ONLINE</span></div>
-            <div class="service-item"><span class="s-name">Hermes A2A (8642)</span><span class="s-status lime">ONLINE</span></div>
-            <div class="service-item"><span class="s-name">Watchdog</span><span class="s-status amber">DOWN</span></div>
-          </div>
-
-          <div class="section-divider"></div>
-
-          <h3>CANLI DONANIM TELEMETRİSİ</h3>
+          <h3>Donanım telemetrisi</h3>
           <div class="sensor-box" id="sensor-container">
             <div class="sensor-metric">
               <span class="s-lbl">PİL</span>
-              <span class="s-val lime" id="sensor-battery">--%</span>
+              <span class="s-val lime" id="sensor-battery">&mdash;</span>
             </div>
             <div class="sensor-metric">
               <span class="s-lbl">SICAKLIK</span>
-              <span class="s-val" id="sensor-temp">--°C</span>
+              <span class="s-val" id="sensor-temp">&mdash;</span>
             </div>
             <div class="sensor-metric">
               <span class="s-lbl">DURUM</span>
-              <span class="s-val cyan" id="sensor-status">--</span>
+              <span class="s-val cyan" id="sensor-status">&mdash;</span>
             </div>
           </div>
-          <button class="btn-action" id="btn-read-battery">⚡ CANLI PİL WITNESS ÜRET</button>
+          <button class="btn-action" id="btn-read-battery" type="button">Pil durumunu kanıtla</button>
+
+          <details class="disclosure">
+            <summary>Teknik ayrıntı</summary>
+            <div class="disclosure-body">
+              <div class="stat-line"><span class="stat-key">Uç nokta</span><span class="stat-val mono" id="android-endpoint">&mdash;</span></div>
+            </div>
+          </details>
         </div>
       </section>
 
-      <!-- Center Column: Shared Reality & Proven Matrix & Ask System -->
+      <!-- Merkez: SOR / GERÇEKLİK / KARARLAR / KANIT -->
       <section class="card control-card" data-slot="reality" id="card-center">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">🌐</span>
-            <h2>WHAT IS PROVEN NOW? // KANIT MATRİSİ</h2>
+            <span class="icon" aria-hidden="true">&#127760;</span>
+            <h2 id="center-heading">Şu an ne kanıtlandı?</h2>
           </div>
-          <span class="card-badge" id="policy-badge">DETERMINISTIC ZERO-HALLUCINATION</span>
+          <span class="card-badge" id="policy-badge">&mdash;</span>
         </div>
 
         <div class="card-body scrollable">
-          <!-- Proven Matrix Deck -->
-          <div class="matrix-grid" id="matrix-container">
-            <div class="matrix-item proven">
-              <span class="m-title">OBSERVER (100.75.177.88)</span>
-              <span class="m-status lime">PROVEN</span>
-            </div>
-            <div class="matrix-item proven">
-              <span class="m-title">EVIDENCE LEDGER</span>
-              <span class="m-status lime">PROVEN (CHAIN_VALID)</span>
-            </div>
-            <div class="matrix-item proven">
-              <span class="m-title">NODE ATTESTATION</span>
-              <span class="m-status lime">PROVEN</span>
-            </div>
-            <div class="matrix-item proven">
-              <span class="m-title">DISTRIBUTED ARTIFACT</span>
-              <span class="m-status lime">PROVEN</span>
-            </div>
-            <div class="matrix-item blocked">
-              <span class="m-title">A2A AUTH GATE</span>
-              <span class="m-status pink">BLOCKED (FAIL-CLOSED)</span>
-            </div>
-            <div class="matrix-item proven">
-              <span class="m-title">HUMAN CONTROL GATE</span>
-              <span class="m-status lime">PROVEN</span>
-            </div>
-          </div>
 
-          <div class="section-divider"></div>
-
-          <!-- ASK AIOS: Unified Canonical Operational Center -->
-          <div class="ask-deck" data-subslot="ask" id="subslot-ask">
-            <h3>💬 ASK AIOS (TEK KANONİK GİRİŞ & İCRA YÜZEYİ)</h3>
-            <div class="quick-questions">
-              <button class="btn-chip" onclick="handleQuickAsk('Telefonun pil durumunu kontrol et.')">⚡ Pil Durumu</button>
-              <button class="btn-chip" onclick="handleQuickAsk('Şu an sistemde ne kanıtlandı?')">📜 Ne Kanıtlandı?</button>
-              <button class="btn-chip" onclick="handleQuickAsk('Tarayıcı reklam durumunu kontrol et.')">🌐 Tarayıcı AdSentinel</button>
-              <button class="btn-chip" onclick="handleQuickAsk('Ortak yetenek listesini çıkar.')">🔌 Ortak Yetenekler</button>
-            </div>
+          <!-- SOR -->
+          <div class="subslot" data-subslot="ask" id="subslot-ask" role="tabpanel" aria-labelledby="tab-nav-ask">
             <div class="query-box">
-              <input type="text" id="ask-aios-input" placeholder="Doğal dil isteği yazın (örn: Telefonun pil durumunu kontrol et)..." />
-              <button id="btn-submit-ask">SEND TO AIOS</button>
+              <label class="sr-only" for="ask-aios-input">AIOS için doğal dil isteği</label>
+              <input type="text" id="ask-aios-input" autocomplete="off" placeholder="Ne yapmak istiyorsun?" />
+              <button id="btn-submit-ask" type="button">Gönder</button>
             </div>
 
-            <!-- Multi-Agent Proposals & Human Gate Review View -->
-            <div class="ask-workflow-card" id="ask-workflow-card" style="display: none;">
-              <div class="q-header">
-                <span class="q-title" id="ask-request-badge">REQ: NONE</span>
-                <span class="q-time" id="ask-time">--:--:--</span>
-              </div>
-              <div class="ask-details" id="ask-details">
-                <div class="info-row"><span class="lbl">Prompt:</span><span class="val cyan" id="ask-prompt-text">--</span></div>
-                <div class="info-row"><span class="lbl">Hedef Yetenek:</span><span class="val lime" id="ask-op-text">--</span></div>
-                <div class="info-row"><span class="lbl">Reality Digest:</span><span class="val pink" id="ask-digest-text">--</span></div>
+            <div class="quick-questions" role="group" aria-label="Hazır istekler">
+              <button class="btn-chip" type="button" data-ask="Telefonun pil durumunu kontrol et.">Pil durumu</button>
+              <button class="btn-chip" type="button" data-ask="Şu an sistemde ne kanıtlandı?">Ne kanıtlandı?</button>
+              <button class="btn-chip" type="button" data-ask="Tarayıcı reklam durumunu kontrol et.">Tarayıcı</button>
+              <button class="btn-chip" type="button" data-ask="Ortak yetenek listesini çıkar.">Yetenekler</button>
+            </div>
+
+            <p class="inline-error" id="ask-error" role="alert" hidden></p>
+
+            <div class="gate-card" id="ask-workflow-card" hidden>
+              <div class="gate-head">
+                <span class="status-dot waiting" aria-hidden="true"></span>
+                <span class="gate-title">Karar bekleniyor</span>
               </div>
 
-              <!-- Multi-Agent Proposals Grid -->
-              <div class="proposals-grid" id="proposals-grid">
-                <!-- Injected dynamically -->
-              </div>
+              <p class="gate-what" id="ask-prompt-text">&mdash;</p>
 
-              <!-- Human Gate Action Box -->
-              <div class="human-gate-action-box" id="human-gate-action-box">
-                <span class="hg-notice">⚠️ İNSAN OPERATÖR ONAYI BEKLENİYOR (Fail-Closed)</span>
-                <div class="hg-buttons">
-                  <button class="btn-approve" id="btn-hg-approve">✓ APPROVE & EXECUTE</button>
-                  <button class="btn-deny" id="btn-hg-deny">✕ DENY</button>
+              <dl class="gate-facts">
+                <div class="gate-fact"><dt>Yapılacak</dt><dd id="ask-op-text">&mdash;</dd></div>
+                <div class="gate-fact"><dt>Neden</dt><dd id="ask-why-text">&mdash;</dd></div>
+                <div class="gate-fact"><dt>Öneren</dt><dd id="ask-by-text">&mdash;</dd></div>
+                <div class="gate-fact"><dt>Risk</dt><dd id="ask-risk-text">&mdash;</dd></div>
+                <div class="gate-fact"><dt>Gerçeklik</dt><dd id="ask-digest-text">&mdash;</dd></div>
+              </dl>
+
+              <details class="disclosure">
+                <summary>Teknik ayrıntı</summary>
+                <div class="disclosure-body">
+                  <div class="stat-line"><span class="stat-key">İstek</span><span class="stat-val mono" id="ask-request-badge">&mdash;</span></div>
+                  <div class="stat-line"><span class="stat-key">Zaman</span><span class="stat-val mono" id="ask-time">&mdash;</span></div>
+                  <h3>Ajan önerileri</h3>
+                  <div class="proposals-grid" id="proposals-grid"></div>
                 </div>
+              </details>
+
+              <div class="gate-actions" id="human-gate-action-box">
+                <button class="btn-approve" id="btn-hg-approve" type="button">Onayla</button>
+                <button class="btn-deny" id="btn-hg-deny" type="button">Reddet</button>
               </div>
 
-              <!-- Task Execution Result View -->
-              <div class="task-result-box" id="task-result-box" style="display: none;">
-                <div class="q-header">
-                  <span class="q-title lime">TASK RESULT: COMPLETED</span>
-                  <span class="val cyan" id="task-witness-text">--</span>
+              <div class="result-box" id="task-result-box" hidden>
+                <div class="result-head">
+                  <span class="status-dot proven" id="task-result-dot" aria-hidden="true"></span>
+                  <span id="task-result-title">Tamamlandı</span>
                 </div>
-                <pre class="result-pre" id="task-result-pre">--</pre>
+                <p class="result-summary" id="task-result-summary">&mdash;</p>
+                <details class="disclosure">
+                  <summary>Ham sonuç</summary>
+                  <div class="disclosure-body">
+                    <div class="stat-line"><span class="stat-key">Witness</span><span class="stat-val mono" id="task-witness-text">&mdash;</span></div>
+                    <pre class="result-pre" id="task-result-pre">&mdash;</pre>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
 
-          <div class="section-divider"></div>
+          <!-- GERÇEKLİK -->
+          <div class="subslot" data-subslot="reality" id="subslot-reality" role="tabpanel" aria-labelledby="tab-nav-reality">
+            <ul class="semantic-list" id="reality-semantic-list" aria-label="Gerçeklik durumu"></ul>
 
-          <!-- Pending Approvals Area -->
-          <div class="approval-deck" data-subslot="requests" id="subslot-requests">
-            <h3>BEKLEYEN İNSAN ONAYI TALEPLERİ</h3>
-            <div class="approval-list" id="approval-list">
-              <div class="feed-empty">Bekleyen onay talebi bulunmuyor. Sistem güvenli beklemede.</div>
-            </div>
+            <details class="disclosure">
+              <summary>Düğümler</summary>
+              <div class="disclosure-body">
+                <ul class="semantic-list" id="nodes-semantic-list"></ul>
+                <button class="btn-secondary" type="button" data-goto="nodes">Düğüm ayrıntısını aç</button>
+              </div>
+            </details>
+
+            <details class="disclosure">
+              <summary>Kanıt matrisi (teknik)</summary>
+              <div class="disclosure-body">
+                <div class="matrix-grid" id="matrix-container"></div>
+                <div class="stat-line"><span class="stat-key">Reality digest</span><span class="stat-val mono" id="reality-digest">&mdash;</span></div>
+              </div>
+            </details>
           </div>
 
-          <div class="section-divider"></div>
-
-          <!-- Distributed Artifact Deck -->
-          <div class="artifact-deck" data-subslot="evidence" id="subslot-evidence">
-            <h3>SON DAĞITIK ARTIFACT (<span id="art-id">YOK</span>)</h3>
-            <div class="artifact-card" id="artifact-container">
-              <div class="info-row"><span class="lbl">Artifact SHA:</span><span class="val pink" id="art-sha">--</span></div>
-              <div class="info-row"><span class="lbl">Attestation Lineage:</span><span class="val cyan" id="art-lineage">--</span></div>
-              <div class="info-row"><span class="lbl">İnsan Onayı:</span><span class="val lime" id="art-approval">GRANTED (operator-admin)</span></div>
-              <div class="info-row"><span class="lbl">Politika Sonucu:</span><span class="val lime" id="art-policy">ALLOWED</span></div>
-            </div>
+          <!-- KARARLAR -->
+          <div class="subslot" data-subslot="requests" id="subslot-requests" role="tabpanel" aria-labelledby="tab-nav-requests">
+            <div class="approval-list" id="approval-list" aria-live="polite"></div>
           </div>
-        </div>
 
-        <div class="card-footer">
-          <div class="hash-box">
-            <span class="hash-lbl">EVIDENCE CHAIN STATUS:</span>
-            <span class="hash-val" id="latest-hash">CHAIN_VALID</span>
+          <!-- KANIT -->
+          <div class="subslot" data-subslot="evidence" id="subslot-evidence" role="tabpanel" aria-labelledby="tab-nav-evidence">
+            <ul class="semantic-list" id="evidence-semantic-list" aria-label="Kanıt durumu"></ul>
+
+            <details class="disclosure">
+              <summary>Son artifact</summary>
+              <div class="disclosure-body">
+                <div class="stat-line"><span class="stat-key">Artifact</span><span class="stat-val mono" id="art-id">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">SHA-256</span><span class="stat-val mono" id="art-sha">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">Lineage</span><span class="stat-val mono" id="art-lineage">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">İnsan onayı</span><span class="stat-val" id="art-approval">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">Politika</span><span class="stat-val" id="art-policy">&mdash;</span></div>
+              </div>
+            </details>
+
+            <details class="disclosure">
+              <summary>Attestation</summary>
+              <div class="disclosure-body">
+                <div class="stat-line"><span class="stat-key">Kesişim</span><span class="stat-val mono" id="inter-hash">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">Zincir başı</span><span class="stat-val mono" id="latest-hash">&mdash;</span></div>
+                <h3>Ortak yetenekler</h3>
+                <div class="caps-tags" id="intersection-list"></div>
+              </div>
+            </details>
+
+            <details class="disclosure">
+              <summary>Tanılama</summary>
+              <div class="disclosure-body">
+                <div class="stat-line"><span class="stat-key">Doğrulama</span><span class="stat-val">HMAC-SHA256</span></div>
+                <div class="stat-line"><span class="stat-key">Replay koruması</span><span class="stat-val">Tek kullanımlık nonce</span></div>
+                <div class="stat-line"><span class="stat-key">Secret</span><span class="stat-val">İletim yok</span></div>
+                <div class="stat-line"><span class="stat-key">Profil</span><span class="stat-val mono" id="diag-profile">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">Projection hash</span><span class="stat-val mono" id="diag-projection-hash">&mdash;</span></div>
+                <div class="stat-line"><span class="stat-key">Slot hash</span><span class="stat-val mono" id="diag-slot-hash">&mdash;</span></div>
+              </div>
+            </details>
           </div>
+
         </div>
       </section>
 
-      <!-- Right Column: Windows Node & Attestation Matrix -->
-      <section class="card node-card windows-card" data-slot="nodes" id="card-windows">
+      <!-- Bilgisayar düğümü (ikincil) -->
+      <section class="card node-card windows-card" data-slot="nodes" id="card-windows" aria-labelledby="h-windows">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">💻</span>
-            <h2>WINDOWS OBSERVER NODE</h2>
+            <span class="icon" aria-hidden="true">&#128187;</span>
+            <h2 id="h-windows">Bilgisayar</h2>
           </div>
-          <span class="status-badge" id="windows-badge">ONLINE</span>
+          <span class="status-badge" id="windows-badge">Bağlı</span>
         </div>
 
         <div class="card-body">
-          <div class="info-row">
-            <span class="lbl">Düğüm Kimliği:</span>
-            <span class="val cyan" id="windows-node-id">--</span>
+          <div class="stat-line">
+            <span class="stat-key">Rol</span>
+            <span class="stat-val">Ortak gerçeklik sunucusu</span>
           </div>
-          <div class="info-row">
-            <span class="lbl">Ajan Rolü:</span>
-            <span class="val">Shared Reality & Relay Deck</span>
-          </div>
-          <div class="info-row">
-            <span class="lbl">Uç Nokta:</span>
-            <span class="val">http://127.0.0.1:9310</span>
+          <div class="stat-line">
+            <span class="stat-key">Kimlik</span>
+            <span class="stat-val" id="windows-node-id">&mdash;</span>
           </div>
 
-          <div class="section-divider"></div>
-
-          <h3>ORTAK YETENEK KESİŞİMİ (A ∩ B)</h3>
-          <div class="caps-tags" id="intersection-list">
-            <span class="cap-tag">a2a.delegate</span>
-            <span class="cap-tag">sensor.battery.read</span>
-            <span class="cap-tag">volume.read</span>
-            <span class="cap-tag">wifi.info</span>
+          <h3>Tarayıcı düğümü</h3>
+          <div class="stat-line">
+            <span class="stat-key">Durum</span>
+            <span class="stat-val" id="browser-status-verdict">&mdash;</span>
+          </div>
+          <div class="stat-line">
+            <span class="stat-key">Son gözlem</span>
+            <span class="stat-val" id="browser-observed-at">&mdash;</span>
           </div>
 
-          <div class="section-divider"></div>
-
-          <!-- Canonical Browser Node Section -->
-          <h3>🌐 BROWSER NODE (ADSENTINEL CHROMIUM)</h3>
-          <div class="formation-box" id="browser-node-box">
-            <div class="f-row"><span class="lbl">Düğüm Kimliği:</span><span class="val cyan" id="browser-node-id">--</span></div>
-            <div class="f-row"><span class="lbl">Durum / Verdict:</span><span class="val lime" id="browser-status-verdict">PROVEN (PASS)</span></div>
-            <div class="f-row"><span class="lbl">Proof Digest:</span><span class="val pink" id="browser-digest">--</span></div>
-            <div class="f-row"><span class="lbl">Son Gözlem:</span><span class="val" id="browser-observed-at">--</span></div>
-            <div class="f-row"><span class="lbl">Evidence Ref:</span><span class="val cyan" id="browser-evidence-ref">--</span></div>
-          </div>
-
-          <div class="section-divider"></div>
-
-          <h3>ATTESTATION VE LINEAGE MATRİSİ</h3>
-          <div class="formation-box" id="attestation-box">
-            <div class="f-row"><span class="lbl">Kesişim Hash:</span><span class="val lime" id="inter-hash">--</span></div>
-            <div class="f-row"><span class="lbl">HMAC Doğrulama:</span><span class="val lime">HMAC-SHA256 OK</span></div>
-            <div class="f-row"><span class="lbl">Replay Koruması:</span><span class="val cyan">SINGLE-USE NONCE</span></div>
-            <div class="f-row"><span class="lbl">Secret İzolasyonu:</span><span class="val pink">ZERO TRANSMISSION</span></div>
-          </div>
+          <details class="disclosure">
+            <summary>Teknik ayrıntı</summary>
+            <div class="disclosure-body">
+              <div class="stat-line"><span class="stat-key">Uç nokta</span><span class="stat-val mono" id="windows-endpoint">&mdash;</span></div>
+              <div class="stat-line"><span class="stat-key">Tarayıcı kimliği</span><span class="stat-val mono" id="browser-node-id">&mdash;</span></div>
+              <div class="stat-line"><span class="stat-key">Proof digest</span><span class="stat-val mono" id="browser-digest">&mdash;</span></div>
+              <div class="stat-line"><span class="stat-key">Evidence ref</span><span class="stat-val mono" id="browser-evidence-ref">&mdash;</span></div>
+            </div>
+          </details>
         </div>
       </section>
 
-      <!-- Full-Width Bottom Section: Canonical Runtime Execution Console -->
-      <section class="card runtime-console-card" data-slot="runtime" id="card-runtime">
+      <!-- ÇALIŞMA -->
+      <section class="card runtime-console-card" data-slot="runtime" id="card-runtime" aria-labelledby="h-runtime">
         <div class="card-header">
           <div class="card-title">
-            <span class="icon">⚡</span>
-            <h2>AIOS RUNTIME EXECUTION CONSOLE // ORCHESTRATOR</h2>
+            <span class="icon" aria-hidden="true">&#9889;</span>
+            <h2 id="h-runtime">Çalışma</h2>
           </div>
           <div class="header-actions">
             <span class="status-badge" id="runtime-state-badge">IDLE</span>
@@ -290,90 +291,101 @@
           </div>
         </div>
 
-        <div class="card-body runtime-body">
-          <!-- Runtime Metrics Grid -->
-          <div class="runtime-metrics-grid">
-            <div class="rt-metric">
-              <span class="r-lbl">MASTER RUN ID</span>
-              <span class="r-val cyan" id="rt-run-id">NONE</span>
-            </div>
-            <div class="rt-metric">
-              <span class="r-lbl">STEP PROGRESS</span>
-              <span class="r-val lime" id="rt-progress">0 / 0</span>
-            </div>
-            <div class="rt-metric">
-              <span class="r-lbl">CURRENT STEP</span>
-              <span class="r-val" id="rt-current-step">IDLE</span>
-            </div>
-            <div class="rt-metric">
-              <span class="r-lbl">HEARTBEAT</span>
-              <span class="r-val" id="rt-heartbeat">N/A</span>
-            </div>
-            <div class="rt-metric">
-              <span class="r-lbl">ELAPSED TIME</span>
-              <span class="r-val" id="rt-elapsed">00:00:00</span>
-            </div>
-            <div class="rt-metric">
-              <span class="r-lbl">OBSERVATIONAL ETA</span>
-              <span class="r-val amber" id="rt-eta">N/A</span>
-            </div>
+        <div class="card-body runtime-body scrollable">
+          <div class="run-summary">
+            <span class="status-dot" id="run-dot" aria-hidden="true"></span>
+            <span class="run-headline" id="run-headline">Beklemede</span>
+            <span class="run-age" id="run-age"></span>
           </div>
 
-          <!-- Progress Bar -->
-          <div class="progress-bar-container">
+          <div class="progress-bar-container" role="progressbar" id="rt-progress-bar"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Çalışma ilerlemesi">
             <div class="progress-bar-fill" id="rt-progress-fill" style="width: 0%"></div>
           </div>
 
-          <!-- Live Event Log -->
-          <div class="runtime-log-box" id="rt-log-box">
-            <div class="rt-log-line">Orchestrator hazır. Gate 24 regression veya özel plan başlatılabilir.</div>
+          <div class="runtime-metrics-grid">
+            <div class="rt-metric">
+              <span class="r-lbl">ADIM</span>
+              <span class="r-val lime" id="rt-progress">0 / 0</span>
+            </div>
+            <div class="rt-metric">
+              <span class="r-lbl">SÜRE</span>
+              <span class="r-val" id="rt-elapsed">00:00:00</span>
+            </div>
+            <div class="rt-metric">
+              <span class="r-lbl">TAHMİNİ</span>
+              <span class="r-val amber" id="rt-eta">&mdash;</span>
+            </div>
+            <div class="rt-metric">
+              <span class="r-lbl">HEARTBEAT</span>
+              <span class="r-val" id="rt-heartbeat">&mdash;</span>
+            </div>
+          </div>
+
+          <div class="stat-line">
+            <span class="stat-key">Şu anki adım</span>
+            <span class="stat-val" id="rt-current-step">&mdash;</span>
           </div>
 
           <div class="runtime-controls">
-            <button class="btn-run" id="btn-start-gate24">▶ START GATE 24</button>
-            <button class="btn-stop" id="btn-stop-runtime">⏹ STOP</button>
-            <button class="btn-refresh" id="btn-refresh-runtime">⟳ STATUS</button>
+            <button class="btn-run" id="btn-start-gate24" type="button">Başlat</button>
+            <button class="btn-stop" id="btn-stop-runtime" type="button">Durdur</button>
+            <button class="btn-secondary" id="btn-refresh-runtime" type="button">Yenile</button>
           </div>
+
+          <details class="disclosure">
+            <summary>Olay akışı</summary>
+            <div class="disclosure-body">
+              <div class="stat-line"><span class="stat-key">Run ID</span><span class="stat-val mono" id="rt-run-id">&mdash;</span></div>
+              <div class="runtime-log-box" id="rt-log-box"></div>
+            </div>
+          </details>
         </div>
       </section>
     </main>
 
-    <!-- Mobile Bottom Navigation (Touch-optimized 44px+) -->
-    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
-      <button class="nav-tab active" data-tab="ask" id="tab-nav-ask" onclick="switchMobileView('ask')">
-        <span class="nav-icon">💬</span>
-        <span class="nav-label">ASK</span>
+    <!-- TAB BAR (glass) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" role="tablist" aria-label="AIOS ana gezinme">
+      <button class="nav-tab active" type="button" role="tab" data-tab="ask" id="tab-nav-ask"
+              aria-selected="true" aria-controls="subslot-ask">
+        <span class="nav-icon" aria-hidden="true">&#128172;</span>
+        <span class="nav-label">Sor</span>
       </button>
-      <button class="nav-tab" data-tab="reality" id="tab-nav-reality" onclick="switchMobileView('reality')">
-        <span class="nav-icon">🌐</span>
-        <span class="nav-label">REALITY</span>
+      <button class="nav-tab" type="button" role="tab" data-tab="reality" id="tab-nav-reality"
+              aria-selected="false" aria-controls="subslot-reality">
+        <span class="nav-icon" aria-hidden="true">&#127760;</span>
+        <span class="nav-label">Gerçeklik</span>
       </button>
-      <button class="nav-tab" data-tab="requests" id="tab-nav-requests" onclick="switchMobileView('requests')">
-        <span class="nav-icon">⚠️</span>
-        <span class="nav-label">REQUESTS</span>
-        <span class="nav-badge" id="nav-pending-badge" style="display:none">0</span>
+      <button class="nav-tab" type="button" role="tab" data-tab="requests" id="tab-nav-requests"
+              aria-selected="false" aria-controls="subslot-requests">
+        <span class="nav-icon" aria-hidden="true">&#9888;&#65039;</span>
+        <span class="nav-label">Kararlar</span>
+        <span class="nav-badge" id="nav-pending-badge" hidden>0</span>
       </button>
-      <button class="nav-tab" data-tab="run" id="tab-nav-run" onclick="switchMobileView('run')">
-        <span class="nav-icon">⚡</span>
-        <span class="nav-label">RUN</span>
+      <button class="nav-tab" type="button" role="tab" data-tab="run" id="tab-nav-run"
+              aria-selected="false" aria-controls="card-runtime">
+        <span class="nav-icon" aria-hidden="true">&#9889;</span>
+        <span class="nav-label">Çalışma</span>
       </button>
-      <button class="nav-tab" data-tab="nodes" id="tab-nav-nodes" onclick="switchMobileView('nodes')">
-        <span class="nav-icon">💻</span>
-        <span class="nav-label">NODES</span>
+      <button class="nav-tab" type="button" role="tab" data-tab="evidence" id="tab-nav-evidence"
+              aria-selected="false" aria-controls="subslot-evidence">
+        <span class="nav-icon" aria-hidden="true">&#128220;</span>
+        <span class="nav-label">Kanıt</span>
       </button>
     </nav>
 
-    <!-- Footer -->
     <footer class="deck-footer">
       <div class="footer-left">
-        <span class="dot green"></span>
-        <span>Cross-Runtime Shared Reality · Zero Secret Transmission · Deterministic Matrix</span>
+        <span class="dot green" aria-hidden="true"></span>
+        <span>Cross-Runtime Shared Reality &middot; Zero Secret Transmission &middot; Deterministic Matrix</span>
       </div>
       <div class="footer-right">
-        <span>AIOS v0.1.0 · Windows Observer & Shared Reality Host</span>
+        <span>AIOS v0.1.0 &middot; Windows Observer &amp; Shared Reality Host</span>
       </div>
     </footer>
   </div>
+
+  <div class="copy-toast" id="copy-toast" role="status" aria-live="polite" hidden>Kopyalandı</div>
 
   <script src="app.js"></script>
 </body>

@@ -290,6 +290,8 @@ export class AgentControlPlane {
         progress: `${runtimeStatus.step_index || 0} / ${runtimeStatus.step_total || 0}`,
         current_step: runtimeStatus.current_step,
         heartbeat_age_sec: runtimeStatus.heartbeat_age_sec,
+        // Kanonik olan mutlak zaman damgasıdır; "yaş" bir sunum türevidir.
+        last_heartbeat: runtimeStatus.last_heartbeat || null,
         elapsed_ms: runtimeStatus.elapsed_ms,
         eta: runtimeStatus.eta,
       },

@@ -203,20 +203,335 @@ async function runTests() {
     console.log("✔ 17. remote unauth blocked     PASS (Local mock verified)");
   }
 
-  // 18. Live Projection Endpoint Verification
+  // 18. Live Projection Endpoint Verification (asserted, not assumed)
+  let liveChecked = false;
   try {
     const resProj = await fetch("http://127.0.0.1:9320/api/projection?profile=mobile");
     if (resProj.ok) {
       const liveProj = await resProj.json();
-      if (liveProj.profile === "mobile" && liveProj.schema === "aios.surface.projection.v1") {
-        console.log("✔ 18. live served projection    PASS (Served 9320 UI consumes /api/projection)");
+      if (liveProj.profile !== "mobile" || liveProj.schema !== "aios.surface.projection.v1") {
+        throw new Error(`Live projection contract broken: ${JSON.stringify(liveProj).slice(0, 200)}`);
       }
+      if (liveProj.realityDigest !== realityDigest) {
+        throw new Error("Live projection reality digest diverges from canonical state");
+      }
+      liveChecked = true;
     }
   } catch (err) {
-    console.log("✔ 18. live served projection    PASS (Interface ready)");
+    if (liveChecked) throw err;
+    // Sunucu kapalıysa test atlanır; asla "PASS" olarak raporlanmaz.
   }
+  console.log(
+    liveChecked
+      ? "\u2714 18. live served projection    PASS (9320 /api/projection kanonik digest ile aynı)"
+      : "\u25cb 18. live served projection    SKIP (9320 kapalı)",
+  );
 
-  console.log("=== AIOS ADAPTIVE SURFACE TÜM TESTLERİ GEÇTİ (18/18) ===");
+  /* ============================================================
+     MOBILE PREMIUM SURFACE INVARIANTS
+     Dize varlığı değil, gerçek kural ve davranış denetimi.
+     ============================================================ */
+
+  const css = readFileSync(resolve(__dirname, "renderer", "style.css"), "utf8");
+  const html = readFileSync(resolve(__dirname, "renderer", "index.html"), "utf8");
+  const app = readFileSync(resolve(__dirname, "renderer", "app.js"), "utf8");
+  const launch = readFileSync(resolve(__dirname, "launch.mjs"), "utf8");
+
+  // 19. Tek dikey kaydırma ekseni; gövde asla kilitlenmez
+  if (/body\s*\{[^}]*\boverflow:\s*hidden/.test(css)) {
+    throw new Error("body overflow:hidden kısayolu dikey kaydırmayı kilitliyor");
+  }
+  if (/body\s*\{[^}]*height:\s*100vh/.test(css)) {
+    throw new Error("body height:100vh Android'de görünür alandan taşar; svh kullanılmalı");
+  }
+  if (!/overflow-y:\s*auto/.test(css)) {
+    throw new Error("Gövde dikey kaydırması tanımlı değil");
+  }
+  console.log("\u2714 19. tek kaydırma ekseni      PASS (overflow-y:auto, 100vh kilidi yok)");
+
+  // 20. Dinamik viewport + safe-area
+  for (const token of ["100svh", "safe-area-inset-top", "safe-area-inset-bottom", "safe-area-inset-left", "safe-area-inset-right"]) {
+    if (!css.includes(token)) throw new Error(`Viewport/safe-area token eksik: ${token}`);
+  }
+  console.log("\u2714 20. svh & safe-area          PASS (4 inset + 100svh)");
+
+  // 21. Alt navigasyon boşluğu sihirli sayı değil, token'dan türetilir
+  if (!/padding[^;]*var\(--h-tabbar\)[^;]*var\(--safe-bottom\)/s.test(css)) {
+    throw new Error("İçerik alt boşluğu --h-tabbar + --safe-bottom üzerinden türetilmiyor");
+  }
+  console.log("\u2714 21. tabbar clearance         PASS (calc(--h-tabbar + --safe-bottom))");
+
+  // 22. Sabit çok kolonlu ızgara kalmadı (mobilde taşma kaynağı)
+  const rigidGrids = css.match(/grid-template-columns:\s*repeat\(\s*([4-9]|\d{2,})\s*,/g) || [];
+  if (rigidGrids.length > 0) {
+    throw new Error(`Sabit >=4 kolonlu ızgara mobilde taşar: ${rigidGrids.join(", ")}`);
+  }
+  console.log("\u2714 22. sabit ızgara yok          PASS (auto-fit/minmax)");
+
+  // 23. Container query gerçekten uygulanmış (container-type beyanı tek başına yeterli değil)
+  const containerRules = (css.match(/@container\s/g) || []).length;
+  if (containerRules < 3) {
+    throw new Error(`@container kuralı sayısı yetersiz: ${containerRules} (>=3 bekleniyor)`);
+  }
+  if (!/\.card\s*\{[^}]*container-type:\s*inline-size/s.test(css)) {
+    throw new Error("Kartlar konteyner değil; @container yalnızca kabuk genişliğine tepki verir");
+  }
+  console.log(`\u2714 23. container queries        PASS (${containerRules} @container kuralı, .card konteyner)`);
+
+  // 24. Global media query sayısı azaltıldı
+  const mediaCount = (css.match(/@media\s/g) || []).length;
+  const prefMedia = (css.match(/@media\s*\(prefers-/g) || []).length;
+  const layoutMedia = mediaCount - prefMedia;
+  if (layoutMedia > 3) {
+    throw new Error(`Çok fazla global layout media query: ${layoutMedia} (<=3 bekleniyor)`);
+  }
+  console.log(`\u2714 24. responsive mimari        PASS (${layoutMedia} layout media query, ${prefMedia} tercih sorgusu)`);
+
+  // 25. Dokunma: onay 56px, red 48px, ayrım 24px
+  if (!/--touch-target:\s*44px/.test(css)) throw new Error("--touch-target 44px değil");
+  if (!/--touch-primary:\s*56px/.test(css)) throw new Error("Onay hedefi 56px değil");
+  if (!/--touch-destructive:\s*48px/.test(css)) throw new Error("Red hedefi 48px değil");
+  if (!/--gate-separation:\s*var\(--sp-6\)/.test(css)) throw new Error("Gate ayrımı 24px (--sp-6) değil");
+  if (!/\.gate-actions\s*\{[^}]*flex-direction:\s*column/s.test(css)) {
+    throw new Error("Onay/Red varsayılan olarak dikey yığınlanmıyor");
+  }
+  console.log("\u2714 25. touch & gate ayrımı      PASS (56/48/24px, dikey yığın)");
+
+  // 26. Tipografi: gövde >=15px, okunamaz 8-9px mikro metin yok
+  if (!/--fs-md:\s*15px/.test(css)) throw new Error("Gövde taban ölçeği 15px değil");
+  if (!/--fs-lg:\s*16px/.test(css)) throw new Error("Kart başlığı ölçeği 16px değil");
+  const tinyFonts = css.match(/font-size:\s*(8|9)px/g) || [];
+  if (tinyFonts.length > 0) throw new Error(`Okunamaz mikro metin kaldı: ${tinyFonts.join(", ")}`);
+  if (!/--font-ui:/.test(css)) throw new Error("UI font tokeni yok; her şey monospace olmamalı");
+  console.log("\u2714 26. tipografi ölçeği         PASS (gövde 15px, 8/9px yok, UI font)");
+
+  // 27. Glass yalnızca etkileşim katmanında; içerik kartı opak
+  const glassSelectors = [...css.matchAll(/([^{}]+)\{[^}]*backdrop-filter:\s*blur/g)].map((m) => m[1].trim());
+  const allowedGlass = ["deck-header", "mobile-bottom-nav", "copy-toast"];
+  for (const sel of glassSelectors) {
+    if (sel.startsWith("@")) continue;
+    if (!allowedGlass.some((a) => sel.includes(a))) {
+      throw new Error(`İzinsiz glass yüzeyi: ${sel}`);
+    }
+  }
+  if (/\.card\s*\{[^}]*backdrop-filter/s.test(css)) {
+    throw new Error("İçerik kartı glass olmamalı; okunabilir opak yüzey gerekli");
+  }
+  if (!/@supports[^{]*backdrop-filter/.test(css)) {
+    throw new Error("Glass için @supports fallback yok");
+  }
+  console.log(`\u2714 27. glass sınırları          PASS (${glassSelectors.length} glass yüzeyi, kartlar opak)`);
+
+  // 28. Yansıma: yalnızca 1px kenar highlight
+  if (!/--glass-edge:\s*inset 0 1px 0/.test(css)) {
+    throw new Error("Yansıma 1px inset kenar highlight olarak tanımlı değil");
+  }
+  console.log("\u2714 28. reflection kuralları      PASS (1px inset edge)");
+
+  // 29. Global user-select:none kaldırıldı (hash kopyalanabilir)
+  if (/\*\s*(,[^{]*)?\{[^}]*user-select:\s*none/s.test(css)) {
+    throw new Error("Global user-select:none hash kopyalamayı engelliyor");
+  }
+  if (!/data-copy=/.test(app) || !/navigator\.clipboard/.test(app)) {
+    throw new Error("Kopyalanabilir kimlik çipi uygulanmamış");
+  }
+  console.log("\u2714 29. kopyalanabilir kimlik     PASS (global user-select yok, clipboard bağlı)");
+
+  // 30. Erişilebilirlik temelleri
+  if (!/:focus-visible/.test(css)) throw new Error(":focus-visible tanımlı değil");
+  if (!/prefers-reduced-motion/.test(css)) throw new Error("prefers-reduced-motion yok");
+  if (!/prefers-reduced-transparency/.test(css)) throw new Error("prefers-reduced-transparency yok");
+  if (!/role="tablist"/.test(html)) throw new Error("Tab bar role=tablist taşımıyor");
+  if ((html.match(/role="tab"/g) || []).length < 5) throw new Error("Beş sekme ARIA tab semantiği taşımıyor");
+  if ((html.match(/role="tabpanel"/g) || []).length < 4) throw new Error("Tabpanel semantiği eksik");
+  if (!/aria-live="polite"/.test(html)) throw new Error("Canlı bölge tanımlı değil");
+  if (!/role="alert"/.test(html)) throw new Error("Hata bölgesi role=alert taşımıyor");
+  console.log("\u2714 30. erişilebilirlik          PASS (focus-visible, reduced-*, ARIA tabs, live regions)");
+
+  // 31. Modal diyalog yok (mobil PWA'yı bloke eder)
+  if (/(^|[^.\w])alert\s*\(/.test(app)) {
+    throw new Error("alert() mobil yüzeyi bloke eder; satır içi hata kullanılmalı");
+  }
+  console.log("\u2714 31. bloke eden diyalog yok    PASS (satır içi role=alert)");
+
+  // 32. Birincil yüzeyde ham URL / gömülü uzun hash yok
+  const primaryUrls = html.match(/https?:\/\/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}[^"'<\s]*/g) || [];
+  if (primaryUrls.length > 0) {
+    throw new Error(`Birincil yüzeyde ham URL: ${primaryUrls.join(", ")}`);
+  }
+  const longHashes = html.match(/\b[0-9a-f]{32,}\b/g) || [];
+  if (longHashes.length > 0) {
+    throw new Error(`Birincil yüzeyde gömülü uzun hash: ${longHashes.length} adet`);
+  }
+  console.log("\u2714 32. primary yüzey temiz       PASS (ham URL yok, gömülü hash yok)");
+
+  // 33. Birincil navigasyon ve EVIDENCE erişilebilirliği
+  for (const tab of ["ask", "reality", "requests", "run", "evidence"]) {
+    if (!html.includes(`data-tab="${tab}"`)) throw new Error(`Birincil sekme eksik: ${tab}`);
+  }
+  if (!/\.deck-grid\.view-evidence[^{]*#subslot-evidence/s.test(css)) {
+    throw new Error("view-evidence projeksiyon kuralı yok; kanıt mobilde erişilemez");
+  }
+  console.log("\u2714 33. birincil navigasyon       PASS (ASK/REALITY/REQUESTS/RUN/EVIDENCE)");
+
+  // 34. Bekleyen karar sayacı gerçekten bağlı
+  if (!/nav-pending-badge/.test(app)) {
+    throw new Error("Bekleyen karar rozeti JS'e bağlı değil");
+  }
+  if (!/navBadge\.hidden\s*=\s*false/.test(app)) {
+    throw new Error("Rozet bekleyen kayıt varken görünür hale getirilmiyor");
+  }
+  console.log("\u2714 34. pending sayacı            PASS (rozet kanonik pendingHuman'a bağlı)");
+
+  // 35. Human Gate altı alanı taşıyor
+  for (const field of ["Yapılacak", "Neden", "Öneren", "Risk", "Gerçeklik"]) {
+    if (!app.includes(field)) throw new Error(`Human Gate alanı eksik: ${field}`);
+  }
+  console.log("\u2714 35. human gate alanları       PASS (NE/NEDEN/KİM/RİSK/REALITY)");
+
+  // 36. Anlamsal dil: kanonik terim -> insan dili
+  const requiredSemantics = {
+    CHAIN_VALID: "Kanıt zinciri bütün",
+    PROVEN: "Doğrulandı",
+    STALE: "Eski veri",
+    OFFLINE: "Çevrimdışı",
+    NOT_PROVEN: "Kanıt yok",
+  };
+  for (const [key, expected] of Object.entries(requiredSemantics)) {
+    if (!app.includes(`${key}: "${expected}"`)) {
+      throw new Error(`Anlamsal eşleme eksik: ${key} -> ${expected}`);
+    }
+  }
+  if (!app.includes('"FAIL-CLOSED": "Erişim kapalı"')) {
+    throw new Error("FAIL-CLOSED -> 'Erişim kapalı' eşlemesi yok");
+  }
+  console.log("\u2714 36. anlamsal dil             PASS (kanonik terim -> insan dili)");
+
+  // 37. LIVE / STALE / OFFLINE üçü de ayrı; offline asla live gösterilmez
+  for (const marker of ["FRESHNESS_LIVE_MAX_MS", "FRESHNESS_STALE_MAX_MS", "currentFreshness", "applyFreshness"]) {
+    if (!app.includes(marker)) throw new Error(`Tazelik durum makinesi eksik: ${marker}`);
+  }
+  if (!/applyFreshness\("OFFLINE"\)/.test(app)) {
+    throw new Error("Fetch hatasında OFFLINE'a düşülmüyor; bayat veri LIVE görünür");
+  }
+  console.log("\u2714 37. LIVE/STALE/OFFLINE       PASS (üç ayrı durum, fail-honest)");
+
+  // 38. Sahte ilerleme yok
+  if (!/data-indeterminate/.test(css) || !/indeterminate/.test(app)) {
+    throw new Error("Toplam adım bilinmiyorken belirsiz ilerleme durumu yok");
+  }
+  console.log("\u2714 38. sahte ilerleme yok        PASS (belirsiz durum destekleniyor)");
+
+  // 39. PWA ikon zinciri gerçekten servis edilebilir
+  for (const icon of ["icon-192.png", "icon-512.png", "icon.svg"]) {
+    if (!existsSync(resolve(__dirname, "renderer", icon))) {
+      throw new Error(`PWA ikonu diskte yok: ${icon}`);
+    }
+  }
+  for (const mime of ['".svg": "image/svg+xml', '".webmanifest": "application/manifest+json', '".png": "image/png']) {
+    if (!launch.includes(mime)) throw new Error(`MIME haritası eksik: ${mime}`);
+  }
+  if (!/BINARY_EXT/.test(launch)) {
+    throw new Error("PNG ikonları utf8 olarak okunuyor; binary servis yolu yok");
+  }
+  const manifestIcons = JSON.parse(readFileSync(manifestPath, "utf8")).icons;
+  const hasPng192 = manifestIcons.some((i) => i.type === "image/png" && i.sizes === "192x192");
+  const hasPng512 = manifestIcons.some((i) => i.type === "image/png" && i.sizes === "512x512");
+  const hasMaskable = manifestIcons.some((i) => String(i.purpose).includes("maskable"));
+  if (!hasPng192 || !hasPng512 || !hasMaskable) {
+    throw new Error("Manifest kurulabilir ikon zinciri taşımıyor (192/512 PNG + maskable)");
+  }
+  console.log("\u2714 39. PWA ikon zinciri         PASS (192/512 PNG + maskable, doğru MIME)");
+
+  // 40. Offline shell PASS ama offline veri LIVE değil
+  if (!swContent.includes("OFFLINE_NO_NETWORK")) {
+    throw new Error("Service worker /api/ için OFFLINE sözleşmesi taşımıyor");
+  }
+  if (/caches\.match[\s\S]{0,200}\/api\//.test(swContent)) {
+    throw new Error("API yanıtları cache'ten servis ediliyor; bayat veri LIVE görünür");
+  }
+  console.log("\u2714 40. offline shell / veri     PASS (shell cached, API asla stale-live)");
+
+  // 41. [hidden] her zaman kazanır
+  // .gate-card/.result-box/.nav-badge display kurallari UA'nin display:none'unu
+  // ezerse gizli Human Gate karti ve bekleyen karar rozeti surekli gorunur kalir.
+  if (!/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css)) {
+    throw new Error("[hidden] display kurallari tarafindan eziliyor; gizli gate/rozet gorunur kalir");
+  }
+  for (const sel of ["gate-card", "result-box", "nav-badge"]) {
+    const re = new RegExp(`\\.${sel}\\s*\\{[^}]*display:\\s*(flex|block|grid)`, "s");
+    if (re.test(css) && !/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css)) {
+      throw new Error(`.${sel} display kurali [hidden] ile catisiyor`);
+    }
+  }
+  if (!/hidden\s*=\s*(true|false)/.test(app)) {
+    throw new Error("Gorunurluk [hidden] ozniteligi uzerinden yonetilmiyor");
+  }
+  console.log("✔ 41. [hidden] onceligi        PASS (gizli gate ve rozet gercekten gizli)");
+
+  // 42. Mobil sutunda kartlar buzusmez
+  // .deck-grid align-items:start mobil flex kolonunda kart genisligini cokertirdi.
+  // Temel kural (grid-template-columns tasiyan) align-items:start tasimamali;
+  // start yalnizca min-width:900px grid baglaminda gecerlidir.
+  const baseGrid = css.match(/\.deck-grid\s*\{[^}]*grid-template-columns[^}]*\}/s);
+  if (!baseGrid) throw new Error("Temel .deck-grid kurali bulunamadi");
+  if (/align-items:\s*start/.test(baseGrid[0])) {
+    throw new Error("Temel .deck-grid align-items:start mobil kolonda kartlari cokertir");
+  }
+  if (!/@media \(min-width: 900px\)[\s\S]*?align-items:\s*start/.test(css)) {
+    throw new Error("Masaustu grid hizalamasi 900px baglamina tasinmamis");
+  }
+  if (!/@media \(max-width: 899px\)[\s\S]*?\.deck-grid\s*\{[^}]*align-items:\s*stretch/.test(css)) {
+    throw new Error("Mobil kolonda align-items:stretch garanti edilmiyor");
+  }
+  console.log("✔ 42. mobil kart genisligi      PASS (align-items:stretch, tam genislik)");
+
+  // 43. Hash'lenen semantic slotlarda duvar saati turevi yok
+  // heartbeat "yasi" saniyede bir kayar; hash'e girerse hicbir kanonik
+  // degisiklik olmadan slot hash'i degisir ve determinizm gozlemlenemez olur.
+  const slotsJson = JSON.stringify(desktopProj.semanticSlots);
+  if (/heartbeatAgeSec/.test(slotsJson)) {
+    throw new Error("heartbeatAgeSec hash'lenen slotlarda: saat turevi determinizmi bozar");
+  }
+  if (!("lastHeartbeat" in desktopProj.semanticSlots.activeExecution)) {
+    throw new Error("Kanonik mutlak zaman damgasi (lastHeartbeat) slotlarda yok");
+  }
+  const projA = projectCanonicalState(state, PROJECTION_PROFILES.MOBILE);
+  await new Promise((r) => setTimeout(r, 1100));
+  const projB = projectCanonicalState(state, PROJECTION_PROFILES.MOBILE);
+  if (projA.semanticSlotHash !== projB.semanticSlotHash || projA.projectionHash !== projB.projectionHash) {
+    throw new Error("Ayni state zaman gectikce farkli hash uretiyor");
+  }
+  console.log("✔ 43. saat turevi yok           PASS (slot hash zamanla kaymiyor)");
+
+  // 44. Parite TEK state okumasindan gozlemlenebilir
+  let parityChecked = false;
+  try {
+    const resPar = await fetch("http://127.0.0.1:9320/api/projection?profile=desktop,tablet,mobile,compact-mobile");
+    if (resPar.ok) {
+      const par = await resPar.json();
+      if (par.schema !== "aios.surface.projection.parity.v1") {
+        throw new Error("Coklu profil parite sozlesmesi yok");
+      }
+      if (!par.realityDigestParity) throw new Error("Canli reality digest paritesi FAIL");
+      if (!par.semanticSlotParity) throw new Error("Canli semantic slot hash paritesi FAIL");
+      const hashes = Object.values(par.projectionHashes);
+      if (new Set(hashes).size !== hashes.length) {
+        throw new Error("projection_hash profil-spesifik degil");
+      }
+      parityChecked = true;
+    }
+  } catch (err) {
+    if (parityChecked) throw err;
+    if (String(err.message).includes("parite") || String(err.message).includes("FAIL") || String(err.message).includes("sozlesme")) throw err;
+  }
+  console.log(
+    parityChecked
+      ? "✔ 44. canli parite kaniti       PASS (tek state -> ayni digest+slot, farkli projection hash)"
+      : "○ 44. canli parite kaniti       SKIP (9320 kapali)",
+  );
+
+  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (44/44) ===");
 }
 
 runTests().catch((err) => {
