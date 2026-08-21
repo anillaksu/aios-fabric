@@ -26,7 +26,10 @@ function isLoopbackAddress(remoteAddress = "") {
 function isAuthorizedOperator(req, isLocal) {
   if (isLocal) return true;
   const authHeader = req.headers["authorization"] || "";
-  const expectedToken = process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "aios-remote-mcp-bearer-token";
+  const expectedToken = (process.env.AIOS_REMOTE_TOKEN || process.env.AIOS_REMOTE_MCP_TOKEN || "").trim();
+  if (!expectedToken) {
+    return false; // Fail-closed: No remote token configured in environment
+  }
   const bearerPrefix = "Bearer ";
   if (authHeader.startsWith(bearerPrefix) && authHeader.slice(bearerPrefix.length).trim() === expectedToken) {
     return true;
@@ -157,10 +160,10 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === "/api/remote-mcp" && req.method === "POST") {
     const authHeader = req.headers["authorization"] || "";
-    const expectedToken = process.env.AIOS_REMOTE_MCP_TOKEN || "aios-remote-mcp-bearer-token";
+    const expectedToken = (process.env.AIOS_REMOTE_MCP_TOKEN || process.env.AIOS_REMOTE_TOKEN || "").trim();
     const bearerPrefix = "Bearer ";
 
-    if (!authHeader.startsWith(bearerPrefix) || authHeader.slice(bearerPrefix.length).trim() !== expectedToken) {
+    if (!expectedToken || !authHeader.startsWith(bearerPrefix) || authHeader.slice(bearerPrefix.length).trim() !== expectedToken) {
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message: "Unauthorized: Invalid or missing remote Bearer token" } }));
       return;
