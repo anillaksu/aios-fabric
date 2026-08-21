@@ -7,6 +7,7 @@ import {
 import { defaultControlPlane } from "./agent-control-plane.mjs";
 import { defaultRelay } from "./agent-relay.mjs";
 import { defaultLedger, canonicalJson, sha256 } from "./observer.mjs";
+import { ALLOWED_STATES } from "./runtime-console.mjs";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -622,9 +623,14 @@ async function runTests() {
   if (!/isStale[\s\S]*STALE_PROOF/.test(proofBody)) {
     throw new Error("PASS + stale durumu STALE_PROOF'a dusurulmuyor");
   }
-  // RUN yuzeyi de ayni kurali uygular
-  if (!/state === "PASSED"[\s\S]{0,200}isStale \? SEMANTIC_TEXT\.STALE_PROOF/.test(app)) {
+  // RUN yuzeyi de ayni kurali uygular (kural runStateSemantic icinde merkezidir)
+  const runSemBody = app.slice(app.indexOf("function runStateSemantic"), app.indexOf("function proofSemantic"));
+  if (!/s === "PASSED" && ageStale[\s\S]{0,220}SEMANTIC_TEXT\.STALE_PROOF/.test(runSemBody)) {
     throw new Error("Biten kosunun eskimis kaniti hala 'Tamamlandi' okunuyor");
+  }
+  // Gercek kanonik sonuc kaybolmaz, ikincil satirda korunur
+  if (!/fact: `Son koşu \$\{RUN_STATE_TEXT\.PASSED\}`/.test(runSemBody)) {
+    throw new Error("Eskimis PASS kosusunda gercek sonuc ikincil satirda korunmuyor");
   }
   console.log("\u2714 51. PASS+stale dogrulugu     PASS (asla 'Dogrulandi'/'Tamamlandi')");
 
@@ -678,7 +684,42 @@ async function runTests() {
   }
   console.log("\u2714 55. yukseklik kullanimi       PASS (panel + view-ask/view-run kompozisyon)");
 
-  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (55/55) ===");
+  // 56. Kanonik durum <-> sunum eslemesi kaymaz
+  // runtime-console.mjs ALLOWED_STATES buyudugunde sunum katmani sessizce
+  // geride kalirsa ham Ingilizce token (orn. "STALE") birincil yuzeye sizar.
+  const stateMapBody = app.slice(app.indexOf("const RUN_STATE_TEXT"), app.indexOf("const LIVENESS_TEXT"));
+  const missingStates = ALLOWED_STATES.filter((st) => !stateMapBody.includes(`${st}:`));
+  if (missingStates.length > 0) {
+    throw new Error(`Kanonik durumlarin Turkce eslemesi yok: ${missingStates.join(", ")}`);
+  }
+  const dotMapBody = app.slice(app.indexOf("const RUN_STATE_DOT"), app.indexOf("const LIVENESS_TEXT"));
+  const missingDots = ALLOWED_STATES.filter((st) => !dotMapBody.includes(`${st}:`));
+  if (missingDots.length > 0) {
+    throw new Error(`Kanonik durumlarin durum noktasi yok: ${missingDots.join(", ")}`);
+  }
+  // Tek kural her iki yuzeyde de kullanilmali
+  if (!/function runStateSemantic/.test(app)) {
+    throw new Error("Tek kosu-durum kurali (runStateSemantic) yok");
+  }
+  if ((app.match(/runStateSemantic\(/g) || []).length < 3) {
+    throw new Error("runStateSemantic hem RUN hem 'Su an' yuzeyinde kullanilmiyor");
+  }
+  // Ham durum tokeni artik fallback olarak basilamaz
+  if (/RUN_STATE_TEXT\[state\] \|\| state/.test(app)) {
+    throw new Error("Ham kanonik durum tokeni birincil yuzeye fallback olarak basiliyor");
+  }
+  console.log(`✔ 56. durum eslemesi kaymaz     PASS (${ALLOWED_STATES.length} kanonik durum eslendi)`);
+
+  // 57. Surec kaybi "calisiyor" gorunumunu bastirir
+  for (const live of ["PROCESS_GONE", "NO_HEARTBEAT"]) {
+    if (!app.includes(live)) throw new Error(`Canlilik durumu islenmiyor: ${live}`);
+  }
+  if (!/lost \|\| ageStale/.test(app)) {
+    throw new Error("Surec kaybi 'Calisiyor' gorunumunu bastirmiyor");
+  }
+  console.log("✔ 57. surec kaybi dogrulugu     PASS (PROCESS_GONE/NO_HEARTBEAT -> 'Yanit vermiyor')");
+
+  console.log("=== AIOS MOBILE PREMIUM SURFACE TÜM TESTLERİ GEÇTİ (57/57) ===");
 }
 
 runTests().catch((err) => {

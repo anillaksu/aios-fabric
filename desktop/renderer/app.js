@@ -33,12 +33,39 @@ const SEMANTIC_TEXT = {
   REVIEW: "Karar bekliyor",
 };
 
+/* Kanonik ALLOWED_STATES (desktop/runtime-console.mjs) ile birebir örtüşür.
+   Buradaki her anahtar kanonik bir durumdur; eksik bir eşleme ham İngilizce
+   token'ın birincil yüzeye sızmasına yol açar. test-adaptive-surface bu
+   kaymayı kapıda tutar. */
 const RUN_STATE_TEXT = {
-  IDLE: "Beklemede",
+  QUEUED: "Sırada",
   RUNNING: "Çalışıyor",
-  PASSED: "Tamamlandı",
+  BLOCKED: "Engellendi",
   FAILED: "Başarısız",
-  STOPPED: "Durduruldu",
+  PASSED: "Tamamlandı",
+  STALE: "Koşu düştü",
+  CANCELLED: "İptal edildi",
+  WAITING_HUMAN: "Karar bekliyor",
+  // Kanonik olmayan boşta durumu (henüz koşu yok)
+  IDLE: "Beklemede",
+};
+
+const RUN_STATE_DOT = {
+  QUEUED: "ready",
+  RUNNING: "running",
+  BLOCKED: "blocked",
+  FAILED: "failed",
+  PASSED: "proven",
+  STALE: "stale",
+  CANCELLED: "offline",
+  WAITING_HUMAN: "waiting",
+  IDLE: "offline",
+};
+
+const LIVENESS_TEXT = {
+  ALIVE: "canlı",
+  NO_HEARTBEAT: "heartbeat yok",
+  PROCESS_GONE: "süreç bulunamadı",
 };
 
 /* ══════════════════ KANIT DOĞRULUĞU ══════════════════
@@ -52,6 +79,34 @@ const RUN_STATE_TEXT = {
 
 const PROOF_FRESH_MAX_SEC = 120;
 const RUN_STALE_AFTER_SEC = 120;
+
+/** Kanonik koşu durumunun tek anlamsal karşılığı; her yüzey bunu kullanır.
+ *  Kanıt tazeliği koşu sonucunu bastırır: eskimiş PASS "Tamamlandı" değildir. */
+function runStateSemantic(state, liveness, heartbeatAgeSec) {
+  const s = String(state || "IDLE").toUpperCase();
+  const live = String(liveness || "").toUpperCase();
+  const ageStale = heartbeatAgeSec !== null && heartbeatAgeSec !== undefined
+    && heartbeatAgeSec > RUN_STALE_AFTER_SEC;
+
+  // Süreç kaybı veya heartbeat kesilmesi, "çalışıyor" görüntüsünü bastırır.
+  const lost = live === "PROCESS_GONE" || live === "NO_HEARTBEAT";
+
+  if (s === "RUNNING" && (lost || ageStale)) {
+    return { headline: "Yanıt vermiyor", dot: "stale", fact: LIVENESS_TEXT[live] || "" };
+  }
+  if (s === "PASSED" && ageStale) {
+    // Eskimiş kanıt asla "Tamamlandı" okunmaz; gerçek sonuç fact'te korunur.
+    return { headline: SEMANTIC_TEXT.STALE_PROOF, dot: "stale", fact: `Son koşu ${RUN_STATE_TEXT.PASSED}` };
+  }
+  if (s === "STALE") {
+    return { headline: RUN_STATE_TEXT.STALE, dot: "stale", fact: LIVENESS_TEXT[live] || "" };
+  }
+  return {
+    headline: RUN_STATE_TEXT[s] || SEMANTIC_TEXT.UNKNOWN,
+    dot: RUN_STATE_DOT[s] || "offline",
+    fact: s === "FAILED" || s === "BLOCKED" ? (LIVENESS_TEXT[live] || "") : "",
+  };
+}
 
 /** Kanıtın anlamsal karşılığı. Tazelik bilgisi kanıt değerini bastırır. */
 function proofSemantic(verdict, { stale = false, ageSec = null } = {}) {
@@ -330,14 +385,13 @@ function renderAskNow(slots) {
   const hbAge = ex.lastHeartbeat
     ? (Date.now() - new Date(ex.lastHeartbeat).getTime()) / 1000
     : null;
-  const runStale = hbAge !== null && hbAge > RUN_STALE_AFTER_SEC;
 
-  let runText, runDot;
-  if (state === "RUNNING" && runStale) { runText = "Yanıt vermiyor"; runDot = "stale"; }
-  else if (state === "RUNNING") { runText = `${RUN_STATE_TEXT.RUNNING} · ${ex.progress || ""}`.trim(); runDot = "running"; }
-  else if (state === "PASSED") { runText = runStale ? SEMANTIC_TEXT.STALE_PROOF : RUN_STATE_TEXT.PASSED; runDot = runStale ? "stale" : "proven"; }
-  else if (state === "FAILED") { runText = RUN_STATE_TEXT.FAILED; runDot = "failed"; }
-  else { runText = RUN_STATE_TEXT[state] || SEMANTIC_TEXT.UNKNOWN; runDot = "offline"; }
+  const rs = runStateSemantic(state, ex.liveness, hbAge);
+  // Çalışan koşuda adım ilerlemesi başlığa eklenir.
+  const runText = rs.dot === "running" && ex.progress
+    ? `${rs.headline} · ${ex.progress}`
+    : rs.headline;
+  const runDot = rs.dot;
 
   const hasArtifact = ev.latestArtifactId && !["NONE", "NO_ARTIFACT"].includes(ev.latestArtifactId);
 
@@ -835,43 +889,23 @@ async function refreshRuntimeStatus() {
 
     const state = res.state || "IDLE";
     const ageSec = res.heartbeat_age_sec;
-    const isRunning = state === "RUNNING";
     const isStale = ageSec !== undefined && ageSec > RUN_STALE_AFTER_SEC;
 
-    // Çalışan bir koşu heartbeat'i kesildiyse "çalışıyor" okunmaz.
-    // Biten bir koşunun kanıtı eskidiyse "Tamamlandı" okunmaz: kanıt eskidir.
-    let headline;
-    let dotState;
-    if (isRunning && isStale) {
-      headline = "Yanıt vermiyor";
-      dotState = "stale";
-    } else if (isRunning) {
-      headline = RUN_STATE_TEXT.RUNNING;
-      dotState = "running";
-    } else if (state === "PASSED") {
-      headline = isStale ? SEMANTIC_TEXT.STALE_PROOF : RUN_STATE_TEXT.PASSED;
-      dotState = isStale ? "stale" : "proven";
-    } else if (state === "FAILED") {
-      headline = RUN_STATE_TEXT.FAILED;
-      dotState = "failed";
-    } else {
-      headline = RUN_STATE_TEXT[state] || state;
-      dotState = "offline";
-    }
+    // Tek anlamsal kural; ham kanonik token birincil yüzeye sızmaz.
+    const rs = runStateSemantic(state, res.liveness, ageSec);
 
-    setText("run-headline", headline);
+    setText("run-headline", rs.headline);
     setText("run-age", ageSec !== undefined ? relativeAge(ageSec) : "");
 
-    // Eskimiş bir PASS koşusunda gerçek sonuç ikincil satırda korunur.
+    // Gerçek kanonik sonuç / canlılık nedeni ikincil satırda korunur.
     const runFact = document.getElementById("run-fact");
     if (runFact) {
-      const showFact = !isRunning && isStale && (state === "PASSED" || state === "FAILED");
-      runFact.hidden = !showFact;
-      if (showFact) runFact.textContent = `Son koşu ${RUN_STATE_TEXT[state] || state}`;
+      runFact.hidden = !rs.fact;
+      if (rs.fact) runFact.textContent = rs.fact;
     }
 
     const dot = document.getElementById("run-dot");
-    if (dot) dot.className = `status-dot ${dotState}`;
+    if (dot) dot.className = `status-dot ${rs.dot}`;
 
     setText("runtime-state-badge", state);
     setText("runtime-liveness-badge", isStale ? "STALE" : (res.liveness || "STANDBY"));

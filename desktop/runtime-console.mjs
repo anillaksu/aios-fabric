@@ -163,6 +163,9 @@ export class RuntimeOrchestrator {
         this.saveState();
       }
     }, 1000);
+    if (this.heartbeatTimer && typeof this.heartbeatTimer.unref === "function") {
+      this.heartbeatTimer.unref();
+    }
   }
 
   stopHeartbeat() {
@@ -212,6 +215,17 @@ export class RuntimeOrchestrator {
         elapsed_ms: this.currentRun.elapsed_ms,
         evidence_hash: this.currentRun.evidence_hash,
       };
+    }
+
+    // Archive previous run if exists
+    if (currentStatus.raw && currentStatus.raw.run_id) {
+      try {
+        const historyDir = join(STATE_DIR, "history");
+        if (!existsSync(historyDir)) mkdirSync(historyDir, { recursive: true });
+        writeFileSync(join(historyDir, `${currentStatus.raw.run_id}.json`), JSON.stringify(currentStatus.raw, null, 2), "utf-8");
+      } catch {
+        // ignore
+      }
     }
 
     const activePlan = plan || CANONICAL_GATE_PLANS[String(gate)] || CANONICAL_GATE_PLANS["24"];
