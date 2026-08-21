@@ -26,6 +26,7 @@ export const ALLOWED_STATES = [
 
 export const CANONICAL_GATE_PLANS = {
   "24": [
+    "desktop/test-single-operations-surface.mjs",
     "desktop/test-live-node-discovery.mjs",
     "desktop/test-agent-quota-resume.mjs",
     "desktop/test-scale-fabric.mjs",
@@ -62,6 +63,7 @@ export const CANONICAL_GATE_PLANS = {
     "fabric/test/agent-surface-audit.test.ts",
   ],
   "canonical": [
+    "desktop/test-single-operations-surface.mjs",
     "desktop/test-live-node-discovery.mjs",
     "desktop/test-agent-quota-resume.mjs",
     "desktop/test-scale-fabric.mjs",
@@ -184,7 +186,34 @@ export class RuntimeOrchestrator {
     return { eta_ms: etaMs, type: "OBSERVATIONAL", formatted };
   }
 
-  async run({ gate = "24", plan = null, onProgress = null, workingDir = resolve(__dirname, "..") } = {}) {
+  async run(options = {}) {
+    const {
+      gate = "24",
+      plan = null,
+      workingDir = dirname(__dirname),
+      onProgress = null,
+    } = options;
+
+    // Duplicate Run Protection: Attach to existing active run
+    const currentStatus = this.getStatus();
+    if (currentStatus.raw && currentStatus.state === "RUNNING" && currentStatus.liveness === "ALIVE") {
+      this.currentRun = currentStatus.raw;
+      if (typeof onProgress === "function") {
+        onProgress({ ...this.currentRun });
+      }
+      return {
+        ok: true,
+        status: "ATTACHED_EXISTING",
+        run_id: this.currentRun.run_id,
+        state: this.currentRun.state,
+        current_step: this.currentRun.current_step,
+        step_index: this.currentRun.step_index,
+        step_total: this.currentRun.step_total,
+        elapsed_ms: this.currentRun.elapsed_ms,
+        evidence_hash: this.currentRun.evidence_hash,
+      };
+    }
+
     const activePlan = plan || CANONICAL_GATE_PLANS[String(gate)] || CANONICAL_GATE_PLANS["24"];
     const planHash = computePlanHash(activePlan);
     const runId = generateRunId(gate);
@@ -431,6 +460,56 @@ export class RuntimeOrchestrator {
       error: state.error || null,
       raw: state,
     };
+  }
+
+  attach() {
+    const status = this.getStatus();
+    if (!status.raw) {
+      return { ok: false, error: "NO_ACTIVE_RUN", status: "IDLE" };
+    }
+    this.currentRun = status.raw;
+    return { ok: true, status: "ATTACHED", run: this.currentRun };
+  }
+
+  pause() {
+    if (this.currentRun && this.currentRun.state === "RUNNING") {
+      this.currentRun.state = "PAUSED";
+      this.currentRun.last_event = "RUN_PAUSED_BY_OPERATOR";
+      this.saveState();
+      this.stopHeartbeat();
+      this.ledger.append({
+        operation: "runtime.paused",
+        http_status: 200,
+        success: true,
+        response_data: { run_id: this.currentRun.run_id, step: this.currentRun.current_step },
+        metadata: { paused: true },
+      });
+      return { ok: true, status: "PAUSED", run_id: this.currentRun.run_id };
+    }
+    return { ok: false, error: "NOT_RUNNING" };
+  }
+
+  resume() {
+    if (this.currentRun && this.currentRun.state === "PAUSED") {
+      this.currentRun.state = "RUNNING";
+      this.currentRun.last_event = "RUN_RESUMED_BY_OPERATOR";
+      this.saveState();
+      this.startHeartbeat();
+      this.ledger.append({
+        operation: "runtime.resumed",
+        http_status: 200,
+        success: true,
+        response_data: { run_id: this.currentRun.run_id, step: this.currentRun.current_step },
+        metadata: { resumed: true },
+      });
+      return { ok: true, status: "RUNNING", run_id: this.currentRun.run_id };
+    }
+    return { ok: false, error: "NOT_PAUSED" };
+  }
+
+  getCurrentRun() {
+    const status = this.getStatus();
+    return status.raw || null;
   }
 
   doctor() {

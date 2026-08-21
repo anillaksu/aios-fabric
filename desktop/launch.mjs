@@ -400,10 +400,63 @@ const server = createServer(async (req, res) => {
   }
 
   // Runtime Console Endpoints
-  if (url.pathname === "/api/runtime/status") {
+  if (url.pathname === "/api/runtime/status" || url.pathname === "/api/runtime/current") {
     const status = defaultOrchestrator.getStatus();
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(status));
+    return;
+  }
+
+  // Handle /api/runtime/:runId
+  const runtimeRunMatch = url.pathname.match(/^\/api\/runtime\/(gate[0-9a-zA-Z_\-]+)$/);
+  if (runtimeRunMatch) {
+    const requestedRunId = runtimeRunMatch[1];
+    const status = defaultOrchestrator.getStatus();
+    if (status.run_id === requestedRunId) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(status));
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "RUN_NOT_FOUND", run_id: requestedRunId }));
+    }
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/logs") {
+    const status = defaultOrchestrator.getStatus();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, run_id: status.run_id, steps: status.raw?.steps || [] }));
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/attach" && req.method === "POST") {
+    const r = defaultOrchestrator.attach();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(r));
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/pause" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote runtime pause requires valid Bearer token." }));
+      return;
+    }
+    const r = defaultOrchestrator.pause();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(r));
+    return;
+  }
+
+  if (url.pathname === "/api/runtime/resume" && req.method === "POST") {
+    if (!isAuthorizedOperator(req, isLocal)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, status: "UNAUTHORIZED", error: "Unauthorized: Remote runtime resume requires valid Bearer token." }));
+      return;
+    }
+    const r = defaultOrchestrator.resume();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(r));
     return;
   }
 

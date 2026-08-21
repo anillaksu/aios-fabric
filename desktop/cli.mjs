@@ -199,6 +199,96 @@ async function main() {
       process.exit(res.state === "PASSED" ? 0 : 1);
     }
 
+    case "runtime": {
+      const subCmd = args[1] || "status";
+      switch (subCmd) {
+        case "start": {
+          const gateIndex = args.indexOf("--gate");
+          const gateVal = gateIndex !== -1 ? args[gateIndex + 1] : "canonical";
+          console.log(`=== AIOS RUNTIME: STARTING GATE ${gateVal} ===`);
+          const res = await defaultOrchestrator.run({
+            gate: gateVal,
+            onProgress: (p) => {
+              const etaStr = p.eta ? `(ETA: ${p.eta.formatted})` : "";
+              console.log(`[${p.step_index}/${p.step_total}] ${p.state} -> ${p.current_step} ${etaStr}`);
+            },
+          });
+          if (isJson) console.log(JSON.stringify(res, null, 2));
+          else console.log(`Run status: ${res.status || res.state}`);
+          break;
+        }
+        case "status":
+        case "current": {
+          const run = defaultOrchestrator.getStatus();
+          if (isJson) console.log(JSON.stringify(run, null, 2));
+          else {
+            console.log("=== AIOS RUNTIME CURRENT RUN ===");
+            console.log(`RUN ID:       ${run.run_id || "NONE"}`);
+            console.log(`GATE:         ${run.gate || "N/A"}`);
+            console.log(`STATE:        ${run.state} (${run.liveness})`);
+            console.log(`PROGRESS:     ${run.step_index || 0} / ${run.step_total || 0}`);
+            console.log(`CURRENT STEP: ${run.current_step || "NONE"}`);
+            console.log(`HEARTBEAT:    ${run.last_heartbeat || "N/A"} (${run.heartbeat_age_sec}s ago)`);
+            console.log(`ELAPSED:      ${Math.round((run.elapsed_ms || 0) / 1000)}s`);
+            console.log(`ETA:          ${run.eta?.formatted || "N/A"}`);
+          }
+          break;
+        }
+        case "follow": {
+          console.log("=== AIOS RUNTIME FOLLOW MODE (Ctrl+C to detach) ===");
+          const interval = setInterval(() => {
+            const run = defaultOrchestrator.getStatus();
+            const ts = new Date().toLocaleTimeString();
+            console.log(`[${ts}] Run: ${run.run_id || "NONE"} | State: ${run.state} | Step: ${run.step_index}/${run.step_total} (${run.current_step || "NONE"}) | Elapsed: ${Math.round((run.elapsed_ms || 0) / 1000)}s | ETA: ${run.eta?.formatted || "N/A"}`);
+            if (["PASSED", "FAILED", "CANCELLED"].includes(run.state)) {
+              clearInterval(interval);
+              console.log(`Run completed with final state: ${run.state}`);
+            }
+          }, 1000);
+          break;
+        }
+        case "pause": {
+          const res = defaultOrchestrator.pause();
+          if (isJson) console.log(JSON.stringify(res, null, 2));
+          else console.log(`Runtime execution PAUSED: ${res.status || res.error}`);
+          break;
+        }
+        case "resume": {
+          const res = defaultOrchestrator.resume();
+          if (isJson) console.log(JSON.stringify(res, null, 2));
+          else console.log(`Runtime execution RESUMED: ${res.status || res.error}`);
+          break;
+        }
+        case "stop": {
+          const res = defaultOrchestrator.stop();
+          if (isJson) console.log(JSON.stringify(res, null, 2));
+          else console.log(`Runtime execution STOPPED: ${res.status}`);
+          break;
+        }
+        case "attach": {
+          const res = defaultOrchestrator.attach();
+          if (isJson) console.log(JSON.stringify(res, null, 2));
+          else console.log(`Attached to run ${res.run?.run_id}: Status = ${res.status}`);
+          break;
+        }
+        case "logs": {
+          const status = defaultOrchestrator.getStatus();
+          if (isJson) console.log(JSON.stringify(status.raw?.steps || [], null, 2));
+          else {
+            console.log("=== AIOS RUNTIME STEP TIMELINE ===");
+            for (const s of status.raw?.steps || []) {
+              console.log(`[${s.status}] ${s.step_name} (${s.duration_ms}ms) -> stdout: ${s.stdout_digest?.slice(0, 10)}...`);
+            }
+          }
+          break;
+        }
+        default: {
+          console.error("Usage: aios runtime <start|status|current|follow|pause|resume|stop|attach|logs> [--json]");
+        }
+      }
+      break;
+    }
+
     case "stop": {
       const stopRes = defaultOrchestrator.stop();
       if (isJson) console.log(JSON.stringify(stopRes, null, 2));
