@@ -166,6 +166,36 @@ const TOOLS = [
       required: ["requestId"],
     },
   },
+  {
+    name: "aios.reality",
+    description: "Read the canonical AIOS Shared Reality snapshot and cryptographic reality digest (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "aios.status",
+    description: "Read the runtime status and hardware connectivity of AIOS nodes (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "aios.pending",
+    description: "Read active pending requests waiting for human approval (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "aios.evidence",
+    description: "Read the cryptographic witness and Evidence Ledger chain status (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "aios.agents",
+    description: "Read active agent proposals and Control Plane consumer metrics (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "aios.artifacts",
+    description: "Read the latest verified and human-approved artifacts produced by AIOS (READ-ONLY).",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 async function handleToolCall(name, args = {}) {
@@ -477,6 +507,24 @@ async function handleToolCall(name, args = {}) {
       return {
         content: [{ type: "text", text: JSON.stringify(res, null, 2) }],
       };
+    }
+    case "aios.reality": {
+      return handleToolCall("agent.reality_snapshot", args);
+    }
+    case "aios.status": {
+      return handleToolCall("runtime.status", args);
+    }
+    case "aios.pending": {
+      return handleToolCall("approval.list_pending", args);
+    }
+    case "aios.evidence": {
+      return handleToolCall("witness.latest", args);
+    }
+    case "aios.agents": {
+      return handleToolCall("control.snapshot", args);
+    }
+    case "aios.artifacts": {
+      return handleToolCall("artifact.latest", args);
     }
     default:
       throw new Error(`Unknown read-only tool: ${name}`);
