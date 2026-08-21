@@ -1,0 +1,37 @@
+{
+  "attestation_witness": "attest-wit-d9b55fa5a77456e6421031141adf2e3549cffd790aaceef84cce8e95e1f019a7",
+  "human_approval": {
+    "operator_id": "operator-admin",
+    "status": "GRANTED"
+  },
+  "lineage": {
+    "attestation": "attest-wit-d9b55fa5a77456e6421031141adf2e3549cffd790aaceef84cce8e95e1f019a7",
+    "previous_artifact": "art-human-b36dadf7735b07ca32706961",
+    "task_witness": "task-wit-f4b949c263ee62b73088d147"
+  },
+  "purpose": "production-proof",
+  "schema": "aios.production.proof.v1",
+  "source_nodes": [
+    {
+      "node_id": "node-9bd0d97dd3c599c25e7fc6c557021343711e6bb0baaedaae2874066713421a0f",
+      "platform": "win32",
+      "version": "0.1.0"
+    },
+    {
+      "node_id": "node-e09887136f677275944a6b7ae72e8d814a941a274b836915eb47dd607fda21c4",
+      "platform": "android",
+      "version": "0.1.0"
+    }
+  ],
+  "source_reality_hash": "88f45466ee08f97d3f82cb3aa6a928e36ee2215c0e15481745db7d2f9d690a6e",
+  "task_witness": "task-wit-f4b949c263ee62b73088d147",
+  "verified_observations": [
+    {
+      "capability": "sensor.battery.read",
+      "response_digest": "90719f5d9e174c728b00902e6f8759f2d75e58791e4a01533147f7959f6fe885",
+      "classification": "LIVE-EXECUTION-VERIFIED"
+    }
+  ],
+  "artifact_id": "art-prod-a5b3097e49810e8c3e8b5b98",
+  "artifact_sha256": "a5b3097e49810e8c3e8b5b98a2efc4c9a2d4d85b0d2e3e7b57b49317bf09e0a3"
+}
