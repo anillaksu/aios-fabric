@@ -13,6 +13,7 @@ import { defaultRelay } from "./agent-relay.mjs";
 import { buildSharedRealitySummary, querySystemReality } from "./shared-reality.mjs";
 import { computeCanonicalRealityDigest } from "./phone-shared-reality.mjs";
 import { defaultContinuousObserver } from "./continuous-observer.mjs";
+import { defaultControlPlane } from "./agent-control-plane.mjs";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -147,6 +148,22 @@ const TOOLS = [
         rationale: { type: "string", description: "Natural language rationale" },
       },
       required: ["requestId", "agentId", "proposedAction"],
+    },
+  },
+  {
+    name: "control.snapshot",
+    description: "Get the unified Canonical Agent Control Plane status, active requests and proposal counts.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "control.review",
+    description: "Get the aggregated Canonical Review Object combining all agent proposals for a single Human Gate decision.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        requestId: { type: "string", description: "Canonical request ID" },
+      },
+      required: ["requestId"],
     },
   },
 ];
@@ -446,6 +463,19 @@ async function handleToolCall(name, args = {}) {
 
       return {
         content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+      };
+    }
+    case "control.snapshot": {
+      const res = await defaultControlPlane.getControlPlaneSnapshot();
+      return {
+        content: [{ type: "text", text: JSON.stringify(res, null, 2) }],
+      };
+    }
+    case "control.review": {
+      const reqId = args.requestId;
+      const res = await defaultControlPlane.buildCanonicalReviewObject(reqId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(res, null, 2) }],
       };
     }
     default:
