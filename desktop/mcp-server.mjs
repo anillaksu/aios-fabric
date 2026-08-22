@@ -206,6 +206,16 @@ const TOOLS = [
     description: "Read browser runtime telemetry and ad suppression observations from Chromium node (READ-ONLY).",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "external.research.observe",
+    description: "Read a provider-generated aios.external-observation.v1 artifact (external web research, e.g. Google AI Mode). NOT canonical reality - EXTERNAL_OBSERVATION only. READ-ONLY.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customObservation: { type: "object", description: "Inject an observation object directly instead of reading the provider artifact (used for fixtures/tests)." },
+      },
+    },
+  },
 ];
 
 async function handleToolCall(name, args = {}) {
@@ -541,6 +551,14 @@ async function handleToolCall(name, args = {}) {
       const { defaultBrowserAdapter } = await import("./adapters/browser-adapter.mjs");
       const obs = defaultBrowserAdapter.readProofObservation(args.customProof);
       defaultBrowserAdapter.recordObservationEvidence(obs);
+      return {
+        content: [{ type: "text", text: JSON.stringify(obs, null, 2) }],
+      };
+    }
+    case "external.research.observe": {
+      const { defaultExternalResearchAdapter } = await import("./adapters/external-research-adapter.mjs");
+      const obs = defaultExternalResearchAdapter.readExternalObservation(args.customObservation);
+      defaultExternalResearchAdapter.recordObservationEvidence(obs);
       return {
         content: [{ type: "text", text: JSON.stringify(obs, null, 2) }],
       };
