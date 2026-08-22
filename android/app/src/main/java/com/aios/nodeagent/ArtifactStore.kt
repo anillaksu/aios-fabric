@@ -17,7 +17,16 @@ data class StoreListing(
     val localStatus: String,       // ArtifactStatus.* — DISCOVERED if never touched locally
     val compatible: Boolean,
     val compatibilityDetail: String,
+    val rollbackTargetId: String?,
 )
+
+/**
+ * Mission Part 4 (Update UX): the primary surface shows exactly one of these
+ * six words, never a raw status/hash. This is a PRESENTATION label computed
+ * from the existing ArtifactStatus values — it does not add a new state to
+ * LocalArtifactStore, so there is no duplicated business state (Part 7).
+ */
+enum class DisplayStatus { NOT_INSTALLED, VERIFIED, UPDATE_AVAILABLE, ACTIVE, ROLLBACK_AVAILABLE, REVOKED }
 
 object ArtifactStore {
 
@@ -27,12 +36,30 @@ object ArtifactStore {
     fun search(context: Context, query: String): List<StoreListing> =
         ArtifactCatalog.search(context, query).map { toListing(context, it) }
 
+    /** Full detail for one artifact — catalog + local + compatibility + evidence refs, for a detail view. */
+    fun details(context: Context, artifactId: String): StoreListing? =
+        ArtifactCatalog.load(context).find { it.artifactId == artifactId }?.let { toListing(context, it) }
+
+    fun displayStatus(context: Context, listing: StoreListing): DisplayStatus {
+        val activeIsNewer = LocalArtifactStore.currentActive(context)?.manifest?.artifactId != listing.catalog.artifactId &&
+            listing.localStatus in setOf(ArtifactStatus.AVAILABLE, ArtifactStatus.VERIFIED)
+        return when (listing.localStatus) {
+            ArtifactStatus.REVOKED -> DisplayStatus.REVOKED
+            ArtifactStatus.ACTIVE -> DisplayStatus.ACTIVE
+            ArtifactStatus.ROLLED_BACK, ArtifactStatus.SUPERSEDED ->
+                if (listing.rollbackTargetId != null) DisplayStatus.ROLLBACK_AVAILABLE else DisplayStatus.VERIFIED
+            ArtifactStatus.AVAILABLE, ArtifactStatus.VERIFIED, ArtifactStatus.INSTALLED ->
+                if (activeIsNewer) DisplayStatus.UPDATE_AVAILABLE else DisplayStatus.VERIFIED
+            else -> DisplayStatus.NOT_INSTALLED
+        }
+    }
+
     private fun toListing(context: Context, entry: CatalogEntry): StoreListing {
         val local = LocalArtifactStore.get(context, entry.artifactId)
         val (compatible, detail) = ArtifactCatalog.compatibility(
             entry, Build.VERSION.SDK_INT, Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
         )
-        return StoreListing(entry, local?.status ?: ArtifactStatus.DISCOVERED, compatible, detail)
+        return StoreListing(entry, local?.status ?: ArtifactStatus.DISCOVERED, compatible, detail, local?.rollbackTargetId)
     }
 
     /** Verification, using the SAME candidate-file verification path already proven in AiosInstaller. */

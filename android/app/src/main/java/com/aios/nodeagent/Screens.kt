@@ -2,12 +2,14 @@ package com.aios.nodeagent
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -165,6 +167,7 @@ fun ArtifactsScreen(activity: MainActivity, modifier: Modifier = Modifier) {
     var lastAction by remember { mutableStateOf("") }
     val listings = remember(tick, query) { ArtifactStore.search(activity, query) }
     var lastVerification by remember { mutableStateOf<VerificationResult?>(null) }
+    var showTechnical by remember { mutableStateOf(false) }
 
     fun candidateFile() = File(activity.getExternalFilesDir(null), "candidate.apk")
 
@@ -175,7 +178,21 @@ fun ArtifactsScreen(activity: MainActivity, modifier: Modifier = Modifier) {
         SectionCard("Candidate actions (external files/candidate.apk)") {
             Text(lastAction)
             lastVerification?.let { v -> Text("verify: digest=${v.digestValid} sig=${v.signatureValid} compat=${v.compatibilityValid} policy=${v.policyValid}") }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 5 actions don't fit a fixed-width Row on a phone screen without
+            // clipping/overlap (found during physical UI hardening) — scroll
+            // instead of shrinking below the 48dp Material touch-target minimum.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
+                Button(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        lastAction = try {
+                            val s = AiosInstaller.snapshotCurrentActive(activity)
+                            "discovered: ${s.manifest.buildId}"
+                        } catch (e: Exception) { "ERROR: ${e.message}" }
+                    }
+                }) { Text("Discover Current") }
                 Button(onClick = {
                     scope.launch(Dispatchers.IO) {
                         lastAction = try {
@@ -202,14 +219,37 @@ fun ArtifactsScreen(activity: MainActivity, modifier: Modifier = Modifier) {
                 Button(onClick = {
                     scope.launch(Dispatchers.IO) { lastAction = ArtifactStore.rollback(activity) }
                 }) { Text("Rollback") }
+                Button(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        lastAction = try {
+                            val f = candidateFile()
+                            val m = AiosInstaller.readManifestFromFile(activity, f, "store-candidate")
+                            ArtifactStore.revoke(activity, m.artifactId)
+                            "REVOKED ${m.artifactId}"
+                        } catch (e: Exception) { "ERROR: ${e.message}" }
+                    }
+                }) { Text("Revoke") }
             }
         }
-        SectionCard("Catalog + local status") {
+        SectionCard("Catalog") {
+            // Mission Part 4: primary surface shows ONE of six words, never raw
+            // hashes/buildIds. Toggle reveals the technical disclosure panel.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("show technical details")
+                Button(onClick = { showTechnical = !showTechnical }) { Text(if (showTechnical) "Hide" else "Show") }
+            }
             LazyColumn {
                 items(listings) { l ->
+                    val display = remember(tick, l) { ArtifactStore.displayStatus(activity, l) }
                     Column(Modifier.padding(vertical = 4.dp)) {
-                        Text("${l.catalog.type} ${l.catalog.version} (${l.catalog.buildId})")
-                        Text("local: ${l.localStatus}   compatible: ${l.compatible} (${l.compatibilityDetail})")
+                        Text("${l.catalog.type} ${l.catalog.version}")
+                        Text("status: $display   compatible: ${l.compatible}")
+                        if (showTechnical) {
+                            Text("buildId: ${l.catalog.buildId}")
+                            Text("sha256: ${l.catalog.sha256.take(16)}...")
+                            Text("artifactId: ${l.catalog.artifactId}")
+                            Text("rollbackTarget: ${l.rollbackTargetId ?: "none"}")
+                        }
                         Divider()
                     }
                 }

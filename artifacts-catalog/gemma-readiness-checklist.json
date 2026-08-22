@@ -1,0 +1,42 @@
+{
+  "schema": "aios.gemma-readiness.v1",
+  "generatedAt": "2026-08-22T09:00:00.000Z",
+  "note": "No Gemma runtime, model weights, or inference has been added or run. This file records what is ACTUALLY true about the admitted device today, and marks every Gemma-specific field NOT_MEASURED per mission Part 12. Nothing here authorizes or precedes implementation.",
+  "device": {
+    "model": "Xiaomi 2210129SG",
+    "platform": "taro (Snapdragon 7 Gen 1 family)",
+    "measured": true
+  },
+  "androidVersion": {
+    "release": "15",
+    "sdkInt": 35,
+    "securityPatch": "2026-07-01",
+    "measured": true
+  },
+  "ram": {
+    "totalKb": 7433672,
+    "freeAtMeasurementKb": 209284,
+    "availableAtMeasurementKb": 1884136,
+    "measured": true,
+    "note": "Read from /proc/meminfo at measurement time — a live snapshot, not a Gemma memory-budget test."
+  },
+  "storage": {
+    "freeBytesApprox": 164173701 ,
+    "unit": "KB, from df /data",
+    "measured": true
+  },
+  "gpuBackend": {
+    "renderer": "adreno",
+    "vulkanHardwareLevelKnown": false,
+    "measured": true,
+    "note": "ro.hardware.egl/vulkan report 'adreno' — real, but no LiteRT-LM/Vulkan-delegate compatibility test has been run."
+  },
+  "liteRtLmVersionCandidate": { "value": null, "status": "NOT_MEASURED" },
+  "modelVariant": { "value": null, "status": "NOT_MEASURED" },
+  "modelDigest": { "value": null, "status": "NOT_MEASURED" },
+  "functionCallingSupport": { "value": null, "status": "NOT_MEASURED" },
+  "toolRouting": { "value": null, "status": "NOT_MEASURED" },
+  "thermalConstraints": { "value": null, "status": "NOT_MEASURED" },
+  "batteryImpact": { "value": null, "status": "NOT_MEASURED" },
+  "latency": { "value": null, "status": "NOT_MEASURED" }
+}
