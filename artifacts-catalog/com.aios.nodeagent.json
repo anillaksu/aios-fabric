@@ -1,0 +1,79 @@
+{
+  "schema": "aios.artifact.catalog.v1",
+  "generatedAt": "2026-08-22T04:56:44.747Z",
+  "artifacts": [
+    {
+      "artifactId": "art-123416e19c9f02d582e5e9d3f74ed5fa",
+      "packageName": "com.aios.nodeagent",
+      "type": "node-agent",
+      "version": "0.2.0-supply-chain",
+      "platform": "android",
+      "minSdk": 24,
+      "targetSdk": 35,
+      "abi": "arm64-v8a",
+      "sha256": "1e1435640207b4b1c97d943c5b20c17f09cdaddbf38190030f19de2e1fef94a7",
+      "signatureReference": "sha256:3d28cd9478089dce0fa8f50f39ebfc0df6f10cb5f954d32c1ca3981844cab36a",
+      "buildId": "build-1-1e1435640207-v1",
+      "dependencies": [],
+      "capabilities": [
+        "aios.reality",
+        "aios.status",
+        "device.diagnostics.read",
+        "network.diagnostics.read",
+        "sensor.battery.read"
+      ],
+      "createdAt": "2026-08-22T04:53:24.994Z",
+      "verificationRefs": [],
+      "status": "DISCOVERED"
+    },
+    {
+      "artifactId": "art-88e7ab06ef4c94d9bde3a6d1e44e442d",
+      "packageName": "com.aios.nodeagent",
+      "type": "node-agent",
+      "version": "0.2.0-supply-chain",
+      "platform": "android",
+      "minSdk": 24,
+      "targetSdk": 35,
+      "abi": "arm64-v8a",
+      "sha256": "6dd3422d9206e9c201d53dd89b003098500883d6f245c148ace88b5570079b95",
+      "signatureReference": "sha256:3d28cd9478089dce0fa8f50f39ebfc0df6f10cb5f954d32c1ca3981844cab36a",
+      "buildId": "build-1-6dd3422d9206-v2",
+      "dependencies": [],
+      "capabilities": [
+        "aios.reality",
+        "aios.status",
+        "device.diagnostics.read",
+        "network.diagnostics.read",
+        "sensor.battery.read"
+      ],
+      "createdAt": "2026-08-22T04:53:35.347Z",
+      "verificationRefs": [],
+      "status": "DISCOVERED"
+    },
+    {
+      "artifactId": "art-9360dcf02dc7710b3467d87696f6631f",
+      "packageName": "com.aios.nodeagent",
+      "type": "node-agent",
+      "version": "0.2.0-supply-chain",
+      "platform": "android",
+      "minSdk": 24,
+      "targetSdk": 35,
+      "abi": "arm64-v8a",
+      "sha256": "d1bbe005f6a30857c2469778ed93154bad02673956ff90fcbff57531731cfed5",
+      "signatureReference": "sha256:3d28cd9478089dce0fa8f50f39ebfc0df6f10cb5f954d32c1ca3981844cab36a",
+      "buildId": "build-1-d1bbe005f6a3-v3",
+      "dependencies": [],
+      "capabilities": [
+        "aios.reality",
+        "aios.status",
+        "device.diagnostics.read",
+        "network.diagnostics.read",
+        "sensor.battery.read"
+      ],
+      "createdAt": "2026-08-22T04:56:44.745Z",
+      "verificationRefs": [],
+      "status": "DISCOVERED"
+    }
+  ],
+  "catalogDigest": "6c2ea9e6b1d66a9fd89a73493ae3fc44614373a6af561048bf4f461b5ee0c789"
+}
