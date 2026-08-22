@@ -60,3 +60,29 @@ pub extern "system" fn Java_com_aios_nodeagent_NativeCore_computeNodeIdentity<'l
     let out = env.new_string(id).expect("failed to allocate JNI string");
     out.into_raw()
 }
+
+/// Generic canonicalJson+sha256 for arbitrary evidence payloads, so the Runtime
+/// Service can hash evidence entries (Part 8 Evidence Vault) without
+/// reimplementing canonicalJson in Kotlin — one hashing semantic, one owner.
+/// Takes a JSON string, returns sha256_hex(canonical_json(parsed)). On invalid
+/// JSON input, returns the literal string "INVALID_JSON" rather than throwing
+/// across the JNI boundary.
+#[no_mangle]
+pub extern "system" fn Java_com_aios_nodeagent_NativeCore_canonicalHash<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    json_input: JString<'local>,
+) -> jstring {
+    let raw: String = env
+        .get_string(&json_input)
+        .expect("invalid json_input")
+        .into();
+    let result = match serde_json::from_str::<serde_json::Value>(&raw) {
+        Ok(value) => sha256_hex(canonical_json(&value).as_bytes()),
+        Err(_) => "INVALID_JSON".to_string(),
+    };
+    let out = env
+        .new_string(result)
+        .expect("failed to allocate JNI string");
+    out.into_raw()
+}

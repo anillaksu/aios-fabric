@@ -19,4 +19,7 @@ object NativeCore {
         arch: String,
         endpoint: String,
     ): String
+
+    /** sha256(canonicalJson(parsed(json))) — same algorithm as desktop/observer.mjs. */
+    external fun canonicalHash(json: String): String
 }

@@ -1,57 +1,124 @@
 package com.aios.nodeagent
 
 import android.app.Activity
-import android.os.Build
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import kotlin.concurrent.thread
 
 /**
- * AIOS Android vertical-slice proof (Part 22, mission "AIOS ANDROID OS FABRIC
- * FOUNDATION v1"). This is NOT the real Runtime Service / Node Agent / Control
- * Surface — those are specified in docs/android-foundation/08-VERTICAL-SLICE-STATUS.md
- * and require more than fits in one proof activity. This activity exists to prove
- * one thing honestly: that AIOS Core Native (Rust, cross-compiled for arm64
- * Android) is reachable via JNI from a real installed app on a real device, and
- * that it produces the exact same output as the canonical Node.js implementation
- * (desktop/observer.mjs) — the golden-vector constant below is checked on-device,
- * not assumed.
+ * AIOS Android Control Surface — vertical slice. Projection-only: every value
+ * shown here is read from RuntimeState / RuntimeService / native core, nothing
+ * is computed as a new semantic here (mission Part 7: "The Android UI is a
+ * projection. It MUST NOT implement its own state semantics.").
  */
 class MainActivity : Activity() {
 
-    private val expectedSelfCheckHash =
-        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    private val canonicalBaseUrl = "http://127.0.0.1:9320" // via `adb reverse tcp:9320 tcp:9320`
+    private lateinit var statusView: TextView
+    private val agentCardServer = AgentCardServer(9301)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val hash = NativeCore.selfCheckHash()
-        val hashOk = hash == expectedSelfCheckHash
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 80, 32, 32) }
+        statusView = TextView(this).apply { textSize = 13f; typeface = android.graphics.Typeface.MONOSPACE }
+        root.addView(statusView)
 
-        val nodeId = NativeCore.computeNodeIdentity(
-            agentName = "aios-node-agent-vertical-slice",
-            agentVersion = "0.1.0-design",
-            arch = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown-arch",
-            endpoint = "device-local",
-        )
-
-        val text = TextView(this)
-        text.textSize = 16f
-        text.setPadding(48, 96, 48, 48)
-        text.text = buildString {
-            appendLine("AIOS Node Agent — vertical slice proof")
-            appendLine()
-            appendLine("device: ${Build.MANUFACTURER} ${Build.MODEL}")
-            appendLine("android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-            appendLine("abi: ${Build.SUPPORTED_ABIS.firstOrNull()}")
-            appendLine()
-            appendLine("JNI self-check: ${if (hashOk) "PASS (matches Node.js golden vector)" else "FAIL (native/JS output diverged)"}")
-            appendLine("hash: $hash")
-            appendLine()
-            appendLine("node identity (native): $nodeId")
-            appendLine()
-            appendLine("This is a vertical-slice proof, not the production Node Agent.")
-            appendLine("Runtime Service / Control Surface / Evidence Vault are DESIGN_ONLY.")
+        fun addButton(label: String, action: () -> Unit) {
+            root.addView(Button(this).apply {
+                text = label
+                setOnClickListener { thread { action(); runOnUiThread { render() } } }
+            })
         }
-        setContentView(text)
+
+        addButton("Start Runtime Service") {
+            startService(Intent(this, RuntimeService::class.java).putExtra("runId", "run-${System.currentTimeMillis()}"))
+            Thread.sleep(300) // let onCreate/onStartCommand land before we render
+        }
+        addButton("Dispatch Capabilities") {
+            CapabilityDispatch.dispatchAll(this, canonicalBaseUrl)
+        }
+        addButton("Build + Verify Artifact Manifest") {
+            val manifest = ArtifactManifestBuilder.buildForSelf(this)
+            RuntimeState.currentArtifact = manifest
+            val v = ArtifactManifestBuilder.verify(this, manifest)
+            manifest.status = if (v.allValid) ArtifactStatus.ACTIVE else ArtifactStatus.REVOKED
+            RuntimeState.appendEvidence("artifact.verify:${manifest.artifactId}:${v.allValid}", v.allValid, NativeCore::canonicalHash)
+            lastVerification = v
+        }
+        addButton("Start Agent Card Server (:9301)") {
+            agentCardServer.start()
+        }
+        addButton("Stop Runtime Service") {
+            stopService(Intent(this, RuntimeService::class.java))
+        }
+
+        val scroll = ScrollView(this)
+        scroll.addView(root)
+        setContentView(scroll)
+
+        render()
+        thread {
+            while (true) {
+                Thread.sleep(1000)
+                runOnUiThread { render() }
+            }
+        }
+    }
+
+    private var lastVerification: VerificationResult? = null
+
+    private fun render() {
+        val liveness = RuntimeState.liveness()
+        val art = RuntimeState.currentArtifact
+        val v = lastVerification
+        statusView.text = buildString {
+            appendLine("AIOS Node Agent — Control Surface (vertical slice)")
+            appendLine("device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}  android ${android.os.Build.VERSION.RELEASE}")
+            appendLine()
+            appendLine("-- NODE AGENT --")
+            appendLine("nodeId: ${RuntimeState.nodeId}")
+            appendLine("platform: android  attestationStatus: NOT_IMPLEMENTED")
+            appendLine()
+            appendLine("-- RUNTIME STATE --")
+            appendLine("runId: ${RuntimeState.runId ?: "none"}")
+            appendLine("taskState: ${RuntimeState.taskState}")
+            appendLine("serviceRunning: ${RuntimeState.serviceRunning.get()}")
+            appendLine("liveness: $liveness")
+            val hbAge = if (RuntimeState.lastHeartbeatMs.get() > 0)
+                "${(System.currentTimeMillis() - RuntimeState.lastHeartbeatMs.get())}ms ago" else "never"
+            appendLine("lastHeartbeat: $hbAge")
+            appendLine()
+            appendLine("-- CAPABILITIES --")
+            if (RuntimeState.capabilities.isEmpty()) appendLine("(none dispatched yet)")
+            RuntimeState.capabilities.values.sortedBy { it.capability }.forEach {
+                appendLine("${it.capability}: ${it.status} (${it.latencyMs}ms) — ${it.detail}")
+            }
+            appendLine()
+            appendLine("-- ARTIFACT MANIFEST --")
+            if (art == null) appendLine("(none built yet)") else {
+                appendLine("artifactId: ${art.artifactId}")
+                appendLine("type/version: ${art.type} ${art.version}  minRuntime: ${art.minRuntime}")
+                appendLine("sha256: ${art.sha256.take(24)}...")
+                appendLine("signatureRef: ${art.signatureRef.take(24)}...")
+                appendLine("status: ${art.status}")
+                if (v != null) appendLine("verify: digest=${v.digestValid} sig=${v.signatureValid} compat=${v.compatibilityValid} policy=${v.policyValid}")
+            }
+            appendLine()
+            appendLine("-- EVIDENCE (Vault projection) --")
+            appendLine("entries: ${RuntimeState.evidenceLog.size}")
+            RuntimeState.evidenceLog.takeLast(5).forEach {
+                appendLine("  ${it.operation} -> ${it.currentHash.take(12)}...")
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        agentCardServer.stop()
+        super.onDestroy()
     }
 }
