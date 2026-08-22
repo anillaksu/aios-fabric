@@ -90,6 +90,14 @@ object CapabilityDispatch {
         stateMatch?.let { "runId=${it.groupValues[1]} state=${it.groupValues[2]}" } ?: "no active execution"
     }
 
+    /**
+     * Raw projection fetch for the Nodes screen (Track C) — reuses the exact
+     * same endpoint aiosReality/aiosStatus already call, just returns the full
+     * body so nodeOverview can be read too. Not a new protocol, not a new
+     * capability contract — a read-only convenience on top of the proven call.
+     */
+    fun fetchProjectionRaw(baseUrl: String): String = httpGet("$baseUrl/api/projection?profile=mobile")
+
     fun dispatchAll(context: Context, canonicalBaseUrl: String): List<CapabilityResult> {
         val results = listOf(
             sensorBatteryRead(context),

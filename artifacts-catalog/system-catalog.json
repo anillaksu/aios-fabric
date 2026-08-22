@@ -1,0 +1,119 @@
+{
+  "schema": "aios.system.catalog.v1",
+  "generatedAt": "2026-08-22T05:19:51.556Z",
+  "realArtifactCount": 2,
+  "designOnlyCount": 6,
+  "catalogDigest": "0f1dae34e50aa3e7dd0caca98444d668d0b1ef1b6481c93b4d3c0ed3f807f4a0",
+  "artifacts": [
+    {
+      "artifactId": "art-9511d91d2f28c25a23e53921d524ef7d",
+      "name": "AIOS Core",
+      "type": "core-native",
+      "version": "0.1.0-design",
+      "platform": "android-arm64",
+      "sha256": "1a8a8c68ce7727a7e22dfef7674d8d2363146b8a5a5e960dbb73b3fc40f299de",
+      "buildId": "build-core-1a8a8c68ce77",
+      "sizeBytes": 625920,
+      "createdAt": "2026-08-22T05:19:51.554Z",
+      "status": "DISCOVERED",
+      "note": "Real cross-compiled cdylib (native-core/src/*), independently verifiable file, not yet catalogued as an installable AIOS Artifact (no manifest wrapper on the .so itself)."
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Runtime",
+      "type": "runtime-service",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (RuntimeService.kt) — not yet an independently-built/installable artifact. No fabricated hash."
+    },
+    {
+      "artifactId": "art-b547b5eb4b1a794b0685ad272bb50914",
+      "packageName": "com.aios.nodeagent",
+      "type": "node-agent",
+      "version": "0.2.0-supply-chain",
+      "platform": "android",
+      "minSdk": 24,
+      "targetSdk": 35,
+      "abi": "arm64-v8a",
+      "sha256": "0091a9921b038e3780f0fff55363da07fc344ca872c0eb8aef23defef89019ce",
+      "signatureReference": "sha256:3d28cd9478089dce0fa8f50f39ebfc0df6f10cb5f954d32c1ca3981844cab36a",
+      "buildId": "build-1-0091a9921b03-v1",
+      "dependencies": [],
+      "capabilities": [
+        "aios.reality",
+        "aios.status",
+        "device.diagnostics.read",
+        "network.diagnostics.read",
+        "sensor.battery.read"
+      ],
+      "createdAt": "2026-08-22T05:19:51.434Z",
+      "verificationRefs": [],
+      "status": "DISCOVERED",
+      "name": "AIOS Node Agent"
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Control Surface",
+      "type": "control-surface",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (MainActivity.kt + Screens.kt) — not yet an independently-built/installable artifact. No fabricated hash."
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Evidence Vault",
+      "type": "evidence-vault",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (RuntimeState.kt evidence log) — not yet an independently-built/installable artifact. No fabricated hash."
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Artifact Store",
+      "type": "artifact-store",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (ArtifactStore.kt) — not yet an independently-built/installable artifact. No fabricated hash."
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Installer",
+      "type": "installer",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (AiosInstaller.kt) — not yet an independently-built/installable artifact. No fabricated hash."
+    },
+    {
+      "artifactId": null,
+      "name": "AIOS Device Bridge",
+      "type": "capability-bridge",
+      "version": null,
+      "platform": "android",
+      "sha256": null,
+      "buildId": null,
+      "createdAt": null,
+      "status": "DESIGN_ONLY",
+      "note": "Bundled inside com.aios.nodeagent (CapabilityDispatch.kt) — not yet an independently-built/installable artifact. No fabricated hash."
+    }
+  ]
+}

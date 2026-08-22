@@ -1,6 +1,6 @@
 {
   "schema": "aios.artifact.catalog.v1",
-  "generatedAt": "2026-08-22T04:56:44.747Z",
+  "generatedAt": "2026-08-22T05:19:51.435Z",
   "artifacts": [
     {
       "artifactId": "art-123416e19c9f02d582e5e9d3f74ed5fa",
@@ -73,7 +73,31 @@
       "createdAt": "2026-08-22T04:56:44.745Z",
       "verificationRefs": [],
       "status": "DISCOVERED"
+    },
+    {
+      "artifactId": "art-b547b5eb4b1a794b0685ad272bb50914",
+      "packageName": "com.aios.nodeagent",
+      "type": "node-agent",
+      "version": "0.2.0-supply-chain",
+      "platform": "android",
+      "minSdk": 24,
+      "targetSdk": 35,
+      "abi": "arm64-v8a",
+      "sha256": "0091a9921b038e3780f0fff55363da07fc344ca872c0eb8aef23defef89019ce",
+      "signatureReference": "sha256:3d28cd9478089dce0fa8f50f39ebfc0df6f10cb5f954d32c1ca3981844cab36a",
+      "buildId": "build-1-0091a9921b03-v1",
+      "dependencies": [],
+      "capabilities": [
+        "aios.reality",
+        "aios.status",
+        "device.diagnostics.read",
+        "network.diagnostics.read",
+        "sensor.battery.read"
+      ],
+      "createdAt": "2026-08-22T05:19:51.434Z",
+      "verificationRefs": [],
+      "status": "DISCOVERED"
     }
   ],
-  "catalogDigest": "6c2ea9e6b1d66a9fd89a73493ae3fc44614373a6af561048bf4f461b5ee0c789"
+  "catalogDigest": "e8f1ea046ce46b7b8395b93c4e2d270a9e14eef39de7c02d1bec2d654a21d050"
 }

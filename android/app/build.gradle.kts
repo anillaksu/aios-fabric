@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -29,6 +30,7 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     buildTypes {
@@ -44,4 +46,30 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+// Bundles the ONE canonical catalog file (produced by
+// desktop/build-artifact-catalog.mjs from real aapt2/apksigner metadata) as an
+// APK asset, so the Artifact Store reads the same catalog everyone else does
+// instead of a hand-duplicated copy.
+val syncCatalogAsset = tasks.register<Copy>("syncCatalogAsset") {
+    from(rootProject.file("../artifacts-catalog/com.aios.nodeagent.json"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+    rename { "catalog.json" }
+}
+tasks.matching { it.name.startsWith("merge") && it.name.contains("Assets") }.configureEach {
+    dependsOn(syncCatalogAsset)
+}
+
+dependencies {
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+    implementation(composeBom)
+    implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.runtime:runtime")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
