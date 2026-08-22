@@ -116,6 +116,21 @@ export class BrowserAdapter {
     };
     const proofDigest = sha256(canonicalJson(canonicalPayload));
 
+    // 3b. Evidence Canonical Serialization & SHA-256 Digest (proofDigest'ten BAĞIMSIZ,
+    // yalnızca gerçekten kanıt taşıyan alanlardan: checks + crash.message).
+    // generatedAt/timeline/samples1/consoleTail/adNetwork/host kasıtlı olarak dışarıda.
+    const evidencePayload = {
+      schema: proof.schema,
+      mode: proof.mode || "unknown",
+      checks: (proof.checks || []).map((c) => ({
+        id: c.id,
+        pass: c.pass,
+        detail: c.detail ?? null,
+      })),
+      crash: proof.crash ? { message: proof.crash.message } : null,
+    };
+    const proofEvidenceDigest = sha256(canonicalJson(evidencePayload));
+
     // 4. Status Sınıflandırması
     let status = "PROVEN";
     if (isStale) {
@@ -139,6 +154,7 @@ export class BrowserAdapter {
       verdict: proof.verdict,
       mode: proof.mode,
       proofDigest,
+      proofEvidenceDigest,
       counts: proof.counts,
       generatedAt: proof.generatedAt,
       observedAt: new Date().toISOString(),
@@ -167,6 +183,7 @@ export class BrowserAdapter {
         nodeId: observation.sourceNode,
         verdict: observation.verdict,
         proofDigest: observation.proofDigest,
+        proofEvidenceDigest: observation.proofEvidenceDigest,
         counts: observation.counts,
         evidenceRef: observation.evidenceRef,
         stale: observation.stale,
