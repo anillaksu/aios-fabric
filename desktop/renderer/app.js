@@ -625,6 +625,22 @@ async function submitAskAios(customPrompt) {
     setIdChip("ask-request-badge", res.requestId || "");
     setText("ask-time", nowTimeString());
 
+    if (res.researchResult) {
+      // Read-only external-research sonucu: insan onay kapısı yok, ajan
+      // proposal simülasyonu yok - ham JSON yerine görünür kanıt yüzeyi.
+      renderResearchResult(res.researchResult);
+      const actionBox = document.getElementById("human-gate-action-box");
+      if (actionBox) actionBox.hidden = true;
+      const resultBox = document.getElementById("task-result-box");
+      if (resultBox) resultBox.hidden = true;
+      const grid = document.getElementById("proposals-grid");
+      if (grid) grid.innerHTML = "";
+      return;
+    }
+
+    const researchBox = document.getElementById("research-result-box");
+    if (researchBox) researchBox.hidden = true;
+
     const grid = document.getElementById("proposals-grid");
     if (grid) {
       grid.innerHTML = (res.proposals || [])
@@ -652,6 +668,65 @@ async function submitAskAios(customPrompt) {
       btn.textContent = "Gönder";
     }
   }
+}
+
+const COMPARATOR_DOT = {
+  SUPPORTED: "proven",
+  CONTRADICTED: "failed",
+  UNRESOLVED: "waiting",
+  STALE: "stale",
+  NOT_COMPARABLE: "blocked",
+};
+const COMPARATOR_TEXT = {
+  SUPPORTED: "Desteklendi",
+  CONTRADICTED: "Çelişiyor",
+  UNRESOLVED: "Çözülmedi",
+  STALE: "Bayatlamış kanıt",
+  NOT_COMPARABLE: "Karşılaştırılamaz",
+};
+
+/** External research sonucunu (İSTEK/KAYNAK/KANIT/AIOS GERÇEKLİĞİ/KARAR/
+ *  SUMMARY DIGEST/EVIDENCE DIGEST) görünür yüzeye çizer. Ham JSON birincil
+ *  yüzeyde gösterilmez - yalnızca "Kanıt zinciri ayrıntısı" disclosure'ında
+ *  digest'ler mono/kısaltılmış olarak görünür. */
+function renderResearchResult(rr) {
+  const box = document.getElementById("research-result-box");
+  if (!box) return;
+  box.hidden = false;
+
+  const dot = document.getElementById("research-comparator-dot");
+  if (dot) dot.className = `status-dot ${COMPARATOR_DOT[rr.comparator] || "waiting"}`;
+  setText("research-comparator-title", COMPARATOR_TEXT[rr.comparator] || rr.comparator || "—");
+
+  setText("research-request-text", `“${rr.query}”`);
+
+  const sourceList = (rr.sources || []).map((s) => escapeHtml(s.title || s.url)).join(" · ");
+  setText("research-sources-text", sourceList || "Kaynak yok");
+
+  const claimList = (rr.claims || [])
+    .map((c) => `${escapeHtml(c.claim)} (${escapeHtml(c.support)})`)
+    .join(" ");
+  setText("research-claims-text", claimList || "Kanıt yok");
+
+  if (rr.aiosReality) {
+    const fields = Object.entries(rr.aiosReality).filter(([k]) => !["schema", "generatedAt", "note"].includes(k));
+    const measured = fields.filter(([, v]) => v && v.measured === true || v && v.status === "MEASURED").length;
+    setText(
+      "research-reality-text",
+      `${rr.aiosReality.device?.model || "cihaz"} · Android ${rr.aiosReality.androidVersion?.release || "?"} · ${measured}/${fields.length} alan ölçülmüş`,
+    );
+  } else {
+    setText("research-reality-text", rr.aiosRealityError || "AIOS gerçekliği bulunamadı");
+  }
+
+  setText("research-decision-text", COMPARATOR_TEXT[rr.comparator] || rr.comparator || "—");
+  setIdChip("research-summary-digest", rr.summaryDigest || "");
+  setIdChip("research-evidence-digest", rr.evidenceDigest || "");
+  setText("research-provider-text", `${rr.providerId || "—"} (${rr.providerState || "—"})`);
+  setText(
+    "research-google-text",
+    rr.googleBlocked ? `BLOCKED — ${rr.googleBlocked.reason || "bilinmiyor"}` : "denenmedi",
+  );
 }
 
 /** Ham sonucu kısa anlamsal cümleye indirger. */

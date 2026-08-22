@@ -323,6 +323,95 @@ export class AgentControlPlane {
   }
 
   /**
+   * 7b. External Research Ask (Natural Language -> canonical requestId ->
+   * provider selection -> fixture observation -> fact binding -> comparator
+   * -> visible control-surface result). Read-only, human-gate gerektirmez.
+   */
+  async runResearchAsk(cleanPrompt, requestedBy, targetNodeId) {
+    const req = await this.createCanonicalRequest({
+      operation: "external.research.observe",
+      requestedBy,
+      targetNodeId,
+      payload: { prompt: cleanPrompt, action: "external.research.observe" },
+    });
+
+    const { runResearchPipeline } = await import("./adapters/research-pipeline.mjs");
+    const result = await runResearchPipeline({ query: cleanPrompt, requestId: req.requestId });
+
+    // REFLEX/safe capability (bkz. external-research-adapter.mjs agent card) -
+    // insan onayı zaten hiç gerekmiyordu. Pipeline şu an tamamlandığı için bu
+    // AYNI mevcut resolveRequest() geçişini (approveAndExecute'ün de kullandığı,
+    // 4. metod) hemen çağırıyoruz - requestId/realityDigest/proposals AYNEN
+    // kalır, yeni state/requestId/ledger-şeması icat edilmez. Bunu yapmazsak
+    // "requests" projeksiyonu bu tamamlanmış, read-only isteği sonsuza kadar
+    // REVIEW_REQUIRED (yanlışlıkla "Karar bekleniyor") olarak göstermeye devam eder.
+    await this.resolveRequest(req.requestId, "APPROVE", "system-auto-readonly");
+
+    if (!result.ok) {
+      return {
+        ok: true,
+        requestId: req.requestId,
+        prompt: cleanPrompt,
+        operation: "external.research.observe",
+        realityDigest: req.realityDigest,
+        status: "NOT_AVAILABLE",
+        humanGateRequired: false,
+        researchResult: {
+          providerState: result.providerState || "NOT_AVAILABLE",
+          comparator: "NOT_COMPARABLE",
+          googleBlocked: result.googleBlocked || null,
+          errors: result.errors || null,
+        },
+      };
+    }
+
+    this.ledger.append({
+      operation: "external.research_observed",
+      http_status: 200,
+      success: true,
+      response_data: {
+        requestId: req.requestId,
+        providerId: result.providerId,
+        providerState: result.providerState,
+        comparator: result.comparator,
+        observationDigest: result.observationDigest,
+        providerEvidenceDigest: result.providerEvidenceDigest,
+        digestMatch: result.digestMatch,
+      },
+      metadata: { requestedBy, query: cleanPrompt, controlPlane: true },
+    });
+
+    return {
+      ok: true,
+      requestId: req.requestId,
+      prompt: cleanPrompt,
+      operation: "external.research.observe",
+      realityDigest: req.realityDigest,
+      status: "COMPLETE",
+      humanGateRequired: false,
+      researchResult: {
+        query: cleanPrompt,
+        providerId: result.providerId,
+        providerState: result.providerState,
+        sources: result.sources,
+        claims: result.claims,
+        contradictions: result.contradictions,
+        aiosReality: result.readiness,
+        aiosRealityError: result.readinessError,
+        comparator: result.comparator,
+        summaryDigest: result.observationDigest,
+        evidenceDigest: result.providerEvidenceDigest,
+        digestMatch: result.digestMatch,
+        ingestedStatus: result.ingestedStatus,
+        ingestedStale: result.ingestedStale,
+        evidenceRef: result.evidenceRef,
+        googleBlocked: result.googleBlocked || null,
+        metrics: result.metrics,
+      },
+    };
+  }
+
+  /**
    * 7. ASK AIOS (Natural Language -> Canonical Request -> Multi-Agent Proposals -> Human Review)
    */
   async askAios(prompt = "", options = {}) {
@@ -347,6 +436,21 @@ export class AgentControlPlane {
       } catch {
         targetNodeId = "node-browser";
       }
+    } else if (pLower.includes("araştır") || pLower.includes("arastir") || pLower.includes("research") || pLower.includes("gemma")) {
+      operation = "external.research.observe";
+      try {
+        const { defaultExternalResearchAdapter } = await import("./adapters/external-research-adapter.mjs");
+        targetNodeId = defaultExternalResearchAdapter.getNodeIdentity();
+      } catch {
+        targetNodeId = "node-external-research";
+      }
+    }
+
+    // External research: read-only evidence-gathering (class REFLEX/safe,
+    // aynı external-research-adapter.mjs agent card'ındaki gibi) - insan
+    // onay kapısı gerekmez, çok-ajan proposal simülasyonuna girmez.
+    if (operation === "external.research.observe") {
+      return this.runResearchAsk(cleanPrompt, requestedBy, targetNodeId);
     }
 
     // 1. Create canonical request
