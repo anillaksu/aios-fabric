@@ -65,19 +65,36 @@ export function verifyRuntimeLedgerText(text: string): RuntimeLedgerEvent[] {
     const columns = row.split("\t");
     if (columns.length !== 11) throw new TypeError(`runtime ledger gecersiz sutun: ${index + 1}`);
     const [timestamp, reason, role, status, pid, start, commandHash, sourceHash, processWitness, previousHash, eventHash] = columns;
-    // Yazici (scripts/aios-runtime-ledger.sh:process_witness) bir surec
-    // bulunamadiginda pid/start/commandHash/sourceHash/processWitness
-    // alanlarinin besini birden '-' yazar ve satiri status="missing" olarak
-    // kapatir. Okuyucu bunu kabul etmezse TEK bir missing satiri, dosyanin
-    // tamami once dogrulandigi icin sonraki BUTUN provenance yazimlarini
-    // fail-closed dusurur (PG-022; 2026-08-20'de canli telefonda gozlendi:
-    // 145 satirin 127-128'i, zincir ve event-hash'ler gecerli olmasina ragmen).
-    // Gevseme yalniz bu statuye ozgudur: canli surec iddia eden satirlarda
-    // hash zorunlulugu aynen surer, zincir/event-hash dogrulamasi hic
-    // degismez ve checkpointFrom() bir missing satirini zaten witness
-    // adayi saymaz.
-    const processAbsent = status === "missing";
-    const processHash = (value: string) => (processAbsent && value === "-") || HASH.test(value);
+    // Yazicinin (scripts/aios-runtime-ledger.sh:process_witness) sozlesmesi:
+    // surec bulunursa pid/start/commandHash/sourceHash/processWitness
+    // alanlarinin BESINI birden gercek deger, bulunamazsa BESINI birden '-'
+    // yazar (erken donus). Arada bir hal URETMEZ. Okuyucu bu esligi
+    // dogrudan pid'den okur - status ETIKETINDEN degil.
+    //
+    // 2026-08-24 DUZELTMESI (PG-022 ikinci tur, canli olcumle bulundu).
+    // Onceki hal gevsemeyi status === "missing" etiketine bagliyordu. Ama
+    // yazicinin status'u bir DEGISIM etiketidir, canlilik etiketi degil:
+    //     status="stable"
+    //     if [ "$pid" = '-' ]; then
+    //         [ -n "$old_pid" ] && [ "$old_pid" != '-' ] && status="missing"
+    // Surec yok VE onceden de yoksa "degisiklik" olmadigi icin status
+    // "stable" KALIR, alanlar yine '-' olur. Bu tamamen gecerli bir "surec
+    // yok" satiridir ve etiket-tabanli gevseme onu reddediyordu.
+    //
+    // CANLI ETKI: telefondaki 323 satirlik ledger'da bu kalipta 6 satir
+    // olustu (hepsi role=sshd; ilki satir 230, 2026-08-22T20:13:17Z). Dosyanin
+    // tamami once dogrulandigi icin satir 230'dan sonraki 94 satir
+    // reddediliyordu; o tarihten sonra HICBIR yeni provenance edge
+    // yazilamadi (en yeni edge 2026-08-20T05:29:24Z'de donmustu).
+    //
+    // pid'e bakmak ayrica ters yondeki bir acigi da kapatir: eskiden
+    // status="missing" yazan ama GERCEK bir pid tasiyan satirda hash'ler '-'
+    // birakilabiliyordu (yazicinin hicbir kod yolunda uretmedigi bozuk kayit).
+    // Artik eslik iki yonlu zorunlu. Zincir/event-hash dogrulamasi HIC
+    // degismedi ve checkpointFrom() surec-yok satirini sourceHash === '-'
+    // kapisiyla zaten witness adayi saymiyor.
+    const processAbsent = pid === "-";
+    const processHash = (value: string) => (processAbsent ? value === "-" : HASH.test(value));
     if (!timestamp || !reason || !role || !status || !pid || !start || !processHash(commandHash)
       || (sourceHash !== "-" && !HASH.test(sourceHash)) || !processHash(processWitness)
       || (previousHash !== "GENESIS" && !HASH.test(previousHash)) || !HASH.test(eventHash)) {

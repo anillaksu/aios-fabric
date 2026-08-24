@@ -271,14 +271,50 @@ test("PG-022 T1: yazicinin status=missing satiri okuyucudan gecer", () => {
   assert.equal(events[1].processWitness, "-");
 });
 
-test("PG-022 T2: gevseme yalniz missing'e ozgudur - canli surec iddia eden satirda '-' reddedilir", () => {
-  for (const status of ["stable", "started", "replaced"]) {
+test("PG-022 T2: canli surec IDDIA EDEN satir (gercek pid) '-' hash ile reddedilir", () => {
+  // 2026-08-24'te daraltildi. Eski hali gevsemeyi status="missing" ETIKETINE
+  // bagliyordu; bu iki yonlu yanlisti:
+  //   (a) yazicinin GERCEKTEN urettigi pid='-' + status='stable' satirini
+  //       reddediyordu (bkz. T7),
+  //   (b) status="missing" yazan ama GERCEK bir pid tasiyan satirda hash'lerin
+  //       '-' olmasina IZIN veriyordu - yazicinin hicbir kod yolunda
+  //       uretmedigi, bozuk/sahte bir kayit.
+  // Dogru invaryant pid'den okunur: process_witness() ya bes alani birden
+  // gercek deger, ya bes alani birden '-' yazar. Gercek pid tasiyan satir
+  // hash'lerini bos birakamaz - status ne olursa olsun.
+  for (const status of ["stable", "started", "replaced", "missing"]) {
     assert.throws(
-      () => verifyRuntimeLedgerText(ledgerText([{ ...WRITER_MISSING, status }])),
+      () => verifyRuntimeLedgerText(ledgerText([
+        { status, pid: "41", start: "900", commandHash: "-", sourceHash: "-", processWitness: "-" },
+      ])),
       /gecersiz alan/,
-      `${status} satiri '-' ile kabul edilmemeli`,
+      `${status} + gercek pid + '-' hash kabul edilmemeli`,
     );
   }
+});
+
+test("PG-022 T7 (2026-08-24 canli regresyon): pid='-' + status='stable' satiri okuyucudan gecer", () => {
+  // Yazicinin GERCEK sozlesmesi (scripts/aios-runtime-ledger.sh):
+  //     status="stable"
+  //     if [ "$pid" = '-' ]; then
+  //         [ -n "$old_pid" ] && [ "$old_pid" != '-' ] && status="missing"
+  // Yani surec YOK **ve onceden de yoktu** ise status "stable" KALIR, ama
+  // process_witness() yine bes alani birden '-' yazar. Okuyucu gevsemeyi
+  // status etiketine bagladigi icin bu satiri reddediyordu.
+  //
+  // CANLI ETKI (2026-08-24 olcumu): telefondaki 323 satirlik ledger'da bu
+  // kalipta 6 satir var (hepsi role=sshd; ilki satir 230,
+  // 2026-08-22T20:13:17Z). Okuyucu dosyanin TAMAMINI once dogruladigi icin
+  // satir 230'dan sonraki 94 satir reddediliyordu -> o tarihten beri hicbir
+  // yeni provenance edge yazilamadi (en yeni edge 2026-08-20T05:29:24Z).
+  const events = verifyRuntimeLedgerText(ledgerText([
+    {},
+    { ...WRITER_MISSING, status: "stable", role: "sshd", reason: "boot-complete" },
+  ]));
+  assert.equal(events.length, 2);
+  assert.equal(events[1].status, "stable");
+  assert.equal(events[1].pid, "-");
+  assert.equal(events[1].processWitness, "-");
 });
 
 test("PG-022 T3: missing satiri hicbir kosulda RuntimeWitness checkpoint'i olamaz", async () => {
