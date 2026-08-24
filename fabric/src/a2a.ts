@@ -153,6 +153,7 @@ function extractA2AText(payload: unknown): string {
 }
 
 const A2A_SNAPSHOT_EVENT = "a2a.task.snapshot";
+const A2A_PROTOCOL_VERSION = "1.0";
 
 export class A2AHub {
   private tasks = new Map<string, A2ATask>();
@@ -235,8 +236,12 @@ export class A2AHub {
         "olmadan calismaz.",
       url: this.selfUrl,
       version: PKG_VERSION,
-      protocolVersion: "1.0",
-      supportedInterfaces: [{ transport: "JSONRPC", url: this.selfUrl }],
+      protocolVersion: A2A_PROTOCOL_VERSION,
+      supportedInterfaces: [{
+        protocolBinding: "JSONRPC",
+        protocolVersion: A2A_PROTOCOL_VERSION,
+        url: this.selfUrl,
+      }],
       capabilities: { streaming: false, pushNotifications: false },
       skills: safeSkills.length ? safeSkills : [
         { id: "agent.respond", name: "Genel yanit",
@@ -485,6 +490,7 @@ export class A2AHub {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          "A2A-Version": A2A_PROTOCOL_VERSION,
           ...(peer.token ? { authorization: `Bearer ${peer.token}` } : {}),
         },
         body: JSON.stringify({
@@ -556,10 +562,17 @@ export class A2AHub {
         if (!res.ok) continue;
         const card = (await res.json()) as {
           url?: string;
-          supportedInterfaces?: { transport?: string; url?: string }[];
+          supportedInterfaces?: {
+            protocolBinding?: string;
+            protocolVersion?: string;
+            transport?: string;
+            url?: string;
+          }[];
         };
         const iface = card.supportedInterfaces?.find(
-          (i) => /jsonrpc/i.test(String(i.transport ?? "")) && i.url,
+          (i) => /jsonrpc/i.test(String(i.protocolBinding ?? i.transport ?? ""))
+            && (!i.protocolVersion || i.protocolVersion === A2A_PROTOCOL_VERSION)
+            && i.url,
         );
         if (iface?.url) return iface.url;
         if (card.url) return card.url;

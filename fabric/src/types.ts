@@ -106,11 +106,28 @@ export interface CapabilityResult {
   error?: string;
 }
 
+export interface CapabilityContractBinding {
+  contractSchema: string;
+  protocolVersion: string;
+  resourceUri: string;
+  toolName: string;
+  receiptSchema: string;
+  capabilityId: string;
+  class: WorkClass;
+  risk: "safe" | "sensitive" | "dangerous";
+  trustedContextOnly: boolean;
+  negotiation: string;
+}
+
 export interface Capability {
   name: string;                 // logical capability adi, orn "sensor.battery.read"
   class: WorkClass;
   execute: (payload: Record<string, unknown> | undefined) => Promise<CapabilityResult>;
   maxRetries?: number;
+  /** Çalıştırıcının uzaktaki sözleşmeyle hangi protokol ve kimlikler üzerinden
+   * bağlandığını kaynak sicilinde görünür kılar. Bu alan çalışma kanıtı değildir;
+   * canlı session/receipt ayrıca kanıtlanır. */
+  contractBinding?: CapabilityContractBinding;
   /**
    * Bu capability nin CIKTISI hassas mi? (2026-08-17 denetiminde eklendi)
    *
@@ -173,7 +190,13 @@ export interface AgentCard {
   /** W2.3: A2A v1.0 protokol surumu - karsi taraf hangi surumu konustugumuzu buradan okur. */
   protocolVersion: string;
   /** W2.3: RPC adresi burada duyurulur - istemci taban URL'i tahmin etmez. */
-  supportedInterfaces: { transport: string; url: string }[];
+  supportedInterfaces: {
+    protocolBinding: "JSONRPC";
+    protocolVersion: "1.0";
+    url: string;
+    /** Legacy readers may still provide this; new cards do not emit it. */
+    transport?: string;
+  }[];
   capabilities: { streaming: boolean; pushNotifications: boolean };
   skills: { id: string; name: string; description: string }[];
 }

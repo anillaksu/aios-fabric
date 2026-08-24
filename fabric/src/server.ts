@@ -23,6 +23,9 @@ import { logErr } from "./log.ts";
 import { readRuntimeStatus } from "./runtime-status.ts";
 import { recordCompletedRuntimeProvenance } from "./runtime-provenance.ts";
 import { exportFormationMemoryBundle, verifyFormation } from "../public/js/formation-memory.js";
+import { normalizeExternalEvidence, toExternalEvidenceEvent } from "./external-evidence.ts";
+import { TESTER_EVIDENCE_CONTRACT, toTesterObservationEvent } from "./tester-evidence.ts";
+import { MODEL_PACK_SELECTION_CONTRACT } from "./model-pack-selection.ts";
 
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
 const AIOS_HTML_PATH = PUBLIC_DIR + "aios.html";
@@ -932,6 +935,65 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === "/events" && req.method === "GET") {
       sse.add(res);
+      return;
+    }
+
+    if (url.pathname === "/contracts/tester-evidence" && req.method === "GET") {
+      json(res, 200, TESTER_EVIDENCE_CONTRACT);
+      return;
+    }
+
+    if (url.pathname === "/contracts/model-pack-selection" && req.method === "GET") {
+      json(res, 200, MODEL_PACK_SELECTION_CONTRACT);
+      return;
+    }
+
+    // Android locally seals consented, metadata-only observations. A trusted
+    // server-side exporter submits the complete bundle after the existing A2A
+    // bearer boundary; the APK never contains that bearer secret.
+    if (url.pathname === "/tester-observations" && req.method === "POST") {
+      if (!requireA2AAuth(req)) {
+        json(res, 401, { error: "gecersiz veya eksik Bearer token" });
+        return;
+      }
+      try {
+        const candidate = toTesterObservationEvent(JSON.parse((await readBody(req)) || "{}"));
+        const existing = journal.findByIdempotencyKey(candidate.idempotencyKey!);
+        if (existing) {
+          json(res, 200, { status: "ALREADY_RECORDED", event: existing });
+          return;
+        }
+        const event = journal.append(candidate);
+        sse.broadcast(event);
+        json(res, 202, { status: "RECORDED", event });
+      } catch (err) {
+        json(res, 400, { error: err instanceof Error ? err.message : String(err) });
+      }
+      return;
+    }
+
+    // Dis servisler model cevabini dogrudan "gercek" yapamaz. Yalniz A2A
+    // Bearer sinirindan gecen, hash-bagli ve idempotent evidence metadata'si
+    // journal'a eklenir; siniflandirma payload'da aynen korunur.
+    if (url.pathname === "/external-evidence" && req.method === "POST") {
+      if (!requireA2AAuth(req)) {
+        json(res, 401, { error: "gecersiz veya eksik Bearer token" });
+        return;
+      }
+      try {
+        const input = normalizeExternalEvidence(JSON.parse((await readBody(req)) || "{}"));
+        const candidate = toExternalEvidenceEvent(input);
+        const existing = journal.findByIdempotencyKey(candidate.idempotencyKey!);
+        if (existing) {
+          json(res, 200, { status: "ALREADY_RECORDED", event: existing });
+          return;
+        }
+        const event = journal.append(candidate);
+        sse.broadcast(event);
+        json(res, 202, { status: "RECORDED", event });
+      } catch (err) {
+        json(res, 400, { error: err instanceof Error ? err.message : String(err) });
+      }
       return;
     }
 
