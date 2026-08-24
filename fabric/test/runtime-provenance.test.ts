@@ -352,22 +352,39 @@ test("PG-022 T5: bozuk event hash missing satirinda da reddedilir", () => {
   assert.throws(() => verifyRuntimeLedgerText(`${columns.join("\t")}\n`), /event hash gecersiz/);
 });
 
-test("PG-022 T6: gercek ledger regresyonu - her satir eksiksiz parse edilir", () => {
-  // Depoda 2026-08-20'nin dondurulmus anlik goruntusu; telefonda kanonik canli
-  // ledger. Ayni dosya iki konumda aranir (production call-site testindeki
-  // desenle ayni), cunku fixture telefona dagitilmaz.
-  const fixture = new URL("./fixtures/runtime-ledger-2026-08-20.tsv", import.meta.url);
-  const liveLedger = join(process.env.HOME || "", "aios-runtime-ledger.tsv");
-  const usingFixture = existsSync(fixture);
-  assert.ok(usingFixture || existsSync(liveLedger), "gercek ledger regresyonu icin fixture ya da canli ledger gerekli");
-
-  const text = readFileSync(usingFixture ? fixture : liveLedger, "utf8");
+/** T6'nin iki bagimsiz kaynaga (fixture, canli ledger) uyguladigi ortak kontrol. */
+function assertLedgerRegression(text: string, label: string) {
   const rows = text.split(/\r?\n/).filter(Boolean);
   const events = verifyRuntimeLedgerText(text);
+  assert.equal(events.length, rows.length, `${label}: ledger'in her satiri parse edilmeli`);
+  assert.ok(events.some((event) => event.status === "missing"), `${label}: regresyon ancak gercek missing satiriyla anlamlidir`);
+  return { rows, events };
+}
 
-  assert.equal(events.length, rows.length, "gercek ledger'in her satiri parse edilmeli");
-  assert.ok(events.some((event) => event.status === "missing"), "regresyon ancak gercek missing satiriyla anlamlidir");
-  // Dondurulmus anlik goruntu tam olarak 145 satirdir; canli ledger buyudugu
-  // icin orada yalniz eksiksiz parse ve missing varligi aranir.
-  if (usingFixture) assert.equal(rows.length, 145);
+test("PG-022 T6: gercek ledger regresyonu - her satir eksiksiz parse edilir", () => {
+  // Depoda 2026-08-20'nin dondurulmus anlik goruntusu; telefonda kanonik canli
+  // ledger. Onceki hal bu ikisi arasinda usingFixture ? fixture : liveLedger
+  // seciyordu - fixture depoda VAR oldugu icin PC'de canli ledger HICBIR ZAMAN
+  // okunmuyordu (PG-022 T7'nin PC'de yakalanamamasinin kok nedeni, bkz.
+  // docs/OTURUM_2026-08-24.md SS2). Artik ikisi birbirini golgelemeden, ayri
+  // ayri dogrulanir.
+  const fixture = new URL("./fixtures/runtime-ledger-2026-08-20.tsv", import.meta.url);
+  const usingFixture = existsSync(fixture);
+
+  // AIOS_LIVE_RUNTIME_LEDGER: PC'de HOME telefonun $HOME'u degildir, bu yuzden
+  // canli ledger'a erismenin tek yolu (orn. adb pull ile) cekilen dosyanin
+  // yolunu acikca vermektir. Verilmezse process.env.HOME altindaki konum
+  // denenir (telefonda dogrudan gecerlidir).
+  const liveLedger = process.env.AIOS_LIVE_RUNTIME_LEDGER || join(process.env.HOME || "", "aios-runtime-ledger.tsv");
+  const usingLive = existsSync(liveLedger);
+  assert.ok(usingFixture || usingLive, "gercek ledger regresyonu icin fixture ya da canli ledger gerekli");
+
+  if (usingFixture) {
+    const { rows } = assertLedgerRegression(readFileSync(fixture, "utf8"), "fixture");
+    // Dondurulmus anlik goruntu tam olarak 145 satirdir.
+    assert.equal(rows.length, 145);
+  }
+  if (usingLive) {
+    assertLedgerRegression(readFileSync(liveLedger, "utf8"), "canli ledger");
+  }
 });
