@@ -14,7 +14,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { findKit, kitsOf, allKits, fill, buildUri } from "./kits.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { sanitizeAiosBlock } from "./screenspec.ts";
@@ -23,6 +23,7 @@ import { isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import type { Capability, CapabilityResult } from "./types.ts";
 import type { A2AHub } from "./a2a.ts";
 import { logErr } from "./log.ts";
+import { discoverLanAgents } from "./lan-discovery.ts";
 
 /** Dispatcher'in sunucu tarafinda ekledigi, JSON ile taklit edilemeyen LLM
  * baglami. Agdan gelen payload bu Symbol'u uretemez; LLM capability'si
@@ -46,6 +47,38 @@ export function setA2AHub(hub: A2AHub) {
 const BIN = "/data/data/com.termux/files/usr/bin";
 const RISH = `${BIN}/rish`;
 const RISH_ENV = { ...process.env, RISH_APPLICATION_ID: "com.termux" };
+
+// ─── ai-os CLI koprusu (2026-08-23) ───
+// KARAR-3'un (2026-08-17, llm_bridge zaten Codex OAuth uzerinden calisiyor,
+// "yeni model entegrasyonu yapilmaz, OmniRoute beklenir") owner tarafindan
+// BILINCLI olarak gecersiz kilinmasiyla eklendi - OmniRoute henuz hazir
+// degil, ai-os (PC'de calisan, MCP Streamable HTTP sunan ayri bir proje,
+// ai-os-roadmap/ai-os) gecici/ek bir backend olarak baglaniyor. Var olan
+// `llm.generate` (llm_bridge.py) DEGISTIRILMEDI - bu AYRI, ek bir capability.
+const HOME = process.env.HOME ?? "/data/data/com.termux/files/home";
+const AIOS_CLI_CONFIG_PATH = `${HOME}/fabric/.ai-os-cli-config`;
+
+interface AiosCliConfig {
+  url: string; // orn. http://100.109.236.30:8787/mcp (ai-os'un Tailscale IP'si)
+  token: string;
+}
+
+/** Fail-closed: config yoksa/bozuksa capability "unavailable" doner, sessizce
+ * varsayilan bir adrese/token'a duşmez (A2A token deseniyle ayni ilke). */
+function loadAiosCliConfig(): AiosCliConfig | undefined {
+  const envUrl = process.env.AIOS_CLI_URL;
+  const envToken = process.env.AIOS_CLI_TOKEN;
+  if (envUrl && envToken) return { url: envUrl, token: envToken };
+  try {
+    if (!existsSync(AIOS_CLI_CONFIG_PATH)) return undefined;
+    const parsed = JSON.parse(readFileSync(AIOS_CLI_CONFIG_PATH, "utf8")) as Partial<AiosCliConfig>;
+    if (typeof parsed.url === "string" && typeof parsed.token === "string") return parsed as AiosCliConfig;
+    return undefined;
+  } catch (err) {
+    logErr("capabilities:aiosCliConfigLoad", err);
+    return undefined;
+  }
+}
 
 /** Termux'un kendi binary'lerini calistirir - Shizuku/ADB gerekmez. */
 async function run(bin: string, args: string[] = [], timeoutMs = 10000): Promise<CapabilityResult> {
@@ -591,6 +624,38 @@ export const capabilities: Capability[] = [
     },
   },
   {
+    // ─── A2A PEER KESFI (2026-08-24) ───
+    // `a2a.peer.add` zaten vardi ama TAMAMEN elle - kullanici/model karsi
+    // cihazin IP:port'unu onceden bilmek zorundaydi. Bu capability yerel
+    // agi (Wi-Fi/hotspot/Tailscale arayuzlerinin /24 alt aglari) tarayip
+    // agent-card.json yayinlayan baska Fabric/A2A ajanlarini bulur.
+    // Salt-okunur/safe: hicbir peer OTOMATIK eklenmez, sadece aday listesi
+    // doner - eklemek isteyen yine `a2a.peer.add`'i (risk:"ask", insan
+    // onayi gerektirir) cagirir. Detay/kok-neden notu: lan-discovery.ts.
+    name: "a2a.peer.discover",
+    class: "AGENT",
+    risk: "safe",
+    readOnly: true,
+    maxRetries: 1,
+    execute: async (payload) => {
+      const port = Number(payload?.port ?? 9300);
+      if (!Number.isFinite(port) || port < 1 || port > 65535) return { ok: false, error: "port 1-65535 araliginda olmali" };
+      try {
+        const found = await discoverLanAgents(port);
+        return {
+          ok: true,
+          data: {
+            port,
+            agents: found.map((f) => ({ name: f.card.name, description: f.card.description, url: `http://${f.host}:${f.port}` })),
+            count: found.length,
+          },
+        };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  },
+  {
     // ─── A2A DELEGASYONU (2026-08-17, self-fetch kaldirildi) ───
     // A2A altyapisi vardi ama YALNIZCA HTTP ucu olarak (/a2a/delegate).
     // Yani Hermes bir artefakt icinden baska cihaza is veremiyordu - eylem
@@ -1107,6 +1172,65 @@ export const capabilities: Capability[] = [
       } catch (err) {
         if (err instanceof Error && err.name === "TimeoutError") {
           return { ok: false, error: "llm_bridge 80sn icinde yanit vermedi" };
+        }
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  },
+
+  {
+    name: "llm.generate.aios",
+    class: "THOUGHT",
+    risk: "safe",
+    maxRetries: 1,
+    sensitiveFields: ["prompt", "history", "context"],
+    sensitiveResult: true,
+    execute: async (payload) => {
+      const config = loadAiosCliConfig();
+      if (!config) {
+        return {
+          ok: false,
+          error: `ai-os CLI yapilandirilmamis: ${AIOS_CLI_CONFIG_PATH} yok (ya da AIOS_CLI_URL/AIOS_CLI_TOKEN env). ` +
+            `PC'de "ai-os serve" calistirip {"url":"http://<ip>:<port>/mcp","token":"<token>"} icerigini bu dosyaya yaz.`,
+        };
+      }
+      const prompt = str(payload?.prompt);
+      if (!prompt) return { ok: false, error: "prompt gerekli" };
+      // llm.generate'deki AYNI ilke: baglam SADECE dispatcher'in enjekte
+      // ettigi TRUSTED_LLM_CONTEXT'ten gelir, cagiranin iddiasindan degil.
+      const trustedContext = typeof payload?.[TRUSTED_LLM_CONTEXT] === "string"
+        ? payload[TRUSTED_LLM_CONTEXT] as string
+        : "";
+      const system = trustedContext
+        ? buildSystemPrompt(capabilities.map((c) => c.name), trustedContext)
+        : undefined;
+
+      try {
+        const res = await fetch(config.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name: "llm_complete", arguments: { prompt, ...(system ? { system } : {}) } },
+          }),
+          signal: AbortSignal.timeout(80000),
+        });
+        if (!res.ok) return { ok: false, error: `ai-os MCP ${res.status}: ${await res.text()}` };
+        const data = (await res.json()) as {
+          result?: { content?: Array<{ type: string; text?: string }>; isError?: boolean };
+          error?: { message: string };
+        };
+        if (data.error) return { ok: false, error: `ai-os MCP hatasi: ${data.error.message}` };
+        const text = data.result?.content?.map((c) => c.text ?? "").join("") ?? "";
+        if (data.result?.isError) return { ok: false, error: text || "ai-os llm_complete hata dondu" };
+        // Ayni sunucu-tarafi dogrulama: llm.generate'deki gibi model ciktisi
+        // HAM gitmez, aynı temizleme fonksiyonundan gecer.
+        return { ok: true, data: { text: sanitizeAiosBlock(text), finishReason: "stop", truncated: false } };
+      } catch (err) {
+        if (err instanceof Error && err.name === "TimeoutError") {
+          return { ok: false, error: "ai-os MCP 80sn icinde yanit vermedi" };
         }
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
