@@ -14,10 +14,12 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, accessSync, constants as fsConstants } from "node:fs";
+import { totalmem, freemem, loadavg, cpus } from "node:os";
 import { findKit, kitsOf, allKits, fill, buildUri } from "./kits.ts";
 import { buildSystemPrompt } from "./prompt.ts";
 import { sanitizeAiosBlock } from "./screenspec.ts";
+import { computeHealth } from "./health.ts";
 import { labelFor, hasRealLabel, resolveLabels, pendingLabels } from "./applabels.ts";
 import { isNetworkIconsEnabled, setNetworkIcons } from "./appicons.ts";
 import type { Capability, CapabilityResult } from "./types.ts";
@@ -687,6 +689,56 @@ export const capabilities: Capability[] = [
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
+    },
+  },
+  {
+    // ─── SISTEM SAGLIGI (2026-08-24) ───
+    // Kaynak fikir: nexus_aios/checkpoint-6-hermes-hardening'deki kurulum-
+    // fisi/agent_health_check. Fabric'te kurulum fisi YOK (dagitim
+    // dogrulamasi zaten scripts/deploy-to-phone.sh'in md5 karsilastirmasiyla
+    // yapiliyor - README "Kanoniklik ve devir kurali") - bu yuzden fikir
+    // AYNEN kopyalanmadi, CANLI calisma-zamani denetimine (node surumu,
+    // disk/bellek/cpu, fabric dizininin yazilabilirligi) donusturuldu.
+    // Ayrica: RBAC'in headless-surecte interaktif onaya DUSUP asilma riski
+    // (nexus_aios'ta checkpoint-2'de bulunan gercek bir hataydi) burada
+    // MIMARI OLARAK YOK - approval.ts:isApproved() senkron/non-blocking bir
+    // state kontrolu, asla readline/interaktif prompt'a dusmuyor (denetlendi,
+    // bkz. dispatcher.ts:145 - risk:"ask" + onaysiz -> ANINDA fail-closed
+    // hata, hicbir zaman bekleme yok). O yuzden bu checkpoint'in o kismi
+    // buraya TASINMADI - gerek yoktu.
+    name: "system.health",
+    class: "REFLEX",
+    risk: "safe",
+    readOnly: true,
+    maxRetries: 1,
+    execute: async () => {
+      const fabricDir = `${process.env.HOME}/fabric`;
+      let fabricDirWritable = false;
+      try { accessSync(fabricDir, fsConstants.W_OK); fabricDirWritable = true; } catch { fabricDirWritable = false; }
+
+      const memUsedPercent = Math.round(((totalmem() - freemem()) / totalmem()) * 100);
+      const cpuLoadRatio = loadavg()[0]! / Math.max(1, cpus().length);
+
+      let diskAvailableMB: number | undefined;
+      try {
+        const { stdout } = await execFileAsync("df", ["-k", fabricDir], { timeout: 5000 });
+        const cols = stdout.trim().split("\n")[1]?.trim().split(/\s+/);
+        const availableKB = cols ? Number(cols[3]) : NaN;
+        if (Number.isFinite(availableKB)) diskAvailableMB = Math.round(availableKB / 1024);
+      } catch (err) {
+        logErr("capabilities:systemHealthDf", err);
+      }
+
+      const result = computeHealth({
+        nodeVersion: process.version,
+        requiredNodeMajor: 22,
+        requiredNodeMinor: 6,
+        fabricDirWritable,
+        memUsedPercent,
+        cpuLoadRatio,
+        diskAvailableMB,
+      });
+      return { ok: true, data: result };
     },
   },
   {
