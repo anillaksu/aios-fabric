@@ -1,9 +1,12 @@
 package com.aios.nodeagent
 
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
@@ -36,16 +39,45 @@ import androidx.compose.ui.Modifier
  * extended to a multi-screen surface instead of one Activity's TextView.
  */
 class MainActivity : ComponentActivity() {
-    val canonicalBaseUrl = "http://127.0.0.1:9320" // via `adb reverse tcp:9320 tcp:9320`
+    // Was a hardcoded `127.0.0.1:9320` requiring a live `adb reverse` (USB)
+    // session — a demo-time single point of failure (ConnectivityConfig.kt).
+    // Now loaded from persisted settings, defaulting to the PC's Tailscale
+    // address, and editable from SettingsScreen without a rebuild.
+    var canonicalBaseUrl by mutableStateOf("")
     val agentCardServer = AgentCardServer(9301)
     var startupLatencyMs = mutableStateOf<Long?>(null)
 
+    // Screen capture: MediaProjection consent is a per-request Activity
+    // result — there is no way to obtain it without this launcher, by
+    // Android's own design (real security boundary, not a limitation
+    // introduced here). Result is forwarded to ScreenCaptureService.
+    private lateinit var screenCaptureLauncher: ActivityResultLauncher<Intent>
+
+    fun requestScreenCapture() {
+        val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        screenCaptureLauncher.launch(mgr.createScreenCaptureIntent())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                val intent = Intent(this, ScreenCaptureService::class.java)
+                    .putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                    .putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, result.data)
+                startForegroundService(intent)
+            }
+        }
+        canonicalBaseUrl = ConnectivityConfig.getBaseUrl(this)
         startService(Intent(this, RuntimeService::class.java).putExtra("runId", "run-${System.currentTimeMillis()}"))
         setContent {
+            var showOnboarding by remember { mutableStateOf(!onboardingAlreadySeen(this)) }
             MaterialTheme {
-                AiosApp(this)
+                if (showOnboarding) {
+                    OnboardingScreen(this) { showOnboarding = false }
+                } else {
+                    AiosApp(this)
+                }
             }
         }
     }

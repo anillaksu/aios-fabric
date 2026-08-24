@@ -40,6 +40,12 @@ object RuntimeState {
 
     @Volatile var currentArtifact: ArtifactManifest? = null
 
+    // Real, live flag set by ScreenCaptureService.onCreate/onDestroy — never
+    // assumed true just because consent was granted once; MediaProjection
+    // does not survive a service restart (Android's own design), so this is
+    // the only honest source of truth for "is capture actually running now".
+    @Volatile var screenCaptureActive: Boolean = false
+
     fun liveness(): Liveness =
         livenessFromHeartbeat(
             lastHeartbeatMs = lastHeartbeatMs.get().takeIf { it > 0 },

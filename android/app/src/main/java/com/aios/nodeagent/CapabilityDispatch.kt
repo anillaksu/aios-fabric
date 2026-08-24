@@ -98,6 +98,68 @@ object CapabilityDispatch {
      */
     fun fetchProjectionRaw(baseUrl: String): String = httpGet("$baseUrl/api/projection?profile=mobile")
 
+    /**
+     * First user of Semantics.kt's CapabilityStatus.DECLARED (previously defined
+     * but never returned by this object). DeviceDiscovery always runs (it never
+     * throws), so this cannot be NOT_PROVEN in the timed()/exception sense —
+     * instead: if not one single real field was measured, the result is honestly
+     * DECLARED (discovered but effectively unprobed), otherwise TESTED.
+     */
+    fun deviceBuildProfileRead(context: Context): CapabilityResult {
+        val t0 = System.nanoTime()
+        val profile = DeviceDiscovery.discover(context)
+        val latency = (System.nanoTime() - t0) / 1_000_000
+        val status = if (DeviceDiscovery.hasAnyRealMeasurement(profile)) CapabilityStatus.TESTED else CapabilityStatus.DECLARED
+        return CapabilityResult("device.build_profile.read", status, DeviceDiscovery.summarize(profile), latency, System.currentTimeMillis())
+    }
+
+    // ─── Owner'ın AnyDesk kurulum ekran görüntüsünden (2026-08-23) taşınan
+    // gerçek izin-durumu capability'leri: uzaktan-erişim tarzı bir uygulamanın
+    // istediği her izin, burada gerçek platform API'siyle OKUNUR (yalnızca
+    // durum okuma — izin isteme ayrı, kullanıcı onayı gerektiren bir eylem).
+    // Yeni kütüphane yok: yalnız android.* framework API'leri.
+
+    fun overlayPermissionRead(context: Context): CapabilityResult = timed("overlay.permission.read") {
+        "canDrawOverlays=${android.provider.Settings.canDrawOverlays(context)}"
+    }
+
+    fun batteryOptimizationStatus(context: Context): CapabilityResult = timed("battery.optimization.status") {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        "ignoringBatteryOptimizations=${pm.isIgnoringBatteryOptimizations(context.packageName)}"
+    }
+
+    /** Requesting exemption opens the OS dialog — a real user-approval action, not silent. */
+    fun requestIgnoreBatteryOptimizationsIntent(context: Context): Intent =
+        Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${context.packageName}"))
+
+    fun notificationListenerStatus(context: Context): CapabilityResult = timed("notification.listener.status") {
+        val enabled = android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: ""
+        "listenerAccessGranted=${enabled.contains(context.packageName)}"
+    }
+
+    /**
+     * Real, live flag from ScreenCaptureService — never TESTED just because
+     * MediaProjection consent was granted once in the past; consent does not
+     * survive past the service instance that requested it (Android's design,
+     * not a limitation invented here).
+     */
+    fun screenCaptureStatus(): CapabilityResult = timed("screen.capture.status") {
+        "active=${RuntimeState.screenCaptureActive}"
+    }
+
+    /** Real check: is our AccessibilityService actually connected right now (not just enabled in Settings). */
+    fun remoteControlStatus(context: Context): CapabilityResult = timed("remote.control.status") {
+        val enabledInSettings = android.provider.Settings.Secure
+            .getString(context.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            ?.contains("${context.packageName}/${AiosAccessibilityService::class.java.name}") ?: false
+        "enabledInSettings=$enabledInSettings connectedNow=${AiosAccessibilityService.instance != null}"
+    }
+
+    fun microphonePermissionStatus(context: Context): CapabilityResult = timed("microphone.permission.status") {
+        val granted = context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        "recordAudioGranted=$granted"
+    }
+
     fun dispatchAll(context: Context, canonicalBaseUrl: String): List<CapabilityResult> {
         val results = listOf(
             sensorBatteryRead(context),
@@ -105,6 +167,13 @@ object CapabilityDispatch {
             networkDiagnosticsRead(context),
             aiosReality(canonicalBaseUrl),
             aiosStatus(canonicalBaseUrl),
+            deviceBuildProfileRead(context),
+            overlayPermissionRead(context),
+            batteryOptimizationStatus(context),
+            notificationListenerStatus(context),
+            microphonePermissionStatus(context),
+            screenCaptureStatus(),
+            remoteControlStatus(context),
         )
         results.forEach { RuntimeState.capabilities[it.capability] = it }
         return results

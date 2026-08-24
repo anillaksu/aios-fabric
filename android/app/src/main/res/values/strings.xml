@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AIOS Node Agent</string>
+    <string name="accessibility_service_description">AIOS uzaktan kontrol: yalnız sen etkinleştirdiğinde, uygulama içinden istediğin dokunuş/kaydırma eylemlerini gerçekleştirir. Ekran içeriğini okumaz, arka planda izlemez.</string>
+</resources>
