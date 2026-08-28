@@ -41,18 +41,26 @@ cd C:\actions-runner-aios-hil
 .\run.cmd
 ```
 
-**Kalıcı yapmak — runner 2.337'de `svc.cmd` YOK.** İki seçenek:
+**Kalıcı yapmak — runner 2.337'de `svc.cmd` YOK.** Seçenekler:
 
-1. **Task Scheduler** (admin yok, parola yok, oturum açılınca başlar, COM4 + arduino15
-   erişimi doğru):
+1. **Startup klasörü** (✅ bu oturumda kuruldu — admin yok, `schtasks` "Erişim engellendi"
+   verdiyse bunu kullan). `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`
+   içine `github-runner-aios-hil.cmd`:
+   ```bat
+   @echo off
+   cd /d C:\actions-runner-aios-hil
+   start "aios-hil-runner" /min run.cmd
+   ```
+   Sonraki oturum açılışında runner minimize başlar. Şimdi başlatmak için dosyaya çift tıkla.
+
+2. **Task Scheduler** (admin gerekebilir):
    ```powershell
    schtasks /Create /TN "GitHubRunner-aios-hil" `
      /TR "cmd /c cd /d C:\actions-runner-aios-hil && run.cmd" `
      /SC ONLOGON /RL LIMITED /F
-   # başlatmak (veya bir sonraki oturum açılışında): schtasks /Run /TN "GitHubRunner-aios-hil"
    ```
 
-2. **Windows servisi** (yönetici PowerShell + Windows parolası gerekir — servis `anil`
+3. **Windows servisi** (yönetici PowerShell + Windows parolası gerekir — servis `anil`
    hesabıyla çalışmalı yoksa seri porta erişemez):
    ```powershell
    cd C:\actions-runner-aios-hil

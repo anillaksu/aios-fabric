@@ -2,11 +2,11 @@
   "$schema": "https://aios.foundation/schemas/hardware-proof-v1.json",
   "proofMetadata": {
     "timestamp": "2026-08-28T16:00:00+03:00",
-    "revision": 11,
+    "revision": 12,
     "kind": "ON_SILICON_EXECUTION",
     "verdict": "CONDITIONAL_PASS",
     "operator": "Claude Code (aksu094094@gmail.com)",
-    "note": "rev.11: HIL CI loop CLOSED. Repo public -> Actions compiles/runs. Self-hosted runner aios-hil-01 (C:/actions-runner-aios-hil) online, executed run 33186728296 on the physical RA4M1: 7 phases rc=0, HIL PROOF: PASS, AIOS_HARDWARE_PROOF_VERDICT=CONDITIONAL_PASS. Branch protection ENABLED on master (required check = hil-proof, no force-push/deletions). Workflow: pwsh steps + explicit Git-for-Windows bash (self-hosted shell:bash -> WSL stub); upload-artifact continue-on-error + .map trimmed (account artifact-storage quota hit). RELEASE_CHECKLIST section 1 (release infra) COMPLETE. PR #1 mergeable.",
+    "note": "rev.12: PR #1 SQUASH-MERGED to master (6696a41). Post-merge master push -> CI run 33188517577 SUCCESS (full HIL on physical RA4M1, HIL PROOF: PASS, CONDITIONAL_PASS). CI loop proven end-to-end on the default branch. Runner persistence: Startup-folder .cmd (schtasks needed admin). Workflow gate tightened -- HIL only on real code/harness changes under firmware/ (not .md/.log/report.json). RELEASE_CHECKLIST section 1 COMPLETE + proven on master.",
     "minimumCodeClosureBeforePhysicalHIL": {
       "s3_status_byte_compared": true,
       "T2_dual_transport_semantics": true,
@@ -310,7 +310,7 @@
     "pr": "https://github.com/anillaksu/aios-fabric/pull/1",
     "branch": "feat/hil-deterministic-kernel-proof",
     "workflow": ".github/workflows/hil-proof.yml -- single job runs-on [self-hosted, aios-hil], first step gates on firmware/** diff",
-    "status": "LIVE -- first green run on self-hosted runner",
+    "status": "LIVE + merged to master",
     "firstGreenRun": {
       "id": 33186728296,
       "conclusion": "success",
@@ -324,7 +324,15 @@
       "allow_force_pushes": false,
       "allow_deletions": false,
       "enforce_admins": false
-    }
+    },
+    "masterMerge": {
+      "commit": "6696a41",
+      "pr": 1,
+      "postMergeRun": 33188517577,
+      "conclusion": "success"
+    },
+    "runnerPersistence": "Startup folder: %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\github-runner-aios-hil.cmd (starts run.cmd minimized at logon)",
+    "greenRuns": 5
   },
   "openItems": [
     "PHASE_7_REAL_S3_SILICON_E2E: flash AIOS_S3_Bridge.ino (compiles EXIT 0) to real ESP32-S3, wire R4<->S3 UART, re-run the 9 tests (incl T8 status agreement) + reset/framing/timeout/replay/malformed on the real link, save fw version + chip id + baud/SPI + dual-side serial log (BRIDGE_S3_E2E_PLAN.md). Overall verdict stays CONDITIONAL_PASS until then.",
