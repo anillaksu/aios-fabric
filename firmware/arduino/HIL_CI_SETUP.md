@@ -75,8 +75,20 @@ echo $?      # 0 = gerçek donanım tüm fazları geçti
 
 ## Git / CI kapanış sırası
 
-1. **Remote'a push:**
-   `git push -u origin feat/hil-deterministic-kernel-proof`
+**Durum:** `origin = https://github.com/anillaksu/aios-fabric.git` eklendi. Yerel
+`feat/hil-deterministic-kernel-proof` dalı 6 commit (hepsi `firmware/**` + `.github/`,
+`origin/master`'ın 6 fabric-only commit'iyle **çakışmasız**). Push, `gh` OAuth token'ında
+`workflow` scope olmadığı için `.github/workflows/hil-proof.yml` yüzünden reddedildi.
+
+1. **Remote'a push** (kullanıcı — token'a workflow scope ekle, sonra push):
+   ```bash
+   gh auth refresh -h github.com -s workflow      # tarayıcıda ~10 sn
+   cd aios/aios-fabric
+   git push -u origin feat/hil-deterministic-kernel-proof
+   gh pr create --base master --head feat/hil-deterministic-kernel-proof \
+     --title "AIOS deterministic RA4M1 kernel + HIL proof" \
+     --body-file firmware/arduino/HARDWARE_PROOF.md
+   ```
 2. **Self-hosted runner'ı yalnızca HIL donanımına yetkilendir:** runner'ı fiziksel
    kartın bağlı olduğu makinede kur, `--labels self-hosted,aios-hil`. Repo →
    Settings → Actions → Runners → runner grubunu bu repoya (veya org'da sadece
@@ -86,9 +98,21 @@ echo $?      # 0 = gerçek donanım tüm fazları geçti
    `AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS` ile exit 0 verir ve
    `^(AIOS|PHASE)_[A-Z0-9_]+=FAIL` gördüğünde exit 1. Workflow'un son adımı
    (`Assert VERDICT=PASS`) da `PASS|CONDITIONAL_PASS` kabul eder — değiştirme.
-4. **`FAIL`'ı branch protection için zorunlu başarısız kontrol yap:** Settings →
-   Branches → `master` (ve `feat/*` istersen) → ☑ Require status checks →
-   **`hil-proof`**. Artık herhangi bir gate `=FAIL` → PR merge edilemez.
+4. **`hil-proof`'u zorunlu status check yap** — *önce* dal push edilmeli ve workflow
+   en az bir kez koşmalı (yoksa tüm PR'lar "Expected" ile takılır). `hil-proof` job'ı
+   `firmware/**` değişmeyen PR'larda `ubuntu-latest`'te trivial pass verir (runs-on
+   ternary), o yüzden fabric-only PR'ları bloklamaz.
+   ```bash
+   gh api -X PUT repos/anillaksu/aios-fabric/branches/master/protection \
+     -H "Accept: application/vnd.github+json" \
+     -f 'required_status_checks[strict]=false' \
+     -f 'required_status_checks[checks][][context]=hil-proof' \
+     -F 'enforce_admins=false' -F 'required_pull_request_reviews=null' \
+     -F 'restrictions=null'
+   ```
+   Artık herhangi bir release gate `=FAIL` → `hil-proof` fail → PR merge edilemez.
+   **Bu komut bu oturumda çalıştırılmadı** — workflow henüz push edilmediğinden
+   etkinleştirilmesi tüm master PR'larını bloklardı.
 5. **Fiziksel S3 E2E tamamlanınca** (`BRIDGE_S3_E2E_PLAN.md`): `PHASE_7_REAL_S3_SILICON_E2E`
    `PASS` olur, `.ino` verdict'i otomatik `PASS` basar; release verdict'ini o koşunun
    `hardware_proof_serial.log`'u ile yeniden üret ve `hardware_proof_report.json`'u güncelle.
