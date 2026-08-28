@@ -14,6 +14,10 @@ Geçiş sırası: **(1) gerçek S3 hattını kanıtla → (2) dayanıklılık/g�
 (3) sınırlı saha pilotu.** Fiziksel sonuçlar bu altyapı kapanmadan release kararı için
 değil, manuel artifact olarak tutulur.
 
+> **§1 Release altyapısı TAMAM** (2026-08-28): repo public → Actions çalışıyor → self-hosted
+> runner (`aios-hil-01`) gerçek RA4M1'i CI'da flash edip 7-fazı koşturdu → `hil-proof`
+> `master` için zorunlu check. PR #1 mergeable.
+
 ---
 
 ## 1. Release altyapısı
@@ -22,9 +26,10 @@ değil, manuel artifact olarak tutulur.
 |---:|---|---|---|
 | 1 | Branch'e workflow push | Workflow repo'da | ✅ push edildi, **PR #1** açık |
 | 1b | GitHub Actions çalışıyor | Workflow derleniyor (`startup_failure` yok) | ✅ repo public yapıldı |
-| 2 | Self-hosted HIL runner | Runner online | 🟡 indirildi+kaydedildi (`aios-hil-01`, `C:ctions-runner-aios-hil`); **BAŞLAT:** `cd C:ctions-runner-aios-hil; .un.cmd` (veya `.\svc.cmd install`) |
-| 3 | İlk yeşil CI koşusu | `hil-proof` job PASS (fiziksel kart) | ⏳ runner başlayınca otomatik (PR #1'de kuyrukta) |
-| 4 | Branch protection | `hil-proof` zorunlu check | ⏳ ilk yeşil koşu sonrası — `gh api` komutu `HIL_CI_SETUP.md §5` |
+| 2 | Self-hosted HIL runner | Runner online | 🟡 indirildi+kaydedildi (`aios-hil-01`, `C:ctions-runner-aios-hil`); **BAŞLAT:** `cd C:ctions-runner-aios-hil; .
+un.cmd` (veya `.\svc.cmd install`) |
+| 3 | İlk yeşil CI koşusu | `hil-proof` job PASS (fiziksel kart) | ✅ run 33186728296 success, `HIL PROOF: PASS`, `CONDITIONAL_PASS` |
+| 4 | Branch protection | `hil-proof` zorunlu check | ✅ `master` → required check `hil-proof` (allow_force_pushes=false, allow_deletions=false) |
 | 5 | Artifact retention | log, binary, commit SHA, report saklanır | ✅ `run_provenance.json` + workflow `upload-artifact` (30 gün) |
 
 ## 2. Gerçek S3 HIL — ana blocker

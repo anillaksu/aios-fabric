@@ -2,11 +2,11 @@
   "$schema": "https://aios.foundation/schemas/hardware-proof-v1.json",
   "proofMetadata": {
     "timestamp": "2026-08-28T16:00:00+03:00",
-    "revision": 10,
+    "revision": 11,
     "kind": "ON_SILICON_EXECUTION",
     "verdict": "CONDITIONAL_PASS",
     "operator": "Claude Code (aksu094094@gmail.com)",
-    "note": "rev.10: branch pushed to github.com/anillaksu/aios-fabric (PR #1). gh token workflow scope added. Workflow collapsed to a single [self-hosted, aios-hil] job that self-gates on a firmware/** diff (private-repo GitHub-hosted minutes are exhausted -> any ubuntu-latest job returns startup_failure=BuildFailed; reproduced with a 1-line echo, NOT a YAML error). Branch protection still pending (needs: fix Actions billing OR make repo public, register self-hosted runner, one green run).",
+    "note": "rev.11: HIL CI loop CLOSED. Repo public -> Actions compiles/runs. Self-hosted runner aios-hil-01 (C:/actions-runner-aios-hil) online, executed run 33186728296 on the physical RA4M1: 7 phases rc=0, HIL PROOF: PASS, AIOS_HARDWARE_PROOF_VERDICT=CONDITIONAL_PASS. Branch protection ENABLED on master (required check = hil-proof, no force-push/deletions). Workflow: pwsh steps + explicit Git-for-Windows bash (self-hosted shell:bash -> WSL stub); upload-artifact continue-on-error + .map trimmed (account artifact-storage quota hit). RELEASE_CHECKLIST section 1 (release infra) COMPLETE. PR #1 mergeable.",
     "minimumCodeClosureBeforePhysicalHIL": {
       "s3_status_byte_compared": true,
       "T2_dual_transport_semantics": true,
@@ -296,11 +296,6 @@
       "PASS",
       "CONDITIONAL_PASS"
     ],
-    "pending": [
-      "push to GitHub remote",
-      "register [self-hosted, aios-hil] runner",
-      "master branch protection -> require hil-proof"
-    ],
     "ciFailsOn": "any ^(AIOS|PHASE)_[A-Z0-9_]+=FAIL, or missing verdict line",
     "closureSequence": [
       "git push -u origin feat/hil-deterministic-kernel-proof",
@@ -314,11 +309,24 @@
     "pushed": true,
     "pr": "https://github.com/anillaksu/aios-fabric/pull/1",
     "branch": "feat/hil-deterministic-kernel-proof",
-    "blocker": "GitHub Actions startup_failure (BuildFailed) account-wide -- GitHub-hosted minutes exhausted on this private repo. Fix: raise Actions spending limit / add payment method, or make repo public. Workflow is a single self-hosted job (0 minutes) but workflow compilation itself is currently billing-gated.",
-    "workflow": ".github/workflows/hil-proof.yml -- single job runs-on [self-hosted, aios-hil], first step gates on firmware/** diff"
+    "workflow": ".github/workflows/hil-proof.yml -- single job runs-on [self-hosted, aios-hil], first step gates on firmware/** diff",
+    "status": "LIVE -- first green run on self-hosted runner",
+    "firstGreenRun": {
+      "id": 33186728296,
+      "conclusion": "success",
+      "verdict": "CONDITIONAL_PASS",
+      "runner": "aios-hil-01"
+    },
+    "branchProtection": {
+      "branch": "master",
+      "required_check": "hil-proof",
+      "strict": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false,
+      "enforce_admins": false
+    }
   },
   "openItems": [
-    "CI: GitHub Actions billing blocker (startup_failure=BuildFailed). Then register [self-hosted, aios-hil] runner, then branch protection (gh api command in HIL_CI_SETUP.md).",
     "PHASE_7_REAL_S3_SILICON_E2E: flash AIOS_S3_Bridge.ino (compiles EXIT 0) to real ESP32-S3, wire R4<->S3 UART, re-run the 9 tests (incl T8 status agreement) + reset/framing/timeout/replay/malformed on the real link, save fw version + chip id + baud/SPI + dual-side serial log (BRIDGE_S3_E2E_PLAN.md). Overall verdict stays CONDITIONAL_PASS until then.",
     "AIOS_FULL_NIST_STS_REFERENCE_TOOL: run dieharder -a / NIST STS 'assess' on a >=1.25 MB dump (aios-verify.sh --dump-trng ready).",
     "HIL CI: GitHub remote + self-hosted runner + branch protection (user side).",
@@ -347,5 +355,5 @@
     ],
     "soak": "artifacts/hil/soak_summary.json (--repeat N): runs/pass/fail/distinct_link_modes/distinct_on_device_commits/same_software_and_transport"
   },
-  "releaseChecklist": "RELEASE_CHECKLIST.md -- controlled-pilot minimum package, sections 1-9"
+  "releaseChecklist": "RELEASE_CHECKLIST.md -- section 1 (release infra) COMPLETE; open: real S3 HIL, soak, fw lifecycle, crypto key lifecycle"
 }
