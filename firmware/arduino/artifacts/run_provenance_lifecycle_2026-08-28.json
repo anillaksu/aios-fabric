@@ -1,0 +1,11 @@
+{
+  "run_index": 1, "timestamp_utc": "2026-08-28T16:34:17Z",
+  "commit_sha_host": "f977f5f", "commit_sha_on_device": "f977f5f",
+  "ra4m1_bin_sha256": "9ab8ca71167beea2c1695a2530249ac6c1b43159dcd6d975b729b46d1c013e31", "s3_bin_sha256": "48f789d06a0e68be3dd0c6367043dc20b2a1d4304f74ff137e213d0061fc9c87",
+  "fqbn": "arduino:renesas_uno:unor4wifi", "port": "COM4",
+  "bridge_link_mode": "modeled", "fallback_used": 0,
+  "expect_s3": 0,
+  "verdict": "CONDITIONAL_PASS",
+  "hang": 0, "deadlock": 0, "golden_vectors_match": 1,
+  "log": "hardware_proof_serial.log"
+}

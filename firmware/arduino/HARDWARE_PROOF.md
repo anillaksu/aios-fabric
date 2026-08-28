@@ -1,11 +1,11 @@
 # AIOS — Donanımsal Doğrulama Raporu (On-Silicon Proof)
 
-**Tarih:** 2026-08-28 (rev.5 — bridge E2E link layer, off-device NIST battery, release gates, git+CI)
+**Tarih:** 2026-08-28 (rev.6 — PHASE 8 key + firmware lifecycle; bridge E2E link layer, off-device NIST battery, release gates, git+CI)
 **Hedef donanım:** Arduino UNO R4 WiFi — Renesas **RA4M1** (R7FA4M1AB3CFM, Cortex‑M4 @ 48 MHz, 32 kB SRAM, 256 kB Flash) + Espressif **ESP32‑S3** yardımcı işlemci
 **Bağlantı:** USB CDC, `COM4` (VID:PID `2341:1002`)
-**Sonuç:** `AIOS_HARDWARE_PROOF_VERDICT=CONDITIONAL_PASS` — **7 fazın tümü** gerçek silikonda `rc=0`
-(5/5 kanonik · 6/6 mutasyon KILLED · 9/9 gerçek UID · TRNG NIST batch · DRBG NIST batch · 7/7 chaos KILLED · 8/8 bridge E2E).
-Koşullu: `AIOS_ESP32S3_BRIDGE_E2E=PENDING` — bridge firmware henüz gerçek S3 silikonunda değil (bkz. §Release Gates).
+**Sonuç:** `AIOS_HARDWARE_PROOF_VERDICT=CONDITIONAL_PASS` — **8 fazın tümü** gerçek silikonda `rc=0`
+(5/5 kanonik · 6/6 mutasyon KILLED · 9/9 gerçek UID · TRNG NIST batch · DRBG NIST batch · 7/7 chaos KILLED · 8/8 bridge E2E · 22/22 lifecycle).
+Koşullu: `PHASE_7_REAL_S3_SILICON_E2E=PENDING` — bridge firmware henüz gerçek S3 silikonunda değil (bkz. §Release Gates).
 
 ### Release Gates
 ```
@@ -13,6 +13,8 @@ AIOS_RA4M1_KERNEL_PROOF            = PASS
 AIOS_TRNG_ON_DEVICE_SUITE          = PASS
 AIOS_DRBG_PROOF                    = PASS
 AIOS_CHAOS_SUITE                   = PASS
+AIOS_KEY_LIFECYCLE_SUITE           = PASS      (PHASE 8, KL-01..10 — seed/rotation/seal/prod-lock)
+AIOS_FW_LIFECYCLE_SUITE            = PASS      (PHASE 8, FW-01..12 — negotiate/auth-update/rollback)
 PHASE_7_BRIDGE_LINK_E2E            = PASS      (32-byte wire protokolü + link katmanı)
 PHASE_7_REAL_S3_SILICON_E2E        = PENDING   (bridge fw gerçek S3 silikonunda + gerçek R4<->S3 hattı)
 AIOS_OFFDEVICE_TRNG_BATTERY        = PASS      (nist_sts_lite, ~1M bit, 11/11 — artifacts/sts/)
@@ -162,6 +164,45 @@ silikonunda çalışması + gerçek R4↔S3 SPI/UART hattı. Prosedür + minimum
 Debug disiplini (tasarım notu): `aios_wire_verify` saf fonksiyondur, T0'da linksiz
 doğrulanır → parser hatası ile transfer hatası karışmaz.
 
+### PHASE 8 — **Key lifecycle (§6) + Firmware lifecycle (§7)** — **22/22 PASS**
+
+`aios_key_lifecycle.{hpp,cpp}` + `aios_fw_lifecycle.{hpp,cpp}` eklendi; on-device
+`aios_lifecycle_test.cpp` gerçek RA4M1'de koştu (rc=0, ~0.20 s).
+
+| # | Key lifecycle (KL) | Sonuç |
+|---|---|---|
+| KL-01 | İlk seed üretimi (UID ⊕ TRNG) deterministik | pass=1 |
+| KL-02 | Seal silikon UID'e bağlı — başka cihazda `UNSEALED` (flash-dump/transplant) | pass=1 |
+| KL-03 | Reset sonrası anahtar yeniden türetme bit-birebir | pass=1 |
+| KL-04 | Seed'den DRBG re-derive deterministik; reseed sonrası akış ilerliyor | pass=1 |
+| KL-05 | Label / epoch alan ayrımı | pass=1 |
+| KL-06 | Rotasyon eski epoch anahtarlarını geçersiz kılar (`EPOCH_STALE`) | pass=1 |
+| KL-07 | Rotasyon monotonik — downgrade reddedilir | pass=1 |
+| KL-08 | Floor'dan çok ileri epoch reddedilir (`EPOCH_FUTURE`) | pass=1 |
+| KL-09 | `production_lock` → ham anahtar export `LOCKED`; derive çalışır | pass=1 |
+| KL-10 | Factory reset seed'i sıfırlar → `NOT_PROVISIONED` | pass=1 |
+
+| # | Firmware lifecycle (FW) | Sonuç |
+|---|---|---|
+| FW-01 | Sürüm müzakeresi: aralık içi OK, dışı `INCOMPAT` | pass=1 |
+| FW-02 | Geçerli auth'lu imaj stage olur, `pending` set | pass=1 |
+| FW-03 | 1 byte bozuk gövde → `SIG`, durum değişmez | pass=1 |
+| FW-04 | Manifest değişip eski MAC → `SIG` | pass=1 |
+| FW-05 | Yanlış update key → `SIG` | pass=1 |
+| FW-06 | Downgrade (version ≤ floor) → `DOWNGRADE` | pass=1 |
+| FW-07 | Tekrarlanan update nonce → `NONCE` | pass=1 |
+| FW-08 | Kesik / yarım yazılmış gövde → `CRC`, `pending` yok | pass=1 |
+| FW-09 | Sağlıklı commit: aktif slot değişir, floor yükselir | pass=1 |
+| FW-10 | Sağlık başarısız → rollback, aktif slot değişmez | pass=1 |
+| FW-11 | Commit öncesi güç kaybı → `aios_fw_resume` doğrular, re-commit çalışır | pass=1 |
+| FW-12 | Boot-loop → N denemeden sonra otomatik rollback | pass=1 |
+
+> **DÜRÜST KAPSAM:** authenticator simetrik MAC (`aios_fast_hash64`, HMAC-benzeri) —
+> **asimetrik kod imzalama / donanım secure boot DEĞİL**. A/B "slot"lar RAM'de
+> manifest kayıtları; gerçek dual-bank flash + bootloader entegrasyonu ayrı iş.
+> Güvenilir provisioning kanalı olan **kontrollü lab pilotu** için yeterli; sahada
+> asimetrik-imzalı OTA'lı ürün için değil. Bkz. `RELEASE_CHECKLIST.md` §6/§7.
+
 ### Off-device TRNG battery (release gate 1)
 
 `AIOS_TrngDump/` sketch'i ile gerçek SCE5 TRNG'den **~1 035 728 bit** host'a alındı,
@@ -173,7 +214,7 @@ p=0.80, **DFT Spectral p=0.704** (numpy 2.5.2). Artefaktlar: `artifacts/sts/`
 Tam 15-test resmi STS: `./aios-verify.sh --dump-trng 1250000` sonra
 `dieharder -a -g 201 -f trng_dump.bin` / NIST STS `assess` — komut hazır, çalıştırılmadı.
 
-**Süre (gerçek silikon):** P1 ~1.0 s · P2 ~1.0 s · P3 ~0.055 s · P4 ~0.5 s · P5 ~0.34 s · P6 ~4.7 s · P7 ~0.17 s.
+**Süre (gerçek silikon):** P1 ~1.0 s · P2 ~1.0 s · P3 ~0.055 s · P4 ~0.5 s · P5 ~0.33 s · P6 ~6.5 s · P7 ~0.38 s · P8 ~0.20 s.
 Tam kayıt: [`hardware_proof_serial.log`](./hardware_proof_serial.log)
 
 ---

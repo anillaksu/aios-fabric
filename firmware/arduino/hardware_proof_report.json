@@ -15,7 +15,8 @@
         "AIOS_HardwareProof": true,
         "AIOS_S3_Bridge": true
       }
-    }
+    },
+    "reportRevision": "rev.13"
   },
   "hardware": {
     "board": "Arduino UNO R4 WiFi",
@@ -91,6 +92,8 @@
     "PHASE_7_REAL_S3_SILICON_E2E": "PENDING",
     "AIOS_OFFDEVICE_TRNG_BATTERY": "PASS",
     "AIOS_FULL_NIST_STS_REFERENCE_TOOL": "NOT_RUN",
+    "AIOS_KEY_LIFECYCLE_SUITE": "PASS",
+    "AIOS_FW_LIFECYCLE_SUITE": "PASS",
     "AIOS_HARDWARE_PROOF_VERDICT": "CONDITIONAL_PASS"
   },
   "results": {
@@ -355,5 +358,61 @@
     ],
     "soak": "artifacts/hil/soak_summary.json (--repeat N): runs/pass/fail/distinct_link_modes/distinct_on_device_commits/same_software_and_transport"
   },
-  "releaseChecklist": "RELEASE_CHECKLIST.md -- section 1 (release infra) COMPLETE; open: real S3 HIL, soak, fw lifecycle, crypto key lifecycle"
+  "releaseChecklist": "RELEASE_CHECKLIST.md -- section 1 (release infra) COMPLETE; open: real S3 HIL, soak, fw lifecycle, crypto key lifecycle",
+  "lifecyclePhase8": {
+    "addedUtc": "2026-08-28",
+    "scope": "RELEASE_CHECKLIST sec 6 (key lifecycle) + sec 7 (firmware lifecycle) -- logic layer, on-device",
+    "modules": [
+      "firmware/aios_key_lifecycle.{hpp,cpp}",
+      "firmware/aios_fw_lifecycle.{hpp,cpp}",
+      "firmware/aios_lifecycle_test.cpp"
+    ],
+    "keyLifecycle": {
+      "gate": "AIOS_KEY_LIFECYCLE_SUITE",
+      "result": "PASS",
+      "checks": "KL-01..KL-10",
+      "passed": 10,
+      "failed": 0,
+      "covers": [
+        "initial seed gen from TRNG",
+        "seal bound to silicon UID (flash-dump/transplant -> UNSEALED)",
+        "deterministic key re-derivation after reset",
+        "DRBG re-derive from seed + reseed counter advance",
+        "label/epoch domain separation",
+        "monotonic key rotation (epoch floor)",
+        "stale/future epoch rejection",
+        "production_lock blocks raw key export",
+        "factory reset zeroize -> NOT_PROVISIONED"
+      ]
+    },
+    "firmwareLifecycle": {
+      "gate": "AIOS_FW_LIFECYCLE_SUITE",
+      "result": "PASS",
+      "checks": "FW-01..FW-12",
+      "passed": 12,
+      "failed": 0,
+      "covers": [
+        "version negotiation + incompatible reject",
+        "authenticated (MAC) staged update",
+        "tampered body/manifest/key -> SIG",
+        "anti-downgrade version floor -> DOWNGRADE",
+        "single-use update nonce replay -> NONCE",
+        "truncated/half-written body -> CRC (no pending)",
+        "A/B slot commit + version floor bump",
+        "failed health check -> rollback to known-good",
+        "power-loss resume re-validates pending + re-commit",
+        "boot-loop -> auto rollback",
+        "factory reset (anti-downgrade floor preserved)"
+      ]
+    },
+    "honestScope": "Authenticator is a symmetric MAC (aios_fast_hash64, HMAC-like), NOT asymmetric code signing / hardware secure boot. A/B slots are in-RAM manifest records modelling the flash layout, not wired to real dual-bank flash + bootloader. Sufficient for a controlled lab pilot with a trusted provisioning channel; production OTA additionally needs asymmetric signatures, a verified boot chain, and rollback-protected fuses.",
+    "onSilicon": {
+      "board": "Arduino UNO R4 WiFi / RA4M1",
+      "port": "COM4",
+      "phase": "PHASE 8 / 8",
+      "suiteResult": "rc=0",
+      "durationUs": 197511,
+      "verdict": "CONDITIONAL_PASS unchanged"
+    }
+  }
 }

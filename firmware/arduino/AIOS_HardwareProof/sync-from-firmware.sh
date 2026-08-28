@@ -13,7 +13,9 @@ cd "$(dirname "$0")"
 
 FILES="ra4m1_kernel.hpp ra4m1_kernel.cpp esp32s3_bridge.hpp esp32s3_bridge.cpp \
 matrix_monitor.hpp matrix_monitor.cpp aios_quantum_kernel_test.cpp \
-aios_mutation_test.cpp aios_chaos_test.cpp"
+aios_mutation_test.cpp aios_chaos_test.cpp \
+aios_key_lifecycle.hpp aios_key_lifecycle.cpp \
+aios_fw_lifecycle.hpp aios_fw_lifecycle.cpp aios_lifecycle_test.cpp"
 
 if [ "${1:-}" = "--check" ]; then
   drift=0

@@ -17,6 +17,13 @@ değil, manuel artifact olarak tutulur.
 > **§1 Release altyapısı TAMAM** (2026-08-28): repo public → Actions çalışıyor → self-hosted
 > runner (`aios-hil-01`) gerçek RA4M1'i CI'da flash edip 7-fazı koşturdu → `hil-proof`
 > `master` için zorunlu check. PR #1 mergeable.
+>
+> **§6 + §7 non-fiziksel kısım TAMAM** (2026-08-28): `aios_key_lifecycle.*` +
+> `aios_fw_lifecycle.*` modülleri eklendi, on-device **PHASE 8** (KL-01..10 +
+> FW-01..12, 22/22 PASS) gerçek RA4M1'de koştu. Gate'ler:
+> `AIOS_KEY_LIFECYCLE_SUITE=PASS`, `AIOS_FW_LIFECYCLE_SUITE=PASS`. Kalan §6/§7
+> maddeleri (asimetrik imza + secure boot, gerçek çift-bank flash + bootloader
+> entegrasyonu, bağımsız kriptografik inceleme) fiziksel/entegrasyon işi.
 
 ---
 
@@ -102,27 +109,48 @@ frame kabul **+** kaynak sınırlı.
 ## 6. Kripto / anahtar yaşam döngüsü
 
 Mevcut: PHASE 4 (SCE5 TRNG + on-device NIST subset) + PHASE 5 (hash-DRBG) +
-off-device `nist_sts_lite` (~1M bit, 11/11). ⏳ Ürün süreçleri:
+off-device `nist_sts_lite` (~1M bit, 11/11) + **PHASE 8 key lifecycle**
+(`aios_key_lifecycle.*`, KL-01..10, gerçek RA4M1'de 10/10 PASS):
 
 ```
-[ ] ilk seed üretimi          [ ] seed saklama / yeniden üretim
-[ ] reset sonrası DRBG state   [ ] anahtar üretimi + provisioning
-[ ] anahtar rotasyonu          [ ] eski/geçersiz anahtar davranışı
-[ ] flash dump / fiziksel erişim senaryosu
-[ ] debug arayüzleri üretim modunda kapalı
-[ ] tehdit modeli + bağımsız kriptografik inceleme
+[x] ilk seed üretimi (TRNG)         KL-01  aios_seed_generate
+[x] seed saklama / yeniden üretim   KL-03  seal + deterministik re-derive
+[x] reset sonrası DRBG state        KL-04  aios_drbg_from_seed (+ reseed sayacı)
+[x] anahtar üretimi + provisioning  KL-05  aios_key_derive (label/epoch)
+[x] anahtar rotasyonu               KL-06  aios_key_rotate (monotonik epoch floor)
+[x] eski/geçersiz anahtar davranışı KL-06/07/08  STALE / FUTURE reddi
+[x] flash dump / transplant         KL-02  seal UID'e bağlı -> başka cihazda UNSEALED
+[x] debug arayüzü üretimde kapalı   KL-09  production_lock -> raw export LOCKED
+[x] factory reset                   KL-10  seed zeroize -> NOT_PROVISIONED
+[ ] tehdit modeli + bağımsız kriptografik inceleme        (dış iş)
+[ ] asimetrik imza / secure boot ile bağlama              (üretim gereksinimi)
 ```
+> DÜRÜST KAPSAM: authenticator simetrik MAC (aios_fast_hash64, HMAC-benzeri) —
+> asimetrik kod imzalama / donanım secure boot DEĞİL. Güvenilir provisioning
+> kanalı olan kontrollü lab pilotu için yeterli; üretim OTA'sı için asimetrik
+> imza + ölçülen boot zinciri + rollback-korumalı fuse gerekir.
 > NIST STS PASS tek başına CSPRNG güvenliği kanıtı değildir.
 
-## 7. Firmware yaşam döngüsü — ⏳ hiçbiri uygulanmadı
+## 7. Firmware yaşam döngüsü — ✅ mantık katmanı uygulandı (PHASE 8)
+
+`aios_fw_lifecycle.*` + PHASE 8 FW-01..12, gerçek RA4M1'de **12/12 PASS**:
 
 ```
-[ ] firmware version negotiation   [ ] uyumsuz sürüm reddi
-[ ] güvenli güncelleme             [ ] imza doğrulaması
-[ ] yarım kalan update recovery    [ ] rollback
-[ ] eski/replay update reddi       [ ] factory reset davranışı
+[x] firmware version negotiation   FW-01  aios_fw_negotiate (compat aralığı)
+[x] uyumsuz sürüm reddi            FW-01  aralık dışı -> INCOMPAT
+[x] güvenli güncelleme (auth)      FW-02  aios_fw_stage (MAC + CRC + nonce)
+[x] imza (MAC) doğrulaması         FW-03/04/05  bozuk gövde / manifest / anahtar -> SIG
+[x] yarım kalan update recovery    FW-08/FW-11  truncation -> CRC; power-loss -> aios_fw_resume
+[x] rollback                       FW-10  sağlık başarısız -> known-good'da kal
+[x] eski/replay update reddi       FW-06  downgrade -> DOWNGRADE; FW-07  nonce -> NONCE
+[x] boot-loop koruması             FW-12  N denemeden sonra otomatik rollback
+[x] factory reset davranışı        aios_fw_factory_reset (anti-downgrade floor korunur)
+[ ] gerçek çift-bank flash + bootloader entegrasyonu      (donanım entegrasyonu)
+[ ] asimetrik imza + secure boot zinciri                  (üretim gereksinimi)
 ```
-Bu kapanmadan: kontrollü laboratuvar/pilot **evet**, saha güncellemeli ürün **hayır**.
+> DÜRÜST KAPSAM: A/B "slot"lar RAM'de manifest kayıtları — flash düzenini
+> modelliyor. Gerçek dual-bank flash + bootloader'a bağlamak ayrı entegrasyon.
+> Kontrollü lab/pilot: **evet**. Sahada asimetrik-imzalı OTA'lı ürün: **hayır**.
 
 ## 8. Performans / sınır
 
