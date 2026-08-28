@@ -11,9 +11,14 @@
  *        common ground. (SPI variant: see the plan doc.)
  *
  * Protocol (mirrors firmware/esp32s3_bridge.{hpp,cpp} aios_wire_verify):
- *   RA4M1 -> S3 : exactly 32 bytes, little-endian AiosWireFrame
- *   S3 -> RA4M1 : 1 status byte = AiosWireError (0 = OK), then echoes the
- *                 32-byte frame back so the RA4M1 harness round-trips unchanged.
+ *   RA4M1 -> S3 : up to 32 bytes, little-endian AiosWireFrame
+ *   S3 -> RA4M1 : 1 status byte = AiosWireError.
+ *                   - full 32-byte frame  -> <status><32-byte echo>
+ *                   - short / gap-timeout -> <ERR_TIMEOUT>   (no echo)
+ *                 The RA4M1 harness always drops the status byte and, if 32 more
+ *                 bytes follow, re-verifies the echo independently; a
+ *                 status-vs-echo disagreement fails the run (S3 wire_verify has
+ *                 drifted from firmware/esp32s3_bridge.cpp).
  *
  * Every frame is logged on BOTH sides in the SAME format so a modeled-vs-physical
  * divergence is a one-line diff:
@@ -106,9 +111,12 @@ void loop() {
     rx[n++] = (uint8_t)LINK.read();
     if (n >= 32) break;
   }
-  // frame gap timeout -> treat as short/truncated read
+  // frame gap timeout -> short/truncated read. Still answer with a status byte
+  // (no echo) so the RA4M1 harness gets a deterministic reply, not a hang.
   if (n > 0 && n < 32 && (micros() - t_first) > 20000) {
     report(rx, n, ERR_TIMEOUT, micros() - t_first);
+    LINK.write((uint8_t)ERR_TIMEOUT);
+    LINK.flush();
     n = 0;
     return;
   }

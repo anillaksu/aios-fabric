@@ -38,11 +38,26 @@ jobs:
           arduino-cli version
           arduino-cli core list | grep renesas_uno || arduino-cli core install arduino:renesas_uno
 
-      - name: Run on-silicon proof (5 phases)
+      - name: src/ in sync + both sketches compile clean (pre-flash gate)
         shell: bash
         run: |
           cd firmware/arduino
           chmod +x aios-verify.sh AIOS_HardwareProof/sync-from-firmware.sh
+          bash AIOS_HardwareProof/sync-from-firmware.sh --check
+          arduino-cli compile -b arduino:renesas_uno:unor4wifi --warnings none \
+            --build-property "compiler.cpp.extra_flags=-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024" \
+            --build-property "compiler.c.extra_flags=-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024" \
+            AIOS_HardwareProof
+          if arduino-cli core list | grep -q esp32:esp32; then
+            arduino-cli compile -b esp32:esp32:esp32s3 --warnings none AIOS_S3_Bridge
+          else
+            echo "::notice::esp32 core not installed on this runner -- AIOS_S3_Bridge compile skipped"
+          fi
+
+      - name: Run on-silicon proof (7 phases)
+        shell: bash
+        run: |
+          cd firmware/arduino
           ./aios-verify.sh --out "$GITHUB_WORKSPACE/hil-artifacts"
 
       - name: Upload serial log + binaries

@@ -19,6 +19,12 @@ static AiosBridgeLinkMode s_mode = AIOS_LINK_MODELED;
 static uint8_t  s_fifo[64];
 static uint16_t s_flen = 0;
 
+// S3-mode: the peer prefixes every reply with a 1-byte AiosWireError status.
+#define S3_STATUS_NA  0xFFu
+static uint8_t s_last_status   = S3_STATUS_NA;
+static int     s_status_checks = 0;
+static int     s_status_mismatch = 0;
+
 static inline bool link_is_serial(AiosBridgeLinkMode m) {
     return m == AIOS_LINK_SERIAL1 || m == AIOS_LINK_S3_UART;
 }
@@ -57,14 +63,15 @@ static uint16_t link_recv(uint8_t* b, uint16_t maxn, uint32_t timeout_us) {
     if (link_is_serial(s_mode)) {
         uint32_t t0 = micros();
         uint16_t got = 0;
-        // S3 mode: the S3 replies <status byte><32-byte echo>. Drop the status
-        // byte so the harness verifies the same 32-byte frame either way; a
-        // status/verify disagreement would show as a test failure.
-        bool drop_status = (s_mode == AIOS_LINK_S3_UART);
+        // S3 mode: the S3 replies <status byte>[<32-byte echo>]. Capture the
+        // status byte (aios_bridge round_trip cross-checks it against an
+        // independent aios_wire_verify of the echo), then return the echo.
+        bool take_status = (s_mode == AIOS_LINK_S3_UART);
+        if (take_status) s_last_status = S3_STATUS_NA;
         while ((micros() - t0) < timeout_us && got < maxn) {
             if (Serial1.available()) {
                 uint8_t c = (uint8_t)Serial1.read();
-                if (drop_status) { drop_status = false; continue; }
+                if (take_status) { s_last_status = c; take_status = false; continue; }
                 b[got++] = c;
             }
         }
@@ -92,6 +99,9 @@ static void build_valid_frame(AiosPrng* rng, AiosWireFrame* f) {
 }
 
 // Send a frame (optionally truncated to `send_len`) and read the reply back.
+// In S3 mode also cross-checks the peer's status byte against an independent
+// re-verify of the echoed bytes -- any disagreement means the S3 wire_verify
+// has drifted from firmware/esp32s3_bridge.cpp and is recorded as a mismatch.
 static AiosWireError round_trip(const AiosWireFrame* f, uint16_t send_len,
                                 uint32_t timeout_us, uint16_t* got_out) {
     uint8_t rx[64];
@@ -99,8 +109,21 @@ static AiosWireError round_trip(const AiosWireFrame* f, uint16_t send_len,
     link_send((const uint8_t*)f, send_len);
     uint16_t got = link_recv(rx, sizeof(rx), timeout_us);
     if (got_out) *got_out = got;
-    if (got == 0) return AIOS_WIRE_ERR_TIMEOUT;
-    return aios_wire_verify(rx, got);
+
+    AiosWireError e = (got == 0) ? AIOS_WIRE_ERR_TIMEOUT : aios_wire_verify(rx, got);
+
+    if (s_mode == AIOS_LINK_S3_UART) {
+        s_status_checks++;
+        // The check targets the STATELESS wire verdict (length/magic/msgtype/
+        // agent/lenrange/crc). REPLAY is stateful (S3 keeps its own window) and
+        // TIMEOUT is transport, so those are allowed to differ from our
+        // single-frame re-verify of the echo.
+        bool agree = (got == 0)
+            ? (s_last_status != AIOS_WIRE_OK && s_last_status != S3_STATUS_NA)
+            : (s_last_status == (uint8_t)e || s_last_status == AIOS_WIRE_ERR_REPLAY);
+        if (!agree) s_status_mismatch++;
+    }
+    return e;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +168,7 @@ bool aios_bridge_probe_s3(void) {
 }
 
 // ---------------------------------------------------------------------------
-// The 8 tests
+// The 9 tests (T0..T7 + T8 S3 status agreement)
 // ---------------------------------------------------------------------------
 int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
                         BridgeTestResult* out,
@@ -157,6 +180,9 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
     AiosReplayGuard guard;
     aios_replay_reset(&guard);
     int failed = 0;
+    s_status_checks = 0;
+    s_status_mismatch = 0;
+    s_last_status = S3_STATUS_NA;
     const uint32_t TO = 30000;   // 30 ms round-trip budget
 
     // ---- Pre-flight: pure parser check, NO transport --------------------
@@ -170,6 +196,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         out[0].name = "T0 parser isolated (no link)";
         out[0].seed = base_seed; out[0].expected_code = AIOS_WIRE_OK;
         out[0].error_code = ok ? 0 : 99; out[0].passed = ok; out[0].detail = 0;
+        out[0].link_status = S3_STATUS_NA;
         if (!ok) failed++;
     }
 
@@ -182,19 +209,22 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         AiosWireError e = round_trip(&f, 32, TO, &got);
         AiosWireError r = (e == AIOS_WIRE_OK) ? aios_replay_admit(&guard, f.rpc_id) : e;
         bool ok = (e == AIOS_WIRE_OK) && (r == AIOS_WIRE_OK) && (got == 32);
-        out[1] = BridgeTestResult{ "T1 framing + CRC happy path", seed, ok, (uint32_t)e, AIOS_WIRE_OK, got };
+        out[1] = BridgeTestResult{ "T1 framing + CRC happy path", seed, ok, (uint32_t)e, AIOS_WIRE_OK, got, s_last_status };
         if (!ok) failed++;
     }
 
-    // ---- T2  truncated frame -----------------------------------------
+    // ---- T2  truncated frame ---------------------------------------
+    // Semantics differ by transport, both mean "truncation rejected":
+    //   modeled : 30 bytes arrive atomically -> aios_wire_verify -> ERR_LENGTH
+    //   physical: 30 bytes then silence      -> receiver gap timeout -> ERR_TIMEOUT
     {
         uint64_t seed = base_seed ^ 0xB2;
         AiosPrng rng; aios_prng_seed(&rng, &kk, seed, 2);
         AiosWireFrame f; build_valid_frame(&rng, &f);
         uint16_t got = 0;
         AiosWireError e = round_trip(&f, 30, TO, &got);   // drop last 2 bytes
-        bool ok = (e == AIOS_WIRE_ERR_LENGTH);
-        out[2] = BridgeTestResult{ "T2 truncated frame", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENGTH, got };
+        bool ok = (e == AIOS_WIRE_ERR_LENGTH || e == AIOS_WIRE_ERR_TIMEOUT);
+        out[2] = BridgeTestResult{ "T2 truncated frame", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENGTH, got, s_last_status };
         if (!ok) failed++;
     }
 
@@ -207,7 +237,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         aios_wire_seal(&f);               // CRC now covers the bogus length
         AiosWireError e = round_trip(&f, 32, TO, 0);
         bool ok = (e == AIOS_WIRE_ERR_LENRANGE);
-        out[3] = BridgeTestResult{ "T3 oversized payload_len", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENRANGE, 60000 };
+        out[3] = BridgeTestResult{ "T3 oversized payload_len", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENRANGE, 60000, s_last_status };
         if (!ok) failed++;
     }
 
@@ -222,13 +252,13 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
             int flips = 1 + (int)(aios_prng_next64(&rng) % 3);
             for (int j = 0; j < flips; ++j)
                 wire[aios_prng_next64(&rng) % 30] ^= (uint8_t)(1u << (aios_prng_next64(&rng) & 7));
-            link_drain(); link_send(wire, 32);
-            uint8_t rx[64]; uint16_t got = link_recv(rx, sizeof(rx), TO);
-            AiosWireError e = (got == 0) ? AIOS_WIRE_ERR_TIMEOUT : aios_wire_verify(rx, got);
+            uint16_t got = 0;
+            // route through round_trip so the S3 status byte is cross-checked too
+            AiosWireError e = round_trip((const AiosWireFrame*)wire, 32, TO, &got);
             if (e != AIOS_WIRE_OK) rejected++;
         }
         bool ok = (rejected == total);
-        out[4] = BridgeTestResult{ "T4 in-transit byte corruption", seed, ok, (uint32_t)(total - rejected), 0, (uint32_t)rejected };
+        out[4] = BridgeTestResult{ "T4 in-transit byte corruption", seed, ok, (uint32_t)(total - rejected), 0, (uint32_t)rejected, s_last_status };
         if (!ok) failed++;
     }
 
@@ -241,14 +271,18 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         uint32_t retries = 0; AiosWireError e = AIOS_WIRE_ERR_TIMEOUT;
         for (uint32_t attempt = 0; attempt <= MAXR; ++attempt) {
             link_drain();
-            if (attempt >= K) link_send((uint8_t*)&f, 32);   // "link recovers"
-            uint8_t rx[64]; uint16_t got = link_recv(rx, sizeof(rx), TO);
-            e = (got == 0) ? AIOS_WIRE_ERR_TIMEOUT : aios_wire_verify(rx, got);
+            if (attempt >= K) {
+                e = round_trip(&f, 32, TO, 0);               // "link recovers"
+            } else {
+                uint8_t rx[64];
+                e = (link_recv(rx, sizeof(rx), TO) == 0)
+                    ? AIOS_WIRE_ERR_TIMEOUT : AIOS_WIRE_ERR_CRC;   // no send -> nothing back
+            }
             if (e == AIOS_WIRE_OK) break;
             retries++;
         }
         bool ok = (e == AIOS_WIRE_OK) && (retries == K);
-        out[5] = BridgeTestResult{ "T5 timeout + retry", seed, ok, (uint32_t)e, AIOS_WIRE_OK, retries };
+        out[5] = BridgeTestResult{ "T5 timeout + retry", seed, ok, (uint32_t)e, AIOS_WIRE_OK, retries, s_last_status };
         if (!ok) failed++;
     }
 
@@ -269,7 +303,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         bool ok = (e1 == AIOS_WIRE_OK) && (a1 == AIOS_WIRE_OK) &&
                   (e2 == AIOS_WIRE_OK) && (a2 == AIOS_WIRE_ERR_REPLAY) &&
                   (a3 == AIOS_WIRE_OK);
-        out[6] = BridgeTestResult{ "T6 replay rejection", seed, ok, (uint32_t)a2, AIOS_WIRE_ERR_REPLAY, 0 };
+        out[6] = BridgeTestResult{ "T6 replay rejection", seed, ok, (uint32_t)a2, AIOS_WIRE_ERR_REPLAY, 0, s_last_status };
         if (!ok) failed++;
     }
 
@@ -280,8 +314,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         AiosReplayGuard g; aios_replay_reset(&g);
         for (int i = 0; i < 100; ++i) {          // 100 garbage frames
             uint8_t junk[32]; aios_prng_fill(&rng, junk, 32);
-            link_drain(); link_send(junk, 32);
-            uint8_t rx[64]; (void)link_recv(rx, sizeof(rx), TO);
+            (void)round_trip((const AiosWireFrame*)junk, 32, TO, 0);
         }
         int delivered = 0;
         for (int i = 0; i < 10; ++i) {           // 10 clean frames must all pass
@@ -291,7 +324,21 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
             if (e == AIOS_WIRE_OK && aios_replay_admit(&g, f.rpc_id) == AIOS_WIRE_OK) delivered++;
         }
         bool ok = (delivered == 10);
-        out[7] = BridgeTestResult{ "T7 recovery after fault storm", seed, ok, (uint32_t)(10 - delivered), 0, (uint32_t)delivered };
+        out[7] = BridgeTestResult{ "T7 recovery after fault storm", seed, ok, (uint32_t)(10 - delivered), 0, (uint32_t)delivered, s_last_status };
+        if (!ok) failed++;
+    }
+
+    // ---- T8  S3 status byte agrees with independent re-verify -------
+    {
+        bool s3 = (mode == AIOS_LINK_S3_UART);
+        bool ok = !s3 || (s_status_mismatch == 0 && s_status_checks > 0);
+        out[8].name = "T8 S3 status vs echo agreement";
+        out[8].seed = base_seed;
+        out[8].expected_code = 0;
+        out[8].error_code = (uint32_t)s_status_mismatch;
+        out[8].detail = (uint32_t)s_status_checks;
+        out[8].link_status = S3_STATUS_NA;             // meta-check, not a single frame
+        out[8].passed = ok;
         if (!ok) failed++;
     }
 

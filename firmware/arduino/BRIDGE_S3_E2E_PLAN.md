@@ -4,16 +4,35 @@ Bu, `PHASE_7_REAL_S3_SILICON_E2E` gate'ini `PENDING` → `PASS` yapmak için ger
 minimum kapanış kriterleri ve prosedürüdür. Tamamlanmadan **genel verdict `PASS`
 yapılmaz** (`AIOS_HARDWARE_PROOF_VERDICT` en fazla `CONDITIONAL_PASS`).
 
-## Minimum kapanış kriterleri
+## Minimum KOD kapanışı (fiziksel HIL'den ÖNCE — bu oturumda tamamlandı)
 
-1. `AIOS_S3_Bridge.ino` gerçek ESP32-S3 silikonuna yüklendi.
-2. R4 ↔ S3 fiziksel UART (veya SPI) bağlantısı doğrulandı (probe geçti).
-3. Aynı 8 bridge E2E testi (`aios_bridge_e2e_run`) gerçek link üzerinde koştu →
-   8/8 PASS, `PHASE_7_BRIDGE_LINK_E2E` ve `PHASE_7_REAL_S3_SILICON_E2E` birlikte `PASS`.
+- [x] S3 status byte'ı her testte beklenen `AiosWireError` ile karşılaştırılıyor
+      (`round_trip` içinde S3 status ↔ bağımsız `aios_wire_verify(echo)` çapraz kontrolü;
+      **T8 "S3 status vs echo agreement"** ayrı test satırı; drift → run FAIL).
+- [x] T2 (truncated) iki transport semantiğini de kabul ediyor:
+      modeled → `ERR_LENGTH`, fiziksel → `ERR_TIMEOUT` (S3 skeleton short-frame'de
+      `<ERR_TIMEOUT>` status byte'ı gönderiyor, hang yok). `want=ERR_LENGTH` gösterilir,
+      pass koşulu `{ERR_LENGTH, ERR_TIMEOUT}`.
+- [x] Canonical kaynaklar commit içinde: `src/*` committed ve build için otoritatif —
+      temiz `git clone` + `arduino-cli compile` **sıfır kurulum adımıyla** çalışır.
+      `sync-from-firmware.sh --check` drift'i yakalar (CI + `aios-verify.sh` bunu kullanır,
+      working tree'yi değiştirmez).
+- [x] Temiz checkout compile exit 0 doğrulandı: `git archive` → `arduino-cli compile` → EXIT 0
+      (hem `AIOS_HardwareProof` hem `AIOS_S3_Bridge`).
+- [x] `AIOS_S3_Bridge.ino` `arduino-cli compile -b esp32:esp32:esp32s3` → **EXIT 0**
+      (esp32:esp32@3.3.11; 276 KB / 1.3 MB flash).
+
+## Minimum kapanış kriterleri (gerçek S3)
+
+1. `AIOS_S3_Bridge.ino` **compile exit 0** alındıktan sonra gerçek ESP32-S3'e yüklendi.
+2. R4 ↔ S3 fiziksel UART (veya SPI) bağlantısı doğrulandı (`aios_bridge_probe_s3` geçti).
+3. 9 bridge E2E testi (`aios_bridge_e2e_run`) gerçek link üzerinde koştu → 9/9 PASS
+   (T8 dahil: S3 status ↔ R4 verify uyumu), `PHASE_7_BRIDGE_LINK_E2E` ve
+   `PHASE_7_REAL_S3_SILICON_E2E` birlikte `PASS`.
 4. Şu senaryolar gerçek link üzerinde tekrarlandı: **reset**, **framing error**,
    **timeout**, **replay**, **malformed payload**.
-5. Artefaktlar kaydedildi: **firmware sürümü**, **çip kimliği** (efuse MAC),
-   **baud / SPI ayarları**, iki taraflı **seri log**.
+5. Artefaktlar kaydedildi: **firmware sürümü** (`fw=aios-s3-bridge-0.1`), **çip kimliği**
+   (efuse MAC), **baud / SPI ayarları**, iki taraflı **seri log**.
 6. Genel release verdict'i bu koşunun logu ile yeniden üretildi.
 
 ## Donanım hazırlığı

@@ -88,8 +88,10 @@ mkdir -p "$OUT"
 LOG="$OUT/hardware_proof_serial.log"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
-echo "== [1/4] sync sketch from canonical firmware =="
-bash "$SKETCH/sync-from-firmware.sh" || { echo "sync failed"; exit 1; }
+# The sketch's src/ is committed and authoritative -- we only VERIFY it matches
+# the canonical firmware sources (never mutate the working tree in CI).
+echo "== [1/4] verify sketch src/ is in sync with canonical firmware =="
+bash "$SKETCH/sync-from-firmware.sh" --check || { echo "src/ drift -- run sync-from-firmware.sh and commit"; exit 1; }
 
 echo "== [2/4] compile ($FQBN) =="
 arduino-cli compile -b "$FQBN" -e --warnings none \

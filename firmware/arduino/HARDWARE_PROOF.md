@@ -135,12 +135,13 @@ harici loopback)** varsa onun üzerinde, yoksa modellenmiş UART transport üzer
 |---|---|---|
 | T0 parser izole (link YOK) — önce byte-buffer üzerinde | OK / ERR_CRC / ERR_LENGTH | PASS |
 | T1 framing + CRC happy path | OK (got=32) | PASS |
-| T2 truncated frame (son 2 byte düşük) | ERR_LENGTH | PASS |
+| T2 truncated frame (son 2 byte düşük) | ERR_LENGTH (modeled) / ERR_TIMEOUT (fiziksel) | PASS |
 | T3 oversized payload_len (60000) | ERR_LENRANGE | PASS |
 | T4 in-transit byte corruption (200 frame, **modeled**) | hepsi reddedildi (200/200) | PASS |
 | T5 timeout + retry (link ilk 3 denemeyi düşürür) | OK, retries=3 | PASS |
 | T6 replay rejection | 2. gönderim ERR_REPLAY, taze rpc_id OK | PASS |
 | T7 recovery after 100-frame fault storm (**modeled**) | 10/10 temiz frame teslim | PASS |
+| T8 S3 status byte ↔ bağımsız `aios_wire_verify(echo)` uyumu | mismatch=0 | PASS (modeled: trivial; fiziksel: S3 verdict drift'i yakalar) |
 | throughput / latency (**link-model benchmark**) | ~380 kB/s · ~84 µs / 32B frame | ölçüldü |
 
 **`PHASE_7_BRIDGE_LINK_E2E` ne kanıtlar:** 32-byte wire protokolü + link katmanı (framing,
@@ -208,7 +209,8 @@ Tam kayıt: [`hardware_proof_serial.log`](./hardware_proof_serial.log)
 ### Komutlar
 ```bash
 cd aios/aios-fabric/firmware/arduino
-bash AIOS_HardwareProof/sync-from-firmware.sh      # src/ = kanonik firmware kaynakları
+# src/ committed ve build icin otoritatif -- temiz checkout'ta kurulum adimi gerekmez.
+bash AIOS_HardwareProof/sync-from-firmware.sh --check   # drift kontrolu (CI bunu kullanir)
 
 bash AIOS_HardwareProof/sync-from-firmware.sh
 DEFS="-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024"

@@ -31,12 +31,13 @@ typedef struct {
     const char*  name;
     uint64_t     seed;
     bool         passed;
-    uint32_t     error_code;    // AiosWireError observed (or 0)
+    uint32_t     error_code;    // AiosWireError the RA4M1 harness observed (0 = OK)
     uint32_t     expected_code; // AiosWireError the test asserts
     uint32_t     detail;        // test-specific number (retries, bytes/s, us, ...)
+    uint32_t     link_status;   // status byte reported by the S3 peer (0xFF = N/A)
 } BridgeTestResult;
 
-#define AIOS_BRIDGE_E2E_TESTS   (8)
+#define AIOS_BRIDGE_E2E_TESTS   (9)   // T0..T7 + T8 (S3 status/echo agreement)
 
 /**
  * @brief Probe whether a physical Serial1 loopback is wired (D0<->D1 jumper).

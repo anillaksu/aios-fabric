@@ -355,15 +355,18 @@ static int test_bridge_e2e(void) {
   int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &tp, &lat);
 
   for (int i = 0; i < AIOS_BRIDGE_E2E_TESTS; ++i) {
-    char b[136];
+    char s3[20] = "";
+    if (g_bridge[i].link_status != 0xFF)
+      snprintf(s3, sizeof(s3), " s3=%s", wire_err_name(g_bridge[i].link_status));
+    char b[152];
     snprintf(b, sizeof(b),
-      "  [%s] %s %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu",
+      "  [%s] %s %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu%s",
       g_bridge[i].passed ? "PASS" : "FAIL", tag,
       g_bridge[i].name,
       (unsigned long)(g_bridge[i].seed & 0xFFFFFFFFUL),
       wire_err_name(g_bridge[i].error_code),
       wire_err_name(g_bridge[i].expected_code),
-      (unsigned long)g_bridge[i].detail);
+      (unsigned long)g_bridge[i].detail, s3);
     Serial.println(b);
   }
   {
@@ -372,7 +375,7 @@ static int test_bridge_e2e(void) {
              tag, (unsigned long)tp, (unsigned long)lat);
     Serial.println(b);
   }
-  CHK(failed == 0, "All 8 bridge tests pass over the wire protocol + link layer");
+  CHK(failed == 0, "All 9 bridge tests pass over the wire protocol + link layer");
   return (g_fail == 0) ? 0 : 1;
 }
 
@@ -420,7 +423,7 @@ void setup() {
   int crc_ = aios_run_chaos_suite();
   unsigned long fus = micros() - f0;
 
-  banner("PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (8 tests)");
+  banner("PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)");
   unsigned long g0 = micros();
   int brc = test_bridge_e2e();
   unsigned long gus = micros() - g0;

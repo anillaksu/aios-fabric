@@ -3,7 +3,7 @@
 #  AIOS ON-SILICON HARDWARE PROOF  |  Renesas RA4M1 @ 48 MHz
 ################################################################
 
-Sketch build: Aug 28 2026 16:08:19
+Sketch build: Aug 28 2026 16:56:02
 CPU clock (F_CPU): 48000000
 
 ################################################################
@@ -96,18 +96,18 @@ CPU clock (F_CPU): 48000000
 ################################################################
 
   SCE5 TRNG collected 2048 bytes (16384 bits)
-  draw[0]=FF46958A4BFF5B488CEC789D864EA1D6
+  draw[0]=EBFB52EF0D0194845AED57ED91E74553
   [OK]   SCE5 hardware TRNG readable (HW_SCE_RNG_Read)
   [OK]   Consecutive TRNG draws differ
   --- NIST SP 800-22 subset (alpha = 0.01, on-silicon) ---
-  [PASS] Monobit Frequency              stat=2.313  p=0.020750
-  [PASS] Runs                           stat=8262.000  p=0.255999
-  [PASS] Block Frequency M=128          stat=124.563  p=0.569469
-  [PASS] Longest Run of Ones M=128      stat=5.501  p=0.357804
-  [PASS] Byte chi-square (256 bins)     stat=237.500  p=0.777473
+  [PASS] Monobit Frequency              stat=0.109  p=0.912905
+  [PASS] Runs                           stat=8225.000  p=0.606051
+  [PASS] Block Frequency M=128          stat=108.469  p=0.893754
+  [PASS] Longest Run of Ones M=128      stat=14.980  p=0.010450
+  [PASS] Byte chi-square (256 bins)     stat=247.000  p=0.628701
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=342.000  p=0.015086
-  [PASS] Cumulative Sums (bwd)          stat=301.000  p=0.037389
+  [PASS] Cumulative Sums (fwd)          stat=84.000  p=0.927421
+  [PASS] Cumulative Sums (bwd)          stat=70.000  p=0.979422
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -130,14 +130,14 @@ CPU clock (F_CPU): 48000000
   [OK]   1-bit seed change -> different stream
   [OK]   Captured mid-stream state does not re-emit earlier blocks
   --- NIST SP 800-22 subset on DRBG output ---
-  [PASS] Monobit Frequency              stat=0.141  p=0.888166
-  [PASS] Runs                           stat=8229.000  p=0.563075
-  [PASS] Block Frequency M=128          stat=126.406  p=0.523245
-  [PASS] Longest Run of Ones M=128      stat=7.900  p=0.161826
-  [PASS] Byte chi-square (256 bins)     stat=223.750  p=0.921448
+  [PASS] Monobit Frequency              stat=1.766  p=0.077459
+  [PASS] Runs                           stat=8209.000  p=0.771789
+  [PASS] Block Frequency M=128          stat=121.656  p=0.641090
+  [PASS] Longest Run of Ones M=128      stat=6.183  p=0.288862
+  [PASS] Byte chi-square (256 bins)     stat=216.500  p=0.961565
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=74.000  p=0.968242
-  [PASS] Cumulative Sums (bwd)          stat=70.000  p=0.979422
+  [PASS] Cumulative Sums (fwd)          stat=238.000  p=0.125948
+  [PASS] Cumulative Sums (bwd)          stat=340.000  p=0.015803
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -172,7 +172,7 @@ CPU clock (F_CPU): 48000000
 ====================================================================
 
 ################################################################
-#  PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (8 tests)
+#  PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)
 ################################################################
 
   Link: MODELED in-memory UART transport (no physical link detected)
@@ -189,20 +189,21 @@ CPU clock (F_CPU): 48000000
   [PASS] [link-model] T5 timeout + retry             seed=0xB19D6ECB got=OK          want=OK          detail=3
   [PASS] [link-model] T6 replay rejection            seed=0xB19D6ED8 got=ERR_REPLAY  want=ERR_REPLAY  detail=0
   [PASS] [link-model] T7 recovery after fault storm  seed=0xB19D6E59 got=OK          want=OK          detail=10
-  [link-model] benchmark: throughput ~ 295775 bytes/s   latency ~ 108 us / 32B frame
-  [OK]   All 8 bridge tests pass over the wire protocol + link layer
+  [PASS] [link-model] T8 S3 status vs echo agreement seed=0xB19D6E2E got=OK          want=OK          detail=0
+  [link-model] benchmark: throughput ~ 296337 bytes/s   latency ~ 107 us / 32B frame
+  [OK]   All 9 bridge tests pass over the wire protocol + link layer
 
 ################################################################
 #  HARDWARE PROOF RESULT
 ################################################################
 
-Verification (mock root)     : rc=0  (1002683 us)
+Verification (mock root)     : rc=0  (1002674 us)
 Mutation     (mock root)     : rc=0  (1025713 us)
-Real HW root of truth        : rc=0  (55077 us)
-SCE5 TRNG + NIST subset      : rc=0  (465908 us)
-Hash-DRBG (CSPRNG)           : rc=0  (384823 us)
-Chaos engineering            : rc=0  (6498488 us)
-Bridge wire+link E2E         : rc=0  (262259 us)
+Real HW root of truth        : rc=0  (55076 us)
+SCE5 TRNG + NIST subset      : rc=0  (524510 us)
+Hash-DRBG (CSPRNG)           : rc=0  (324162 us)
+Chaos engineering            : rc=0  (6505618 us)
+Bridge wire+link E2E         : rc=0  (272942 us)
 
 ---- RELEASE GATES ----
 AIOS_RA4M1_KERNEL_PROOF=PASS
