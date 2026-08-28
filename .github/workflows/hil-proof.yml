@@ -48,6 +48,11 @@ jobs:
         name: Toolchain
         shell: bash
         run: |
+          # self-hosted Windows runner: make sure the machine's tools are on PATH
+          for p in "/c/Program Files/Arduino CLI" "/c/Python314" "/c/Python314/Scripts"; do
+            [ -d "$p" ] && echo "$p" >> "$GITHUB_PATH"
+          done
+          export PATH="/c/Program Files/Arduino CLI:$PATH"
           arduino-cli version
           arduino-cli core list | grep -q renesas_uno || arduino-cli core install arduino:renesas_uno
 

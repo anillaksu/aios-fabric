@@ -28,18 +28,38 @@ python3 -m pip install pyserial
 
 Kartı USB ile bağla. Kullanıcının `dialout` (Linux) veya port erişim iznine sahip olduğundan emin ol.
 
-## 2. Self-hosted runner'ı kaydet
+## 2. Self-hosted runner
 
-GitHub repo → **Settings → Actions → Runners → New self-hosted runner**. İndirme ve
-`./config.sh` adımlarını izle, sonra:
+**Durum:** ✅ runner **indirildi + kaydedildi** — `C:\actions-runner-aios-hil`,
+isim `aios-hil-01`, etiketler `[self-hosted, Windows, X64, aios-hil]`. Şu an **offline**
+(başlatılmadı).
 
-```bash
-./config.sh --url https://github.com/<org>/<repo> --token <RUNNER_TOKEN> \
-            --name aios-hil-01 --labels self-hosted,aios-hil --unattended
-./run.sh        # veya servis olarak: ./svc.sh install && ./svc.sh start
+**Başlatmak** (kartın bağlı olduğu makinede, Claude Code prompt'una veya ayrı bir
+PowerShell'e):
+
+```powershell
+cd C:\actions-runner-aios-hil
+.\run.cmd                      # ön planda; terminal açık kaldıkça çalışır
 ```
 
-Runner **her zaman aynı fiziksel kartın bağlı olduğu makinede** çalışmalı.
+**Kalıcı yapmak** (yönetici PowerShell — makine açıldığında otomatik başlar):
+
+```powershell
+cd C:\actions-runner-aios-hil
+.\svc.cmd install
+.\svc.cmd start
+.\svc.cmd status
+```
+
+Runner **her zaman aynı fiziksel kartın (COM4) bağlı olduğu makinede** çalışmalı.
+Sistem PATH'inde `arduino-cli`, `python`, PowerShell var (doğrulandı) — workflow ayrıca
+`$GITHUB_PATH`'e Arduino CLI ekliyor.
+
+**Yeni token gerekirse** (eskisi 1 saatte dolar, `config` bir kez yapıldığından tekrar
+gerekmez): `gh api -X POST repos/anillaksu/aios-fabric/actions/runners/registration-token --jq .token`
+
+**Runner'ı kaldırmak:** `.\config.cmd remove --token <REMOVE_TOKEN>`
+(`gh api -X POST .../actions/runners/remove-token --jq .token`).
 
 ## 3. Repo değişkeni (opsiyonel)
 
