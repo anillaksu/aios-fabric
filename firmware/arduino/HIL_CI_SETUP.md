@@ -76,18 +76,18 @@ echo $?      # 0 = gerçek donanım tüm fazları geçti
 ## Git / CI kapanış sırası
 
 **Durum:**
-- ✅ `feat/hil-deterministic-kernel-proof` **push edildi** (`origin = github.com/anillaksu/aios-fabric`), **PR #1** açık.
-- ⚠️ **GitHub Actions bu hesapta `startup_failure` veriyor** (`BuildFailed`) — tek satırlık
-  `echo` workflow'u ile de tekrarlandı, yani **YAML hatası değil**. Sebep: private repo'da
-  **GitHub-hosted Actions dakikaları tükenmiş / spending limit $0**. Düzeltme:
-  - GitHub → Settings → Billing → **Actions spending limit** yükselt / ödeme yöntemi ekle, **VEYA**
-  - repo'yu **public** yap (public repo'da hosted Actions sınırsız), **VEYA**
-  - yalnızca **self-hosted runner** kullan — workflow zaten tek `[self-hosted, aios-hil]` job'a
-    indirildi (self-hosted job dakika harcamaz), ama workflow **derlemesi** bile şu an
-    billing'e takılıyor; billing açılınca çalışır.
+- ✅ `feat/hil-deterministic-kernel-proof` push edildi, **PR #1** açık.
+- ✅ Repo **public** yapıldı → workflow artık derleniyor (`startup_failure` yok; billing
+  engeli private-repo hosted-dakika tükenmesiydi, 1-satırlık `echo` ile doğrulandı).
+- ⏳ PR #1 → `hil-proof` check **pending / queued** — `[self-hosted, aios-hil]` runner bekliyor.
 
-1. **Push + PR** — TAMAM. `hil-proof` job'ı `[self-hosted, aios-hil]` runner'da koşar,
-   ilk adımda `firmware/**` diff'ine bakar: değişiklik yoksa hemen `exit 0`, varsa 7-faz proof.
+1. **Push + PR + public** — TAMAM. `hil-proof` job'ı `[self-hosted, aios-hil]` runner'da koşar,
+   ilk adımda `firmware/**` diff'ine bakar: değişiklik yoksa `exit 0`, varsa 7-faz proof.
+
+> **Public repo + self-hosted runner uyarısı:** Fork PR'ları senin runner'ında kod
+> çalıştırabilir. Settings → Actions → General → **"Fork pull request workflows from
+> outside collaborators"** = *Require approval for all external contributors* (varsayılan)
+> bırak; runner'ı yalnızca bu repoya kısıtla.
 2. **Self-hosted runner'ı yalnızca HIL donanımına yetkilendir:** runner'ı fiziksel
    kartın bağlı olduğu makinede kur, `--labels self-hosted,aios-hil`. Repo →
    Settings → Actions → Runners → runner grubunu bu repoya (veya org'da sadece

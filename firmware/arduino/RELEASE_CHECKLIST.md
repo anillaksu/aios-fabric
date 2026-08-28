@@ -21,7 +21,7 @@ değil, manuel artifact olarak tutulur.
 | # | İş | Çıkış kriteri | Durum |
 |---:|---|---|---|
 | 1 | Branch'e workflow push | Workflow repo'da | ✅ push edildi, **PR #1** açık |
-| 1b | **GitHub Actions billing** | Workflow `startup_failure` vermiyor | ⚠️ **BLOCKED** — hosted Actions dakikaları tükenmiş (minimal `echo` ile tekrarlandı). Spending limit yükselt / repo public yap. `HIL_CI_SETUP.md` |
+| 1b | GitHub Actions çalışıyor | Workflow derleniyor (`startup_failure` yok) | ✅ repo public yapıldı |
 | 2 | Self-hosted HIL runner kaydı | Runner `[self-hosted, aios-hil]` | ⏳ kullanıcı — `HIL_CI_SETUP.md §2` |
 | 3 | Temiz checkout CI koşusu | 2 sketch compile + sync `--check` + proof PASS | ✅ lokal doğrulandı (`git archive` → compile EXIT 0 ×2); CI = 1b sonrası |
 | 4 | Branch protection | `hil-proof` zorunlu check | ⏳ 1b + runner + ilk yeşil koşu sonrası — `gh api` komutu hazır |
