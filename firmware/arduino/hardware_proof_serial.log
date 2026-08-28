@@ -3,8 +3,15 @@
 #  AIOS ON-SILICON HARDWARE PROOF  |  Renesas RA4M1 @ 48 MHz
 ################################################################
 
-Sketch build: Aug 28 2026 17:26:23
+Sketch build: Aug 28 2026 17:48:38
 CPU clock (F_CPU): 48000000
+
+---- RUN PROVENANCE ----
+AIOS_COMMIT_SHA=467b8de
+RA4M1_RESET_STATUS: RSTSR0=0x0 RSTSR2=0x0
+RA4M1_HW_UID=35130A2536313231B43F33334B572F26
+BRIDGE_MODE_BUILD=full
+BRIDGE_EXPECT_S3=0
 
 ################################################################
 #  PHASE 1 / 7  --  CANONICAL VERIFICATION SUITE (5 checks, mock HW root)
@@ -94,18 +101,18 @@ CPU clock (F_CPU): 48000000
 ################################################################
 
   SCE5 TRNG collected 2048 bytes (16384 bits)
-  draw[0]=484B035A50CDFAFC5DFB86F51687241E
+  draw[0]=F9710739336B160FF2A2F028469C6CD6
   [OK]   SCE5 hardware TRNG readable (HW_SCE_RNG_Read)
   [OK]   Consecutive TRNG draws differ
   --- NIST SP 800-22 subset (alpha = 0.01, on-silicon) ---
-  [PASS] Monobit Frequency              stat=0.109  p=0.912905
-  [PASS] Runs                           stat=8164.000  p=0.661816
-  [PASS] Block Frequency M=128          stat=152.094  p=0.071922
-  [PASS] Longest Run of Ones M=128      stat=4.311  p=0.505608
-  [PASS] Byte chi-square (256 bins)     stat=258.000  p=0.435723
+  [PASS] Monobit Frequency              stat=1.594  p=0.110992
+  [PASS] Runs                           stat=8197.000  p=0.921945
+  [PASS] Block Frequency M=128          stat=97.813  p=0.978150
+  [PASS] Longest Run of Ones M=128      stat=5.553  p=0.352174
+  [PASS] Byte chi-square (256 bins)     stat=262.250  p=0.364108
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=111.000  p=0.753148
-  [PASS] Cumulative Sums (bwd)          stat=125.000  p=0.650788
+  [PASS] Cumulative Sums (fwd)          stat=204.000  p=0.221981
+  [PASS] Cumulative Sums (bwd)          stat=239.000  p=0.123751
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -128,14 +135,14 @@ CPU clock (F_CPU): 48000000
   [OK]   1-bit seed change -> different stream
   [OK]   Captured mid-stream state does not re-emit earlier blocks
   --- NIST SP 800-22 subset on DRBG output ---
-  [PASS] Monobit Frequency              stat=0.219  p=0.826845
-  [PASS] Runs                           stat=8251.000  p=0.356397
-  [PASS] Block Frequency M=128          stat=121.750  p=0.638824
-  [PASS] Longest Run of Ones M=128      stat=4.385  p=0.495393
-  [PASS] Byte chi-square (256 bins)     stat=225.750  p=0.906335
+  [PASS] Monobit Frequency              stat=0.016  p=0.987534
+  [PASS] Runs                           stat=8183.000  p=0.888168
+  [PASS] Block Frequency M=128          stat=133.344  p=0.355324
+  [PASS] Longest Run of Ones M=128      stat=5.339  p=0.375867
+  [PASS] Byte chi-square (256 bins)     stat=237.750  p=0.774000
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=136.000  p=0.573148
-  [PASS] Cumulative Sums (bwd)          stat=108.000  p=0.774936
+  [PASS] Cumulative Sums (fwd)          stat=116.000  p=0.716513
+  [PASS] Cumulative Sums (bwd)          stat=118.000  p=0.701833
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -179,6 +186,8 @@ CPU clock (F_CPU): 48000000
   NOT PROVEN HERE: bridge firmware on real ESP32-S3 silicon over a real
          R4<->S3 SPI/UART link  ->  gate PHASE7_REAL_S3_SILICON_E2E=PENDING.
   All counts / throughput below are qualified [link-model]
+  BRIDGE_LINK_MODE=modeled
+  BRIDGE_FALLBACK_USED=0
   GOLDEN valid len=32 expect=0 bytes=55AA0103EFCDAB8967452301444433332222111188887777666655550001C4D3
   GOLDEN truncated len=31 expect=1 bytes=55AA0103EFCDAB8967452301444433332222111188887777666655550001C4D3
   GOLDEN bad_magic len=32 expect=2 bytes=34120103EFCDAB896745230144443333222211118888777766665555000160E5
@@ -196,20 +205,20 @@ CPU clock (F_CPU): 48000000
   T6 replay rejection               transport=link-model expected={ERR_REPLAY}           observed=ERR_REPLAY  detail=0 passed=1
   T7 recovery after fault storm     transport=link-model expected={count(0=pass)}        observed=OK          detail=10 passed=1
   T8 golden-vector cross-validation transport=link-model expected={OK}                   observed=OK          detail=0 passed=1
-  [link-model] benchmark: throughput ~ 296214 bytes/s   latency ~ 108 us / 32B frame
+  PERF link-model frames=200 errors=0 throughput_bytes_s=966767 lat_avg_us=33 lat_p50_us=33 lat_p95_us=33 lat_p99_us=36 lat_max_us=36
   [OK]   All 9 bridge tests pass over the wire protocol + link layer
 
 ################################################################
 #  HARDWARE PROOF RESULT
 ################################################################
 
-Verification (mock root)     : rc=0  (1002683 us)
-Mutation     (mock root)     : rc=0  (1025713 us)
-Real HW root of truth        : rc=0  (55077 us)
-SCE5 TRNG + NIST subset      : rc=0  (497276 us)
-Hash-DRBG (CSPRNG)           : rc=0  (351474 us)
-Chaos engineering            : rc=0  (6509256 us)
-Bridge wire+link E2E         : rc=0  (366654 us)
+Verification (mock root)     : rc=0  (1002665 us)
+Mutation     (mock root)     : rc=0  (1025722 us)
+Real HW root of truth        : rc=0  (55086 us)
+SCE5 TRNG + NIST subset      : rc=0  (473672 us)
+Hash-DRBG (CSPRNG)           : rc=0  (353237 us)
+Chaos engineering            : rc=0  (6509248 us)
+Bridge wire+link E2E         : rc=0  (376390 us)
 
 ---- RELEASE GATES ----
 AIOS_RA4M1_KERNEL_PROOF=PASS

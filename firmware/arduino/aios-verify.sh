@@ -24,16 +24,22 @@ FQBN="${AIOS_HIL_FQBN:-arduino:renesas_uno:unor4wifi}"
 OUT="$HERE/artifacts/hil"
 DEFS="-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024"
 
-DUMP_TRNG=""
+DUMP_TRNG=""; REPEAT=1; EXPECT_S3=0
+COMMIT="$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 while [ $# -gt 0 ]; do
   case "$1" in
     --port) PORT="$2"; shift 2;;
     --fqbn) FQBN="$2"; shift 2;;
     --out)  OUT="$2";  shift 2;;
+    --commit) COMMIT="$2"; shift 2;;
+    --expect-s3) EXPECT_S3=1; shift;;
+    --repeat) REPEAT="$2"; shift 2;;
     --dump-trng) DUMP_TRNG="${2:-1250000}"; shift 2 2>/dev/null || { DUMP_TRNG=1250000; shift; };;
     *) echo "unknown arg: $1" >&2; exit 2;;
   esac
 done
+DEFS="$DEFS -DAIOS_COMMIT_SHA=\"$COMMIT\""
+[ "$EXPECT_S3" = 1 ] && DEFS="$DEFS -DAIOS_EXPECT_S3"
 
 # ---- --dump-trng: flash the dump sketch, capture raw TRNG for off-device STS --
 if [ -n "$DUMP_TRNG" ]; then
@@ -102,11 +108,25 @@ arduino-cli compile -b "$FQBN" -e --warnings none \
 BUILD="$SKETCH/build/$(echo "$FQBN" | tr ':' '.')"
 cp "$BUILD"/AIOS_HardwareProof.ino.{bin,hex,map} "$OUT/" 2>/dev/null || true
 
-echo "== [3/4] flash $PORT =="
-arduino-cli upload -b "$FQBN" -p "$PORT" --input-dir "$BUILD" "$SKETCH" \
-  || { echo "flash failed"; exit 1; }
+RA4M1_BIN_SHA="$( (sha256sum "$BUILD/AIOS_HardwareProof.ino.bin" 2>/dev/null || shasum -a256 "$BUILD/AIOS_HardwareProof.ino.bin") | awk '{print $1}')"
+S3_BIN_SHA="n/a"
+if arduino-cli core list 2>/dev/null | grep -q esp32:esp32; then
+  arduino-cli compile -b esp32:esp32:esp32s3 -e --warnings none "$HERE/AIOS_S3_Bridge" >/dev/null 2>&1 \
+    && S3_BIN_SHA="$( (sha256sum "$HERE/AIOS_S3_Bridge/build/esp32.esp32.esp32s3/AIOS_S3_Bridge.ino.bin" 2>/dev/null \
+        || shasum -a256 "$HERE/AIOS_S3_Bridge/build/esp32.esp32.esp32s3/AIOS_S3_Bridge.ino.bin") | awk '{print $1}')"
+fi
 
-echo "== [4/4] capture on-silicon serial report =="
+# ---- one flash + capture + assert cycle; writes $OUT/run_provenance[.N].json --
+hil_run() {   # $1 = repeat index (1-based)
+  local idx="$1" logn="$LOG"
+  [ "$REPEAT" -gt 1 ] && logn="$OUT/run_${idx}.log"
+
+  echo "== [flash] $PORT  (run $idx/$REPEAT) =="
+  arduino-cli upload -b "$FQBN" -p "$PORT" --input-dir "$BUILD" "$SKETCH" \
+    || { echo "flash failed (run $idx)"; return 2; }
+
+  echo "== [capture] on-silicon serial report =="
+  LOG="$logn"
 if command -v powershell.exe >/dev/null 2>&1; then
   PORT="$PORT" LOG="$LOG" powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '
     $p = New-Object System.IO.Ports.SerialPort($env:PORT,115200,"None",8,"One")
@@ -135,40 +155,78 @@ open(os.environ["AIOS_LOG"], "w", encoding="utf-8").write(
     buf.decode("utf-8", "replace").replace("\r", "").replace("[STDERR] ", ""))
 PY
 else
-  echo "no serial capture tool (need powershell.exe or python3+pyserial)"; exit 1
+  echo "no serial capture tool (need powershell.exe or python3+pyserial)"; return 1
 fi
 
-cp "$LOG" "$OUT/hardware_proof_serial_${STAMP}.log" 2>/dev/null || true
+  [ -s "$LOG" ] || { echo "capture produced no data (run $idx)"; return 3; }
 
-echo "-------------------------------------------------------------"
-grep -E "PHASE [0-9] /|rc=|^(AIOS|PHASE)_[A-Z0-9_]+=|passed=|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
-echo "-------------------------------------------------------------"
-
-# Golden-vector cross-check: the frames PHASE 7 / T8 emitted must byte-match the
-# committed reference produced off-device by tools/gen_golden_vectors.py.
-GV="$HERE/tools/golden_vectors.txt"
-if grep -qE 'GOLDEN [a-z_]+ len=' "$LOG" && [ -f "$GV" ]; then
-  norm() { grep -oE 'GOLDEN [a-z_]+ len=[0-9]+ expect=[0-9]+ bytes=[0-9A-Fa-f]+' "$1" \
-           | awk '{ b=$5; sub(/bytes=/,"",b); print $2, $3, $4, toupper(b) }' | sort; }
-  if diff <(norm "$LOG") <(norm "$GV") >/dev/null; then
-    echo "golden vectors: on-device frames MATCH tools/golden_vectors.txt"
-  else
-    echo "golden vectors: MISMATCH vs tools/golden_vectors.txt"; diff <(norm "$LOG") <(norm "$GV") | head
-    echo "HIL PROOF: FAIL (golden vector drift -- log: $LOG)"; exit 1
+  # Golden-vector cross-check vs the committed off-device reference.
+  local GV="$HERE/tools/golden_vectors.txt" gv_ok=1
+  if grep -qE 'GOLDEN [a-z_]+ len=' "$LOG" && [ -f "$GV" ]; then
+    norm() { grep -oE 'GOLDEN [a-z_]+ len=[0-9]+ expect=[0-9]+ bytes=[0-9A-Fa-f]+' "$1" \
+             | awk '{ b=$5; sub(/bytes=/,"",b); print $2, $3, $4, toupper(b) }' | sort; }
+    if diff <(norm "$LOG") <(norm "$GV") >/dev/null; then
+      echo "golden vectors: on-device frames MATCH tools/golden_vectors.txt"
+    else
+      echo "golden vectors: MISMATCH vs tools/golden_vectors.txt"; diff <(norm "$LOG") <(norm "$GV") | head; gv_ok=0
+    fi
   fi
+
+  local VERDICT TRANSPORT FALLBACK LINKMODE HANG DEADLOCK
+  VERDICT="$(grep -oE 'AIOS_HARDWARE_PROOF_VERDICT=[A-Z_]+' "$LOG" | tail -1 | cut -d= -f2)"
+  LINKMODE="$(grep -oE 'BRIDGE_LINK_MODE=[a-z0-9-]+' "$LOG" | tail -1 | cut -d= -f2)"
+  FALLBACK="$(grep -oE 'BRIDGE_FALLBACK_USED=[01]' "$LOG" | tail -1 | cut -d= -f2)"
+  grep -q 'END OF PROOF' "$LOG" && HANG=0 || HANG=1
+  # MUT-12 / bridge interleave prints "deadlock=<n>"; a real deadlock is >=1.
+  grep -qE 'deadlock=[1-9]' "$LOG" && DEADLOCK=1 || DEADLOCK=0
+  local SHA_ON_DEV; SHA_ON_DEV="$(grep -oE 'AIOS_COMMIT_SHA=[^ ]+' "$LOG" | tail -1 | cut -d= -f2)"
+
+  cat > "$OUT/run_provenance_${idx}.json" <<JSON
+{
+  "run_index": $idx, "timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "commit_sha_host": "$COMMIT", "commit_sha_on_device": "$SHA_ON_DEV",
+  "ra4m1_bin_sha256": "$RA4M1_BIN_SHA", "s3_bin_sha256": "$S3_BIN_SHA",
+  "fqbn": "$FQBN", "port": "$PORT",
+  "bridge_link_mode": "${LINKMODE:-unknown}", "fallback_used": ${FALLBACK:-null},
+  "expect_s3": $EXPECT_S3,
+  "verdict": "${VERDICT:-MISSING}",
+  "hang": $HANG, "deadlock": $DEADLOCK, "golden_vectors_match": $gv_ok,
+  "log": "$(basename "$LOG")"
+}
+JSON
+  cp "$OUT/run_provenance_${idx}.json" "$OUT/run_provenance.json"
+
+  echo "-------------------------------------------------------------"
+  grep -E "PHASE [0-9] /|rc=|^(AIOS|PHASE)_[A-Z0-9_]+=|BRIDGE_(LINK_MODE|FALLBACK)|^  PERF |passed=|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
+  echo "-------------------------------------------------------------"
+
+  # Fail conditions: any gate FAIL, hang (no END OF PROOF), golden drift,
+  # deadlock, or a fallback when a real S3 was expected.
+  [ "$gv_ok" = 1 ] || { echo "run $idx: FAIL golden-vector drift"; return 1; }
+  [ "$HANG" = 0 ]  || { echo "run $idx: FAIL hang / no verdict"; return 1; }
+  [ "$DEADLOCK" = 0 ] || { echo "run $idx: FAIL deadlock detected"; return 1; }
+  if grep -qE "^(AIOS|PHASE)_[A-Z0-9_]+=FAIL" "$LOG"; then echo "run $idx: FAIL release gate"; return 1; fi
+  if [ "$EXPECT_S3" = 1 ] && [ "${FALLBACK:-1}" != 0 ]; then echo "run $idx: FAIL expected real S3, got fallback ($LINKMODE)"; return 1; fi
+  case "$VERDICT" in PASS|CONDITIONAL_PASS) return 0;; *) echo "run $idx: FAIL verdict=$VERDICT"; return 1;; esac
+}
+
+pass=0; fail=0
+for n in $(seq 1 "$REPEAT"); do
+  hil_run "$n"; rc=$?
+  if [ "$rc" = 0 ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
+  [ "$REPEAT" -gt 1 ] && [ "$n" -lt "$REPEAT" ] && sleep 2
+done
+
+if [ "$REPEAT" -gt 1 ]; then
+  DISTINCT_MODE="$(cat "$OUT"/run_provenance_*.json | grep -oE '"bridge_link_mode": "[^"]+"' | sort -u | wc -l)"
+  DISTINCT_SHA="$(cat "$OUT"/run_provenance_*.json | grep -oE '"commit_sha_on_device": "[^"]+"' | sort -u | wc -l)"
+  cat > "$OUT/soak_summary.json" <<JSON
+{ "runs": $REPEAT, "pass": $pass, "fail": $fail,
+  "distinct_link_modes": $DISTINCT_MODE, "distinct_on_device_commits": $DISTINCT_SHA,
+  "commit_sha": "$COMMIT", "same_software_and_transport": $([ "$DISTINCT_MODE" = 1 ] && [ "$DISTINCT_SHA" = 1 ] && echo true || echo false) }
+JSON
+  echo "== SOAK SUMMARY: $pass/$REPEAT pass, $fail fail  ($OUT/soak_summary.json) =="
 fi
 
-# A green HIL run == every gate that was EXECUTED passed. Gates still marked
-# PENDING / NOT_RUN do not fail CI (nothing regressed); an explicit FAIL on any
-# gate, or a missing verdict, does.
-if grep -qE "^(AIOS|PHASE)_[A-Z0-9_]+=FAIL" "$LOG"; then
-  echo "HIL PROOF: FAIL  (a release gate reported FAIL -- log: $LOG)"
-  exit 1
-fi
-if grep -qE "AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS" "$LOG"; then
-  V=$(grep -oE "AIOS_HARDWARE_PROOF_VERDICT=[A-Z_]+" "$LOG" | tail -1)
-  echo "HIL PROOF: ${V#AIOS_HARDWARE_PROOF_VERDICT=}  (log: $LOG)"
-  exit 0
-fi
-echo "HIL PROOF: FAIL  (no verdict line -- log: $LOG)"
-exit 1
+if [ "$fail" = 0 ]; then echo "HIL PROOF: PASS ($pass/$REPEAT)"; exit 0; fi
+echo "HIL PROOF: FAIL ($fail/$REPEAT failed)"; exit 1

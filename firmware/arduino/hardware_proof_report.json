@@ -2,11 +2,11 @@
   "$schema": "https://aios.foundation/schemas/hardware-proof-v1.json",
   "proofMetadata": {
     "timestamp": "2026-08-28T16:00:00+03:00",
-    "revision": 8,
+    "revision": 9,
     "kind": "ON_SILICON_EXECUTION",
     "verdict": "CONDITIONAL_PASS",
     "operator": "Claude Code (aksu094094@gmail.com)",
-    "note": "rev.8: T2 report format expected={ERR_LENGTH,ERR_TIMEOUT} (two transport-defined valid semantics, not 'accepted unexpected'); PHASE 7 rows -> transport=/expected=/observed=/passed= format. T8 upgraded to 3-way golden-vector cross-validation (tools/gen_golden_vectors.py off-device -> tools/golden_vectors.txt committed; device emits vector bytes; aios-verify.sh diffs -> HIL FAIL on drift). -DAIOS_BRIDGE_SMOKE mode (T0/T1/T2/T6/T8 only, skip T3/T4/T5/T7/throughput) for first physical-S3 bring-up. AIOS_S3_Bridge short-frame -> <ERR_TIMEOUT> status.",
+    "note": "rev.9: run provenance -- every run emits run_provenance.json (commit_sha host+on-device cross-checked, ra4m1/s3 bin sha256, bridge_link_mode, fallback_used, hang, deadlock, golden_vectors_match). aios-verify.sh --repeat N -> soak_summary.json (same_software_and_transport check); --expect-s3 -> fallback = hard FAIL; -DAIOS_BRIDGE_SMOKE first-bring-up build. PERF line now structured percentiles (p50/p95/p99/max), not a lone mean. .ino RUN PROVENANCE block (AIOS_COMMIT_SHA, RSTSR reset status, HW_UID, build/expect flags). RELEASE_CHECKLIST.md: sections 1-9 (infra/S3-HIL/repeat/soak/security/crypto-lifecycle/fw-lifecycle/perf/pilot-package) with current status.",
     "minimumCodeClosureBeforePhysicalHIL": {
       "s3_status_byte_compared": true,
       "T2_dual_transport_semantics": true,
@@ -261,7 +261,9 @@
         "hostCrossCheck": "aios-verify.sh diffs the logged GOLDEN lines against tools/golden_vectors.txt -> HIL FAIL on any drift",
         "rationale": "a bug shared by RA4M1 and S3 wire_verify is still caught because the golden expected verdict is an independent constant"
       },
-      "smokeMode": "-DAIOS_BRIDGE_SMOKE -> PHASE 7 runs T0/T1/T2/T6 + T8 golden only (skip T3/T4/T5/T7 + throughput). For the first physical-S3 bring-up run before any performance number is taken."
+      "smokeMode": "-DAIOS_BRIDGE_SMOKE -> PHASE 7 runs T0/T1/T2/T6 + T8 golden only (skip T3/T4/T5/T7 + throughput). For the first physical-S3 bring-up run before any performance number is taken.",
+      "perfFormat": "PERF <transport> frames= errors= throughput_bytes_s= lat_avg_us= lat_p50_us= lat_p95_us= lat_p99_us= lat_max_us=",
+      "fallbackGate": "BRIDGE_FALLBACK_USED=1 (build had -DAIOS_EXPECT_S3 but link != phys-S3) -> PHASE_7_REAL_S3_SILICON_E2E=FAIL and overall verdict FAIL. No silent PASS/PENDING on fallback."
     },
     "offDeviceTrngBattery": {
       "tool": "tools/nist_sts_lite.py (independent re-implementation, NOT the NIST STS reference)",
@@ -317,5 +319,27 @@
     "aios-multiboard-determinism: 3+ boards cross-board Variance=0.",
     "SCI2 STDERR / 12x8 matrix physical drive: framebuffer/logic verified in mock mode only.",
     "kernel mock_hw=false raw RA4M1_TRNG_DATA_REG still routed to UID derivation under AIOS_ARDUINO_PROOF (prefer SCE5 FSP path)."
-  ]
+  ],
+  "runProvenance": {
+    "perRun": "artifacts/hil/run_provenance.json",
+    "fields": [
+      "run_index",
+      "timestamp_utc",
+      "commit_sha_host",
+      "commit_sha_on_device",
+      "ra4m1_bin_sha256",
+      "s3_bin_sha256",
+      "fqbn",
+      "port",
+      "bridge_link_mode",
+      "fallback_used",
+      "expect_s3",
+      "verdict",
+      "hang",
+      "deadlock",
+      "golden_vectors_match"
+    ],
+    "soak": "artifacts/hil/soak_summary.json (--repeat N): runs/pass/fail/distinct_link_modes/distinct_on_device_commits/same_software_and_transport"
+  },
+  "releaseChecklist": "RELEASE_CHECKLIST.md -- controlled-pilot minimum package, sections 1-9"
 }

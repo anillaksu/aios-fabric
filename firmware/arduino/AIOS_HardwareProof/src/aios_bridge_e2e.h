@@ -71,18 +71,28 @@ bool aios_bridge_probe_serial1(void);
  */
 bool aios_bridge_probe_s3(void);
 
+// Performance profile (physical S3 runs must report percentiles, not one mean).
+typedef struct {
+    uint32_t frames;
+    uint32_t errors;
+    uint32_t throughput_bytes_s;
+    uint32_t lat_avg_us;
+    uint32_t lat_p50_us;
+    uint32_t lat_p95_us;
+    uint32_t lat_p99_us;
+    uint32_t lat_max_us;
+} AiosBridgePerf;
+
 /**
- * @brief Run the 8-test E2E suite over the chosen link.
- * @param mode     AIOS_LINK_MODELED or AIOS_LINK_SERIAL1.
+ * @brief Run the E2E suite (9 tests + perf) over the chosen link.
+ * @param mode      AIOS_LINK_MODELED / AIOS_LINK_SERIAL1 / AIOS_LINK_S3_UART.
  * @param base_seed DRBG base seed (each test derives its own).
- * @param out      Caller array, AIOS_BRIDGE_E2E_TESTS entries.
- * @param tp_bytes_per_s  Out: measured throughput (test 8).
- * @param lat_us_per_frame Out: measured mean round-trip latency (test 8).
+ * @param out       Caller array, AIOS_BRIDGE_E2E_TESTS entries.
+ * @param perf      Out: throughput + latency percentiles (zeroed in smoke mode).
  * @return number of FAILED tests (0 == full pass).
  */
 int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
-                        BridgeTestResult* out,
-                        uint32_t* tp_bytes_per_s, uint32_t* lat_us_per_frame);
+                        BridgeTestResult* out, AiosBridgePerf* perf);
 
 #ifdef __cplusplus
 }

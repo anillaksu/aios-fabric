@@ -328,6 +328,7 @@ static const char* wire_err_name(uint32_t e) {
 }
 
 static bool g_bridge_on_real_s3 = false;
+static bool g_bridge_fallback_used = false;
 
 static int test_bridge_e2e(void) {
   g_fail = 0;
@@ -353,8 +354,16 @@ static int test_bridge_e2e(void) {
   Serial.println(F("         R4<->S3 SPI/UART link  ->  gate PHASE7_REAL_S3_SILICON_E2E=PENDING."));
   Serial.print  (F("  All counts / throughput below are qualified ")); Serial.println(tag);
 
-  uint32_t tp = 0, lat = 0;
-  int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &tp, &lat);
+  Serial.print(F("  BRIDGE_LINK_MODE="));
+  Serial.println(mode == AIOS_LINK_S3_UART ? F("phys-S3")
+               : mode == AIOS_LINK_SERIAL1 ? F("phys-SCI") : F("modeled"));
+#ifdef AIOS_EXPECT_S3
+  g_bridge_fallback_used = (mode != AIOS_LINK_S3_UART);
+#endif
+  Serial.print(F("  BRIDGE_FALLBACK_USED=")); Serial.println(g_bridge_fallback_used ? 1 : 0);
+
+  AiosBridgePerf perf;
+  int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &perf);
 
   static const char* const link_name[] = { "link-model", "phys-SCI", "phys-S3" };
   for (int i = 0; i < AIOS_BRIDGE_E2E_TESTS; ++i) {
@@ -377,10 +386,18 @@ static int test_bridge_e2e(void) {
     Serial.println(b);
   }
   {
-    char b[112];
-    snprintf(b, sizeof(b), "  %s benchmark: throughput ~ %lu bytes/s   latency ~ %lu us / 32B frame",
-             tag, (unsigned long)tp, (unsigned long)lat);
+    // structured perf line -- percentiles, never a lone mean (see release report format)
+    char b[176];
+    snprintf(b, sizeof(b),
+      "  PERF %s frames=%lu errors=%lu throughput_bytes_s=%lu lat_avg_us=%lu "
+      "lat_p50_us=%lu lat_p95_us=%lu lat_p99_us=%lu lat_max_us=%lu",
+      link_name[mode <= 2 ? (int)mode : 0],
+      (unsigned long)perf.frames, (unsigned long)perf.errors,
+      (unsigned long)perf.throughput_bytes_s, (unsigned long)perf.lat_avg_us,
+      (unsigned long)perf.lat_p50_us, (unsigned long)perf.lat_p95_us,
+      (unsigned long)perf.lat_p99_us, (unsigned long)perf.lat_max_us);
     Serial.println(b);
+    if (perf.frames == 0) Serial.println(F("  PERF skipped (smoke mode)"));
   }
   CHK(failed == 0, "All 9 bridge tests pass over the wire protocol + link layer");
   return (g_fail == 0) ? 0 : 1;
@@ -399,6 +416,40 @@ void setup() {
   Serial.print(F("Sketch build: ")); Serial.print(F(__DATE__));
   Serial.print(' '); Serial.println(F(__TIME__));
   Serial.print(F("CPU clock (F_CPU): ")); Serial.println((uint32_t)F_CPU);
+
+  // ---- RUN PROVENANCE -- every run must be attributable to an exact commit,
+  //      firmware image and transport (see aios-verify.sh run_provenance.json).
+  Serial.println();
+  Serial.println(F("---- RUN PROVENANCE ----"));
+#ifdef AIOS_COMMIT_SHA
+  Serial.print(F("AIOS_COMMIT_SHA=")); Serial.println(F(AIOS_COMMIT_SHA));
+#else
+  Serial.println(F("AIOS_COMMIT_SHA=unset(build without -DAIOS_COMMIT_SHA)"));
+#endif
+#ifdef AIOS_BUILD_LABEL
+  Serial.print(F("AIOS_BUILD_LABEL=")); Serial.println(F(AIOS_BUILD_LABEL));
+#endif
+  {
+    // RA4M1 reset-status register: bit0 PORF (power-on), bit1 LVD0RF ... bit4 SWRF
+    volatile uint16_t* RSTSR0 = (volatile uint16_t*)0x4001E410UL;
+    volatile uint8_t*  RSTSR2 = (volatile uint8_t*)0x4001E412UL;
+    Serial.print(F("RA4M1_RESET_STATUS: RSTSR0=0x"));
+    Serial.print(*RSTSR0, HEX); Serial.print(F(" RSTSR2=0x")); Serial.println(*RSTSR2, HEX);
+  }
+  const volatile uint32_t* uidr = (const volatile uint32_t*)( *(uint32_t*)0x407FB19CUL + 0x14UL );
+  { char u[48]; snprintf(u, sizeof(u), "RA4M1_HW_UID=%08lX%08lX%08lX%08lX",
+      (unsigned long)uidr[0],(unsigned long)uidr[1],(unsigned long)uidr[2],(unsigned long)uidr[3]);
+    Serial.println(u); }
+#ifdef AIOS_BRIDGE_SMOKE
+  Serial.println(F("BRIDGE_MODE_BUILD=smoke(-DAIOS_BRIDGE_SMOKE)"));
+#else
+  Serial.println(F("BRIDGE_MODE_BUILD=full"));
+#endif
+#ifdef AIOS_EXPECT_S3
+  Serial.println(F("BRIDGE_EXPECT_S3=1"));
+#else
+  Serial.println(F("BRIDGE_EXPECT_S3=0"));
+#endif
 
   banner("PHASE 1 / 7  --  CANONICAL VERIFICATION SUITE (5 checks, mock HW root)");
   unsigned long a0 = micros();
@@ -460,12 +511,17 @@ void setup() {
   Serial.print(F("AIOS_CHAOS_SUITE="));              Serial.println((crc_==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("PHASE_7_BRIDGE_LINK_E2E="));       Serial.println((brc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("PHASE_7_REAL_S3_SILICON_E2E="));
-  Serial.println(!g_bridge_on_real_s3 ? F("PENDING") : ((brc==0) ? F("PASS") : F("FAIL")));
+  // fallback_used (build expected S3, got modeled/SCI) -> hard FAIL, never a
+  // silent PASS/PENDING. On S3: PASS iff every bridge test passed. No S3 and no
+  // expectation: PENDING.
+  Serial.println(g_bridge_fallback_used ? F("FAIL")
+               : (!g_bridge_on_real_s3  ? F("PENDING")
+               : ((brc == 0)            ? F("PASS") : F("FAIL"))));
   Serial.println(F("AIOS_OFFDEVICE_TRNG_BATTERY=SEE_ARTIFACTS(nist_sts_lite)"));
   Serial.println(F("AIOS_FULL_NIST_STS_REFERENCE_TOOL=NOT_RUN"));
   Serial.print(F("AIOS_HARDWARE_PROOF_VERDICT="));
-  // Full PASS only when the real-S3 gate also cleared on this run.
-  Serial.println(!exec_ok ? F("FAIL")
+  // Full PASS only when the real-S3 gate cleared on THIS run and no fallback.
+  Serial.println((!exec_ok || g_bridge_fallback_used) ? F("FAIL")
                 : (g_bridge_on_real_s3 ? F("PASS") : F("CONDITIONAL_PASS")));
   Serial.println(F("---- END OF PROOF (harness will heartbeat below) ----"));
 }

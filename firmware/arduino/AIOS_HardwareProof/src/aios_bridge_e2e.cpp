@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include "aios_bridge_e2e.h"
 #include <string.h>
+#include <stdlib.h>
 
 // ---------------------------------------------------------------------------
 // Transport
@@ -235,9 +236,14 @@ static void set_res(BridgeTestResult* r, const char* name, uint64_t seed, bool p
 // ---------------------------------------------------------------------------
 // The 9 tests (T0..T7 + T8 golden-vector cross-validation)
 // ---------------------------------------------------------------------------
+static int cmp_u32(const void* a, const void* b) {
+    uint32_t x = *(const uint32_t*)a, y = *(const uint32_t*)b;
+    return (x < y) ? -1 : (x > y) ? 1 : 0;
+}
+
 int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
-                        BridgeTestResult* out,
-                        uint32_t* tp_bytes_per_s, uint32_t* lat_us_per_frame) {
+                        BridgeTestResult* out, AiosBridgePerf* perf) {
+    if (perf) memset(perf, 0, sizeof(*perf));
     static AiosKernelStorage kk;
     aios_kernel_init(&kk, true);
     link_begin(mode);
@@ -299,8 +305,6 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         for (unsigned s = 0; s < sizeof(skip) / sizeof(skip[0]); ++s)
             set_res(&out[skip[s]], "(skipped: -DAIOS_BRIDGE_SMOKE)", base_seed, true, 0xFF, 0xFF, 0xFF, 0);
     }
-    if (tp_bytes_per_s)  *tp_bytes_per_s  = 0;
-    if (lat_us_per_frame) *lat_us_per_frame = 0;
 #else
     // ---- T3  oversized payload_len ----------------------------------
     {
@@ -462,21 +466,30 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
     }
 
 #ifndef AIOS_BRIDGE_SMOKE
-    // ---- Throughput + latency (reuses the link, not a pass/fail row) --
-    {
+    // ---- Performance: throughput + per-frame latency percentiles ------
+    if (perf) {
         uint64_t seed = base_seed ^ 0x88;
         AiosPrng rng; aios_prng_seed(&rng, &kk, seed, 8);
         const int N = 200;
-        uint32_t t0 = micros();
-        int okc = 0;
+        static uint32_t lat[200];
+        uint32_t errors = 0, total_us = 0;
         for (int i = 0; i < N; ++i) {
             AiosWireFrame f; build_valid_frame(&rng, &f);
-            if (round_trip(&f, 32, TO, 0) == AIOS_WIRE_OK) okc++;
+            uint32_t t = micros();
+            AiosWireError e = round_trip(&f, 32, TO, 0);
+            lat[i] = micros() - t;
+            total_us += lat[i];
+            if (e != AIOS_WIRE_OK) errors++;
         }
-        uint32_t us = micros() - t0;
-        if (tp_bytes_per_s)  *tp_bytes_per_s  = (uint32_t)(((uint64_t)N * 32u * 1000000u) / (us ? us : 1));
-        if (lat_us_per_frame) *lat_us_per_frame = us / (uint32_t)N;
-        (void)okc;
+        qsort(lat, N, sizeof(lat[0]), cmp_u32);
+        perf->frames = N;
+        perf->errors = errors;
+        perf->throughput_bytes_s = (uint32_t)(((uint64_t)N * 32u * 1000000u) / (total_us ? total_us : 1));
+        perf->lat_avg_us = total_us / (uint32_t)N;
+        perf->lat_p50_us = lat[(N * 50) / 100];
+        perf->lat_p95_us = lat[(N * 95) / 100];
+        perf->lat_p99_us = lat[(N * 99) / 100];
+        perf->lat_max_us = lat[N - 1];
     }
 #endif  // AIOS_BRIDGE_SMOKE
 

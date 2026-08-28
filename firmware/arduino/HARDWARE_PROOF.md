@@ -232,6 +232,12 @@ arduino-cli monitor -p COM4 -c baudrate=115200    # kart reset sonrası bir kez 
 ```
 
 Tek komut (CI ve insan için aynı): `./aios-verify.sh --port COM4` → exit 0 = PASS.
+Her koşu `artifacts/hil/run_provenance.json` yazar: `commit_sha` (host + on-device, çapraz),
+`ra4m1_bin_sha256`, `s3_bin_sha256`, `bridge_link_mode`, `fallback_used`, `verdict`, `hang`,
+`deadlock`, `golden_vectors_match`. Tekrar/soak: `--repeat N` → `soak_summary.json`
+(`same_software_and_transport` kontrolü). Gerçek S3 zorunluluğu: `--expect-s3`
+(fallback → hard FAIL). İlk fiziksel bring-up: `--build-property ... -DAIOS_BRIDGE_SMOKE`.
+Sürüm-yaşam-döngüsü / soak / pilot durumu: `RELEASE_CHECKLIST.md`.
 Off‑device tam NIST/dieharder için: `./aios-verify.sh --dump-trng 1250000` → `artifacts/sts/trng_dump.bin` + `nist_sts_lite_output.txt`.
 
 ### Bellek (arm-none-eabi-size, Berkeley)
