@@ -75,20 +75,13 @@ echo $?      # 0 = gerçek donanım tüm fazları geçti
 
 ## Git / CI kapanış sırası
 
-**Durum:** `origin = https://github.com/anillaksu/aios-fabric.git` eklendi. Yerel
-`feat/hil-deterministic-kernel-proof` dalı 6 commit (hepsi `firmware/**` + `.github/`,
-`origin/master`'ın 6 fabric-only commit'iyle **çakışmasız**). Push, `gh` OAuth token'ında
-`workflow` scope olmadığı için `.github/workflows/hil-proof.yml` yüzünden reddedildi.
+**Durum:** ✅ `feat/hil-deterministic-kernel-proof` **push edildi** (`origin =
+github.com/anillaksu/aios-fabric`), **PR #1** açık. Workflow ilk deneme `startup_failure`
+verdi (`runs-on` ternary) → iki-job yapısına (`hil-hardware` + `hil-proof` gate) düzeltildi.
 
-1. **Remote'a push** (kullanıcı — token'a workflow scope ekle, sonra push):
-   ```bash
-   gh auth refresh -h github.com -s workflow      # tarayıcıda ~10 sn
-   cd aios/aios-fabric
-   git push -u origin feat/hil-deterministic-kernel-proof
-   gh pr create --base master --head feat/hil-deterministic-kernel-proof \
-     --title "AIOS deterministic RA4M1 kernel + HIL proof" \
-     --body-file firmware/arduino/HARDWARE_PROOF.md
-   ```
+1. **Push + PR** — TAMAM. Workflow `hil-proof` job'ı `ubuntu-latest`'te her zaman koşar;
+   `firmware/**` değişince `hil-hardware` (self-hosted) sonucuna göre pass/fail verir,
+   değişmezse trivial pass.
 2. **Self-hosted runner'ı yalnızca HIL donanımına yetkilendir:** runner'ı fiziksel
    kartın bağlı olduğu makinede kur, `--labels self-hosted,aios-hil`. Repo →
    Settings → Actions → Runners → runner grubunu bu repoya (veya org'da sadece

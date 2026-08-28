@@ -1,10 +1,9 @@
 name: AIOS Hardware-in-the-Loop Proof
 
-# Required status check `hil-proof` for `master`. It ALWAYS reports:
-#   - PR touches firmware/** or this workflow -> full on-silicon proof on a
-#     self-hosted [self-hosted, aios-hil] runner with the RA4M1 board wired in.
-#   - otherwise -> trivial pass on ubuntu-latest (HIL not relevant to the change).
-# This lets branch protection require `hil-proof` without blocking unrelated PRs.
+# Single job on the self-hosted [self-hosted, aios-hil] runner (free for private
+# repos -- no GitHub-hosted minutes needed). It self-gates: a change that does
+# not touch firmware/** or this workflow returns immediately; otherwise it runs
+# the full on-silicon proof. Required status check for `master` = `hil-proof`.
 # Setup: firmware/arduino/HIL_CI_SETUP.md
 
 on:
@@ -19,14 +18,18 @@ concurrency:
   cancel-in-progress: false        # never interrupt a live flash
 
 jobs:
-  detect:
-    runs-on: ubuntu-latest
-    outputs:
-      fw: ${{ steps.f.outputs.fw }}
+  hil-proof:
+    runs-on: [self-hosted, aios-hil]
+    timeout-minutes: 25
+    env:
+      AIOS_HIL_PORT: ${{ vars.AIOS_HIL_PORT || 'COM4' }}
+      AIOS_HIL_FQBN: arduino:renesas_uno:unor4wifi
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - id: f
+
+      - name: Decide whether HIL is required for this change
+        id: gate
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -34,36 +37,21 @@ jobs:
           else
             RANGE="${{ github.event.before }}..${{ github.sha }}"
           fi
-          if git diff --name-only $RANGE 2>/dev/null | grep -qE '^firmware/|^\.github/workflows/hil-proof\.yml'; then
-            echo "fw=true"  >> "$GITHUB_OUTPUT"
+          if git diff --name-only "$RANGE" 2>/dev/null | grep -qE '^firmware/|^\.github/workflows/hil-proof\.yml'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "fw=false" >> "$GITHUB_OUTPUT"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No firmware/** or workflow changes -- HIL proof not required."
           fi
 
-  hil-proof:
-    needs: detect
-    # self-hosted HIL runner only when firmware/workflow changed; else a trivial
-    # ubuntu pass so the required check is always reported.
-    runs-on: ${{ needs.detect.outputs.fw == 'true' && fromJSON('["self-hosted","aios-hil"]') || 'ubuntu-latest' }}
-    timeout-minutes: 20
-    env:
-      AIOS_HIL_PORT: ${{ vars.AIOS_HIL_PORT || 'COM4' }}
-      AIOS_HIL_FQBN: arduino:renesas_uno:unor4wifi
-    steps:
-      - if: needs.detect.outputs.fw != 'true'
-        run: echo "No firmware/** or workflow changes -- HIL proof not required for this change."
-
-      - if: needs.detect.outputs.fw == 'true'
-        uses: actions/checkout@v4
-
-      - if: needs.detect.outputs.fw == 'true'
+      - if: steps.gate.outputs.run == 'true'
         name: Toolchain
         shell: bash
         run: |
           arduino-cli version
           arduino-cli core list | grep -q renesas_uno || arduino-cli core install arduino:renesas_uno
 
-      - if: needs.detect.outputs.fw == 'true'
+      - if: steps.gate.outputs.run == 'true'
         name: src/ in sync + both sketches compile clean (pre-flash gate)
         shell: bash
         run: |
@@ -77,22 +65,22 @@ jobs:
           if arduino-cli core list | grep -q esp32:esp32; then
             arduino-cli compile -b esp32:esp32:esp32s3 --warnings none AIOS_S3_Bridge
           else
-            echo "::notice::esp32 core absent on this runner -- AIOS_S3_Bridge compile skipped"
+            echo "::notice::esp32 core absent -- AIOS_S3_Bridge compile skipped"
           fi
 
-      - if: needs.detect.outputs.fw == 'true'
+      - if: steps.gate.outputs.run == 'true'
         name: On-silicon proof (7 phases)
         shell: bash
         run: cd firmware/arduino && ./aios-verify.sh --out "$GITHUB_WORKSPACE/hil-artifacts"
 
-      - if: ${{ always() && needs.detect.outputs.fw == 'true' }}
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: aios-hil-proof-${{ github.run_number }}
           path: hil-artifacts/
           retention-days: 30
 
-      - if: ${{ always() && needs.detect.outputs.fw == 'true' }}
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
         name: Assert no gate FAILed and a verdict was reached
         shell: bash
         run: |
