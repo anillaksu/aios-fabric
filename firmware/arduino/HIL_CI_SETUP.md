@@ -75,13 +75,19 @@ echo $?      # 0 = gerçek donanım tüm fazları geçti
 
 ## Git / CI kapanış sırası
 
-**Durum:** ✅ `feat/hil-deterministic-kernel-proof` **push edildi** (`origin =
-github.com/anillaksu/aios-fabric`), **PR #1** açık. Workflow ilk deneme `startup_failure`
-verdi (`runs-on` ternary) → iki-job yapısına (`hil-hardware` + `hil-proof` gate) düzeltildi.
+**Durum:**
+- ✅ `feat/hil-deterministic-kernel-proof` **push edildi** (`origin = github.com/anillaksu/aios-fabric`), **PR #1** açık.
+- ⚠️ **GitHub Actions bu hesapta `startup_failure` veriyor** (`BuildFailed`) — tek satırlık
+  `echo` workflow'u ile de tekrarlandı, yani **YAML hatası değil**. Sebep: private repo'da
+  **GitHub-hosted Actions dakikaları tükenmiş / spending limit $0**. Düzeltme:
+  - GitHub → Settings → Billing → **Actions spending limit** yükselt / ödeme yöntemi ekle, **VEYA**
+  - repo'yu **public** yap (public repo'da hosted Actions sınırsız), **VEYA**
+  - yalnızca **self-hosted runner** kullan — workflow zaten tek `[self-hosted, aios-hil]` job'a
+    indirildi (self-hosted job dakika harcamaz), ama workflow **derlemesi** bile şu an
+    billing'e takılıyor; billing açılınca çalışır.
 
-1. **Push + PR** — TAMAM. Workflow `hil-proof` job'ı `ubuntu-latest`'te her zaman koşar;
-   `firmware/**` değişince `hil-hardware` (self-hosted) sonucuna göre pass/fail verir,
-   değişmezse trivial pass.
+1. **Push + PR** — TAMAM. `hil-proof` job'ı `[self-hosted, aios-hil]` runner'da koşar,
+   ilk adımda `firmware/**` diff'ine bakar: değişiklik yoksa hemen `exit 0`, varsa 7-faz proof.
 2. **Self-hosted runner'ı yalnızca HIL donanımına yetkilendir:** runner'ı fiziksel
    kartın bağlı olduğu makinede kur, `--labels self-hosted,aios-hil`. Repo →
    Settings → Actions → Runners → runner grubunu bu repoya (veya org'da sadece
