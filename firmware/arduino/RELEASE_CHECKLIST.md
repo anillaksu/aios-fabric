@@ -22,9 +22,9 @@ değil, manuel artifact olarak tutulur.
 |---:|---|---|---|
 | 1 | Branch'e workflow push | Workflow repo'da | ✅ push edildi, **PR #1** açık |
 | 1b | GitHub Actions çalışıyor | Workflow derleniyor (`startup_failure` yok) | ✅ repo public yapıldı |
-| 2 | Self-hosted HIL runner kaydı | Runner `[self-hosted, aios-hil]` | ⏳ kullanıcı — `HIL_CI_SETUP.md §2` |
-| 3 | Temiz checkout CI koşusu | 2 sketch compile + sync `--check` + proof PASS | ✅ lokal doğrulandı (`git archive` → compile EXIT 0 ×2); CI = 1b sonrası |
-| 4 | Branch protection | `hil-proof` zorunlu check | ⏳ 1b + runner + ilk yeşil koşu sonrası — `gh api` komutu hazır |
+| 2 | Self-hosted HIL runner | Runner online | 🟡 indirildi+kaydedildi (`aios-hil-01`, `C:ctions-runner-aios-hil`); **BAŞLAT:** `cd C:ctions-runner-aios-hil; .un.cmd` (veya `.\svc.cmd install`) |
+| 3 | İlk yeşil CI koşusu | `hil-proof` job PASS (fiziksel kart) | ⏳ runner başlayınca otomatik (PR #1'de kuyrukta) |
+| 4 | Branch protection | `hil-proof` zorunlu check | ⏳ ilk yeşil koşu sonrası — `gh api` komutu `HIL_CI_SETUP.md §5` |
 | 5 | Artifact retention | log, binary, commit SHA, report saklanır | ✅ `run_provenance.json` + workflow `upload-artifact` (30 gün) |
 
 ## 2. Gerçek S3 HIL — ana blocker
