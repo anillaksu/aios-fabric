@@ -92,11 +92,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "aios-verify.sh exit $LASTEXITCODE" }
 
       - if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        name: Trim artifacts (drop the 3 MB .map)
+        run: Remove-Item -Force "$env:GITHUB_WORKSPACE\hil-artifacts\*.map" -ErrorAction SilentlyContinue
+
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        continue-on-error: true      # artifact storage quota must not fail the proof
         uses: actions/upload-artifact@v4
         with:
           name: aios-hil-proof-${{ github.run_number }}
-          path: hil-artifacts/
-          retention-days: 30
+          path: |
+            hil-artifacts/*.log
+            hil-artifacts/*.json
+            hil-artifacts/*.bin
+            hil-artifacts/*.hex
+          retention-days: 14
 
       - if: ${{ always() && steps.gate.outputs.run == 'true' }}
         name: Assert no gate FAILed and a verdict was reached
