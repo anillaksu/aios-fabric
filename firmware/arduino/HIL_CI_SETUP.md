@@ -34,22 +34,35 @@ Kartı USB ile bağla. Kullanıcının `dialout` (Linux) veya port erişim iznin
 isim `aios-hil-01`, etiketler `[self-hosted, Windows, X64, aios-hil]`. Şu an **offline**
 (başlatılmadı).
 
-**Başlatmak** (kartın bağlı olduğu makinede, Claude Code prompt'una veya ayrı bir
-PowerShell'e):
+**Başlatmak** (ön planda — bu pencere açık kaldıkça çalışır; ✅ şu an bu modda çalışıyor):
 
 ```powershell
 cd C:\actions-runner-aios-hil
-.\run.cmd                      # ön planda; terminal açık kaldıkça çalışır
+.\run.cmd
 ```
 
-**Kalıcı yapmak** (yönetici PowerShell — makine açıldığında otomatik başlar):
+**Kalıcı yapmak — runner 2.337'de `svc.cmd` YOK.** İki seçenek:
 
-```powershell
-cd C:\actions-runner-aios-hil
-.\svc.cmd install
-.\svc.cmd start
-.\svc.cmd status
-```
+1. **Task Scheduler** (admin yok, parola yok, oturum açılınca başlar, COM4 + arduino15
+   erişimi doğru):
+   ```powershell
+   schtasks /Create /TN "GitHubRunner-aios-hil" `
+     /TR "cmd /c cd /d C:\actions-runner-aios-hil && run.cmd" `
+     /SC ONLOGON /RL LIMITED /F
+   # başlatmak (veya bir sonraki oturum açılışında): schtasks /Run /TN "GitHubRunner-aios-hil"
+   ```
+
+2. **Windows servisi** (yönetici PowerShell + Windows parolası gerekir — servis `anil`
+   hesabıyla çalışmalı yoksa seri porta erişemez):
+   ```powershell
+   cd C:\actions-runner-aios-hil
+   .\config.cmd remove --token $(gh api -X POST repos/anillaksu/aios-fabric/actions/runners/remove-token --jq .token)
+   .\config.cmd --url https://github.com/anillaksu/aios-fabric `
+     --token $(gh api -X POST repos/anillaksu/aios-fabric/actions/runners/registration-token --jq .token) `
+     --name aios-hil-01 --labels self-hosted,aios-hil `
+     --runasservice --windowslogonaccount "$env:USERNAME" --replace --unattended
+   # parola sorar
+   ```
 
 Runner **her zaman aynı fiziksel kartın (COM4) bağlı olduğu makinede** çalışmalı.
 Sistem PATH'inde `arduino-cli`, `python`, PowerShell var (doğrulandı) — workflow ayrıca
