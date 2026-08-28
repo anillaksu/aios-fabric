@@ -1,13 +1,13 @@
-
+﻿
 ################################################################
 #  AIOS ON-SILICON HARDWARE PROOF  |  Renesas RA4M1 @ 48 MHz
 ################################################################
 
-Sketch build: Aug 28 2026 17:48:38
+Sketch build: Aug 28 2026 19:33:41
 CPU clock (F_CPU): 48000000
 
 ---- RUN PROVENANCE ----
-AIOS_COMMIT_SHA=467b8de
+AIOS_COMMIT_SHA=f977f5f
 RA4M1_RESET_STATUS: RSTSR0=0x0 RSTSR2=0x0
 RA4M1_HW_UID=35130A2536313231B43F33334B572F26
 BRIDGE_MODE_BUILD=full
@@ -51,7 +51,6 @@ BRIDGE_EXPECT_S3=0
   AIOS CANONICAL MUTATION & ADVERSARIAL FAULT INJECTION SUITE
 ====================================================================
 
-[AIOS_KERNEL_ERR] AGENT_SLOT_LOCKED_VIOLATION ID=0x0000000000000002
 [KILLED] MUT-01: Wire Frame Bit-Flip Injection
   Vector:    Single-bit flip in 64-bit contract_hash during transit
   Mechanism: Hardware CRC-16-CCITT mismatch (Frame dropped before Kernel execution)
@@ -101,18 +100,18 @@ BRIDGE_EXPECT_S3=0
 ################################################################
 
   SCE5 TRNG collected 2048 bytes (16384 bits)
-  draw[0]=F9710739336B160FF2A2F028469C6CD6
+  draw[0]=38E6711DC52A4B4680F3FCBC139EA836
   [OK]   SCE5 hardware TRNG readable (HW_SCE_RNG_Read)
   [OK]   Consecutive TRNG draws differ
   --- NIST SP 800-22 subset (alpha = 0.01, on-silicon) ---
-  [PASS] Monobit Frequency              stat=1.594  p=0.110992
-  [PASS] Runs                           stat=8197.000  p=0.921945
-  [PASS] Block Frequency M=128          stat=97.813  p=0.978150
-  [PASS] Longest Run of Ones M=128      stat=5.553  p=0.352174
-  [PASS] Byte chi-square (256 bins)     stat=262.250  p=0.364108
+  [PASS] Monobit Frequency              stat=0.172  p=0.863536
+  [PASS] Runs                           stat=8076.000  p=0.069944
+  [PASS] Block Frequency M=128          stat=108.656  p=0.891335
+  [PASS] Longest Run of Ones M=128      stat=6.572  p=0.254458
+  [PASS] Byte chi-square (256 bins)     stat=232.500  p=0.840734
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=204.000  p=0.221981
-  [PASS] Cumulative Sums (bwd)          stat=239.000  p=0.123751
+  [PASS] Cumulative Sums (fwd)          stat=93.000  p=0.876987
+  [PASS] Cumulative Sums (bwd)          stat=115.000  p=0.723854
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -135,14 +134,14 @@ BRIDGE_EXPECT_S3=0
   [OK]   1-bit seed change -> different stream
   [OK]   Captured mid-stream state does not re-emit earlier blocks
   --- NIST SP 800-22 subset on DRBG output ---
-  [PASS] Monobit Frequency              stat=0.016  p=0.987534
-  [PASS] Runs                           stat=8183.000  p=0.888168
-  [PASS] Block Frequency M=128          stat=133.344  p=0.355324
-  [PASS] Longest Run of Ones M=128      stat=5.339  p=0.375867
-  [PASS] Byte chi-square (256 bins)     stat=237.750  p=0.774000
+  [PASS] Monobit Frequency              stat=1.797  p=0.072355
+  [PASS] Runs                           stat=8268.000  p=0.225144
+  [PASS] Block Frequency M=128          stat=123.344  p=0.599793
+  [PASS] Longest Run of Ones M=128      stat=1.554  p=0.906797
+  [PASS] Byte chi-square (256 bins)     stat=243.000  p=0.695078
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=116.000  p=0.716513
-  [PASS] Cumulative Sums (bwd)          stat=118.000  p=0.701833
+  [PASS] Cumulative Sums (fwd)          stat=242.000  p=0.117349
+  [PASS] Cumulative Sums (bwd)          stat=244.000  p=0.113236
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -177,7 +176,7 @@ BRIDGE_EXPECT_S3=0
 ====================================================================
 
 ################################################################
-#  PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)
+#  PHASE 7 / 8  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)
 ################################################################
 
   Link: MODELED in-memory UART transport (no physical link detected)
@@ -205,26 +204,63 @@ BRIDGE_EXPECT_S3=0
   T6 replay rejection               transport=link-model expected={ERR_REPLAY}           observed=ERR_REPLAY  detail=0 passed=1
   T7 recovery after fault storm     transport=link-model expected={count(0=pass)}        observed=OK          detail=10 passed=1
   T8 golden-vector cross-validation transport=link-model expected={OK}                   observed=OK          detail=0 passed=1
-  PERF link-model frames=200 errors=0 throughput_bytes_s=966767 lat_avg_us=33 lat_p50_us=33 lat_p95_us=33 lat_p99_us=36 lat_max_us=36
+  PERF link-model frames=200 errors=0 throughput_bytes_s=967498 lat_avg_us=33 lat_p50_us=33 lat_p95_us=33 lat_p99_us=36 lat_max_us=36
   [OK]   All 9 bridge tests pass over the wire protocol + link layer
+
+################################################################
+#  PHASE 8 / 8  --  KEY LIFECYCLE (sec 6) + FIRMWARE LIFECYCLE (sec 7)
+################################################################
+
+====================================================================
+  AIOS LIFECYCLE SUITE  --  key lifecycle (sec 6) + firmware lifecycle (sec 7)
+====================================================================
+
+LIFECYCLE KL-01 seed generation deterministic                        pass=1 detail=0
+LIFECYCLE KL-02 seal binds to silicon UID (transplant fails)         pass=1 detail=0
+LIFECYCLE KL-03 key derivation reproducible after reset              pass=1 detail=0
+LIFECYCLE KL-04 DRBG re-derive deterministic, advances after reseed  pass=1 detail=0
+LIFECYCLE KL-05 label / epoch domain separation                      pass=1 detail=0
+LIFECYCLE KL-06 rotation invalidates earlier-epoch keys              pass=1 detail=0
+LIFECYCLE KL-07 rotation is monotonic (downgrade rejected)           pass=1 detail=0
+LIFECYCLE KL-08 epoch far ahead of floor rejected                    pass=1 detail=0
+LIFECYCLE KL-09 production_lock blocks raw export, derive still works pass=1 detail=0
+LIFECYCLE KL-10 factory reset zeroizes seed -> NOT_PROVISIONED       pass=1 detail=0
+LIFECYCLE FW-01 version negotiation range                            pass=1 detail=0
+LIFECYCLE FW-02 valid authenticated image stages                     pass=1 detail=0
+LIFECYCLE FW-03 one flipped image byte rejected, state unchanged     pass=1 detail=4
+LIFECYCLE FW-04 manifest tamper w/ stale MAC -> SIG                  pass=1 detail=4
+LIFECYCLE FW-05 wrong update key -> SIG                              pass=1 detail=4
+LIFECYCLE FW-06 downgrade (version <= floor) -> DOWNGRADE            pass=1 detail=3
+LIFECYCLE FW-07 replayed update nonce -> NONCE                       pass=1 detail=6
+LIFECYCLE FW-08 truncated / half-written body -> CRC, no pending     pass=1 detail=5
+LIFECYCLE FW-09 healthy commit: active switches, floor bumps         pass=1 detail=0
+LIFECYCLE FW-10 failed health check -> rollback, active unchanged    pass=1 detail=0
+LIFECYCLE FW-11 power-loss: resume validates pending, re-commit works pass=1 detail=0
+LIFECYCLE FW-12 boot-loop -> auto rollback (pending discarded)       pass=1 detail=0
+
+AIOS_KEY_LIFECYCLE_SUITE=PASS  (10 checks, 0 fail)
+AIOS_FW_LIFECYCLE_SUITE=PASS  (12 checks, 0 fail)
+====================================================================
 
 ################################################################
 #  HARDWARE PROOF RESULT
 ################################################################
 
-Verification (mock root)     : rc=0  (1002665 us)
+Verification (mock root)     : rc=0  (1002682 us)
 Mutation     (mock root)     : rc=0  (1025722 us)
 Real HW root of truth        : rc=0  (55086 us)
-SCE5 TRNG + NIST subset      : rc=0  (473672 us)
-Hash-DRBG (CSPRNG)           : rc=0  (353237 us)
-Chaos engineering            : rc=0  (6509248 us)
-Bridge wire+link E2E         : rc=0  (376390 us)
+SCE5 TRNG + NIST subset      : rc=0  (505127 us)
+Hash-DRBG (CSPRNG)           : rc=0  (327088 us)
+Chaos engineering            : rc=0  (6498488 us)
+Bridge wire+link E2E         : rc=0  (376807 us)
+Key + firmware lifecycle     : rc=0  (197511 us)
 
 ---- RELEASE GATES ----
 AIOS_RA4M1_KERNEL_PROOF=PASS
 AIOS_TRNG_ON_DEVICE_SUITE=PASS
 AIOS_DRBG_PROOF=PASS
 AIOS_CHAOS_SUITE=PASS
+AIOS_LIFECYCLE_SUITE=PASS
 PHASE_7_BRIDGE_LINK_E2E=PASS
 PHASE_7_REAL_S3_SILICON_E2E=PENDING
 AIOS_OFFDEVICE_TRNG_BATTERY=SEE_ARTIFACTS(nist_sts_lite)

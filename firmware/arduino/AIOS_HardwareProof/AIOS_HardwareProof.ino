@@ -44,6 +44,7 @@
 int aios_run_verification_suite(void);
 int aios_run_mutation_suite(void);
 int aios_run_chaos_suite(void);
+int aios_run_lifecycle_suite(void);   // PHASE 8: key lifecycle (sec 6) + firmware lifecycle (sec 7)
 
 // Renesas SCE5 hardware TRNG (same primitive the Arduino core uses for random())
 extern "C" {
@@ -481,10 +482,15 @@ void setup() {
   int crc_ = aios_run_chaos_suite();
   unsigned long fus = micros() - f0;
 
-  banner("PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)");
+  banner("PHASE 7 / 8  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (9 tests)");
   unsigned long g0 = micros();
   int brc = test_bridge_e2e();
   unsigned long gus = micros() - g0;
+
+  banner("PHASE 8 / 8  --  KEY LIFECYCLE (sec 6) + FIRMWARE LIFECYCLE (sec 7)");
+  unsigned long h0 = micros();
+  int lrc = aios_run_lifecycle_suite();
+  unsigned long hus = micros() - h0;
 
   banner("HARDWARE PROOF RESULT");
   Serial.print(F("Verification (mock root)     : rc=")); Serial.print(vrc);
@@ -501,14 +507,18 @@ void setup() {
   Serial.print(F("  (")); Serial.print(fus); Serial.println(F(" us)"));
   Serial.print(F("Bridge wire+link E2E         : rc=")); Serial.print(brc);
   Serial.print(F("  (")); Serial.print(gus); Serial.println(F(" us)"));
+  Serial.print(F("Key + firmware lifecycle     : rc=")); Serial.print(lrc);
+  Serial.print(F("  (")); Serial.print(hus); Serial.println(F(" us)"));
 
-  bool exec_ok = (vrc==0) && (mrc==0) && (hrc==0) && (trc==0) && (prc==0) && (crc_==0) && (brc==0);
+  bool exec_ok = (vrc==0) && (mrc==0) && (hrc==0) && (trc==0) && (prc==0) && (crc_==0) && (brc==0) && (lrc==0);
   Serial.println();
   Serial.println(F("---- RELEASE GATES ----"));
   Serial.print(F("AIOS_RA4M1_KERNEL_PROOF="));       Serial.println((vrc==0 && mrc==0 && hrc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("AIOS_TRNG_ON_DEVICE_SUITE="));     Serial.println((trc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("AIOS_DRBG_PROOF="));               Serial.println((prc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("AIOS_CHAOS_SUITE="));              Serial.println((crc_==0) ? F("PASS") : F("FAIL"));
+  // AIOS_KEY_LIFECYCLE_SUITE= / AIOS_FW_LIFECYCLE_SUITE= are emitted by PHASE 8 itself.
+  Serial.print(F("AIOS_LIFECYCLE_SUITE="));          Serial.println((lrc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("PHASE_7_BRIDGE_LINK_E2E="));       Serial.println((brc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("PHASE_7_REAL_S3_SILICON_E2E="));
   // fallback_used (build expected S3, got modeled/SCI) -> hard FAIL, never a
