@@ -1,0 +1,59 @@
+name: AIOS Hardware-in-the-Loop Proof
+
+# Every push / PR that touches the deterministic kernel or the proof harness must
+# PASS on a physically attached Renesas RA4M1 (Arduino UNO R4 WiFi) before merge.
+#
+# Runs on a self-hosted runner labelled [self-hosted, aios-hil] with the board
+# wired in. Setup: firmware/arduino/HIL_CI_SETUP.md
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/hil-proof.yml'
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/hil-proof.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: aios-hil-${{ github.ref }}
+  cancel-in-progress: false        # never interrupt a live flash
+
+jobs:
+  hil-proof:
+    runs-on: [self-hosted, aios-hil]
+    timeout-minutes: 15
+    env:
+      AIOS_HIL_PORT: ${{ vars.AIOS_HIL_PORT || 'COM4' }}
+      AIOS_HIL_FQBN: arduino:renesas_uno:unor4wifi
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        shell: bash
+        run: |
+          arduino-cli version
+          arduino-cli core list | grep renesas_uno || arduino-cli core install arduino:renesas_uno
+
+      - name: Run on-silicon proof (5 phases)
+        shell: bash
+        run: |
+          cd firmware/arduino
+          chmod +x aios-verify.sh AIOS_HardwareProof/sync-from-firmware.sh
+          ./aios-verify.sh --out "$GITHUB_WORKSPACE/hil-artifacts"
+
+      - name: Upload serial log + binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aios-hil-proof-${{ github.run_number }}
+          path: hil-artifacts/
+          retention-days: 30
+
+      - name: Assert VERDICT=PASS
+        if: always()
+        shell: bash
+        run: grep -q 'AIOS_HARDWARE_PROOF_VERDICT=PASS' hil-artifacts/hardware_proof_serial.log

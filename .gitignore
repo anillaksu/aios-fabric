@@ -21,3 +21,17 @@ android/app/build/
 android/app/src/main/jniLibs/
 android/app/src/main/assets/
 
+# Guvenlik: sir/parola dosyalari asla bu repoya girmesin
+PASWORD*
+*password*.txt
+*.secret
+
+
+# --- firmware / hardware-in-the-loop proof ---
+firmware/**/build/
+firmware/arduino/artifacts/
+firmware/**/*.obj
+firmware/**/*.elf
+firmware/**/*.map
+# ...but the canonical on-silicon proof log IS tracked despite *.log above
+!firmware/arduino/hardware_proof_serial.log

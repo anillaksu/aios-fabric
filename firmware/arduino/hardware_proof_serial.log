@@ -1,0 +1,187 @@
+
+################################################################
+#  AIOS ON-SILICON HARDWARE PROOF  |  Renesas RA4M1 @ 48 MHz
+################################################################
+
+Sketch build: Aug 28 2026 15:21:55
+CPU clock (F_CPU): 48000000
+
+################################################################
+#  PHASE 1 / 6  --  CANONICAL VERIFICATION SUITE (5 checks, mock HW root)
+################################################################
+
+====================================================================
+  AIOS HIGH-DETERMINISM QUANTUM STATE KERNEL VERIFICATION SUITE
+  RENESAS RA4M1 (48 MHz) & ESPRESSIF ESP32-S3 (240 MHz)
+====================================================================
+
+[TEST 1] Verifying Memory Bounds & Zero-Heap Footprint...
+  AiosKernelStorage:       192 bytes
+  AiosTokenTable:          264 bytes
+  AiosMatrixFramebuffer:   24 bytes
+  AiosWireFrame:           32 bytes (Target: 32 bytes)
+  -> PASS: All structures fit strictly within static SRAM budget without heap allocation.
+[TEST 2] Verifying Hardware Root of Truth & State Transition Determinism...
+  -> PASS: Zero Variance achieved. Deterministic state transitions verified.
+[TEST 3] Verifying JSON-RPC 2.0 Token/Key-Value Offset Hashing...
+  -> PASS: Zero-copy Token Offset Hashing extracted keys and values in O(1).
+[TEST 4] Verifying ESP32-S3 Ring Buffer & Pipe Stall Deadlock Evasion...
+  Saturating ring buffer to test Deadlock / Pipe Buffer Stall Evasion...
+[STDERR] ...x99 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held, no deadlock)...
+  Accepted: 1 packets, Rejected (Backpressure asserted): 99 packets
+  -> PASS: Deadlock avoided, 64 KB Ring Buffer backpressure actively asserted.
+[TEST 5] Verifying 12x8 Charlieplexed LED Matrix Monitor & Concurrency Heatmap...
+  -> PASS: 12x8 Matrix accurately rasterizes State ID, Concurrency, and Fault Strobe.
+
+====================================================================
+  ALL 5 CANONICAL HARNESS CHECKS PASSED [VERIFIED DETERMINISTIC]
+====================================================================
+
+################################################################
+#  PHASE 2 / 6  --  ADVERSARIAL MUTATION SUITE (6 kills, mock HW root)
+################################################################
+
+====================================================================
+  AIOS CANONICAL MUTATION & ADVERSARIAL FAULT INJECTION SUITE
+====================================================================
+
+[STDERR] ...x99 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held, no deadlock)...
+[AIOS_KERNEL_ERR] AGENT_SLOT_LOCKED_VIOLATION ID=0x0000000000000002
+[KILLED] MUT-01: Wire Frame Bit-Flip Injection
+  Vector:    Single-bit flip in 64-bit contract_hash during transit
+  Mechanism: Hardware CRC-16-CCITT mismatch (Frame dropped before Kernel execution)
+
+[KILLED] MUT-02: Malformed JSON-RPC Deep Nesting / Overflow
+  Vector:    100+ unclosed opening brackets and runaway string literal
+  Mechanism: Token/Key-Value Offset FSM boundary check (Zero heap allocation)
+
+[KILLED] MUT-03: Contract Hash Forgery / Root of Truth Divergence
+  Vector:    Subtle 1-bit counterfeit contract signature injection
+  Mechanism: Quantum state Weyl-Galois avalanche (32+ bit divergence detected)
+
+[KILLED] MUT-04: L4 Buffer Flooding / Pipe Stall DoS
+  Vector:    100 KB continuous TCP packet burst against 64 KB ring buffer
+  Mechanism: 60 KB high-watermark backpressure assertion (Non-blocking fail-closed)
+
+[KILLED] MUT-05: Locked Agent Slot Unauthorized Mutation
+  Vector:    State transition injection against a locked/isolated agent slot
+  Mechanism: Hardware slot lock enforcement gate & fault counter escalation
+
+[KILLED] MUT-06: Hardware Fault Strobe Tamper / Override
+  Vector:    Attempting to mask an active system fault with fake normal telemetry
+  Mechanism: Hardware fault latch barrier (Overwrites blocked until cold reset)
+
+====================================================================
+  MUTATION SCORE (KILL RATE): 100.0% (6 / 6 KILLED, 0 SURVIVED)
+  SECURITY VERDICT: CANONICAL FAIL-CLOSED DEFENSE VERIFIED
+====================================================================
+
+################################################################
+#  PHASE 3 / 6  --  REAL HARDWARE ROOT OF TRUTH (FSP R_BSP_UniqueIdGet)
+################################################################
+
+  FSP R_BSP_UniqueIdGet(): 35130A25 36313231 B43F3333 4B572F26
+  [OK]   Factory Unique ID is non-zero (real silicon identity)
+  [OK]   Identical real UID -> identical baseline (Variance = 0)
+  [OK]   Real-UID baseline is non-zero
+  [OK]   Real-UID baseline != mock/CI baseline
+  [OK]   Identical transition on real root -> identical state (Variance = 0)
+  [OK]   Quantum transition performs non-linear mixing
+  1-bit contract forgery -> Hamming distance = 33 bits (need >= 20)
+  [OK]   MUT-03 on real root: forged contract diverges via avalanche
+  [OK]   Different device identity -> different quantum state for same input
+
+################################################################
+#  PHASE 4 / 6  --  SCE5 HARDWARE TRNG + NIST SP 800-22 SUBSET
+################################################################
+
+  SCE5 TRNG collected 2048 bytes (16384 bits)
+  draw[0]=D1873FD870587DE9718C16757F2BDA90
+  [OK]   SCE5 hardware TRNG readable (HW_SCE_RNG_Read)
+  [OK]   Consecutive TRNG draws differ
+  --- NIST SP 800-22 subset (alpha = 0.01, on-silicon) ---
+  [PASS] Monobit Frequency              stat=0.250  p=0.802587
+  [PASS] Runs                           stat=8188.000  p=0.950553
+  [PASS] Block Frequency M=128          stat=107.750  p=0.902691
+  [PASS] Longest Run of Ones M=128      stat=6.690  p=0.244760
+  [PASS] Byte chi-square (256 bins)     stat=258.750  p=0.422800
+  [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
+  [PASS] Cumulative Sums (fwd)          stat=173.000  p=0.352930
+  [PASS] Cumulative Sums (bwd)          stat=205.000  p=0.218502
+  [PASS] Serial m=3 (nabla psi2)        stat=8.336  p=0.080019
+  [PASS] Serial m=3 (nabla^2 psi2)      stat=8.270  p=0.016006
+  [PASS] Approximate Entropy m=2        stat=692.892  p=0.079426
+  (11 NIST SP 800-22 subset tests executed on-silicon)
+  [OK]   All applicable statistical tests pass (p >= 0.01)
+  [OK]   Fetched two independent entropy samples for Root-of-Truth fusion
+  [OK]   init_hw(entropy=0) is bit-identical to init_with_uid (invariant)
+  [OK]   Live entropy actually changes the baseline (per-boot unpredictability)
+  [OK]   Different entropy samples -> different baseline
+  [OK]   Same (uid, entropy) -> same baseline: transition fn stays Variance = 0 for a fixed root
+  [OK]   Fixed entropy-seeded root -> deterministic state transition
+  [OK]   Entropy-seeded roots produce independent state spaces
+
+################################################################
+#  PHASE 5 / 6  --  DETERMINISTIC HASH-DRBG (CSPRNG) SEEDED FROM TRNG
+################################################################
+
+  [OK]   Fetched a TRNG seed for the DRBG
+  [OK]   Same (root, seed) -> bit-identical DRBG stream (Variance = 0)
+  [OK]   1-bit seed change -> different stream
+  [OK]   Captured mid-stream state does not re-emit earlier blocks
+  --- NIST SP 800-22 subset on DRBG output ---
+  [PASS] Monobit Frequency              stat=1.250  p=0.211300
+  [PASS] Runs                           stat=8227.000  p=0.576069
+  [PASS] Block Frequency M=128          stat=113.438  p=0.817286
+  [PASS] Longest Run of Ones M=128      stat=6.155  p=0.291432
+  [PASS] Byte chi-square (256 bins)     stat=235.250  p=0.807434
+  [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
+  [PASS] Cumulative Sums (fwd)          stat=185.000  p=0.296711
+  [PASS] Cumulative Sums (bwd)          stat=207.000  p=0.211673
+  [PASS] Serial m=3 (nabla psi2)        stat=2.987  p=0.559952
+  [PASS] Serial m=3 (nabla^2 psi2)      stat=1.143  p=0.564797
+  [PASS] Approximate Entropy m=2        stat=693.056  p=0.559663
+  [OK]   DRBG output passes all applicable statistical tests (p >= 0.01)
+  [OK]   Same seed, different device root -> different DRBG stream
+
+################################################################
+#  PHASE 6 / 6  --  CHAOS ENGINEERING (DRBG-driven abuse, MUT-07..13)
+################################################################
+
+====================================================================
+  AIOS CHAOS-ENGINEERING SUITE  (deterministic DRBG-driven abuse)
+====================================================================
+
+[KILLED] MUT-07: Truncated wire frame
+  Every short prefix -> CRC-16 mismatch
+[KILLED] MUT-08: Oversized payload_len claim
+  len > 2048 -> ingest refused, ring buffer untouched
+[KILLED] MUT-09: Replayed frame
+  State + transition_tick advance on every replay (no silent absorb)
+[KILLED] MUT-10: Byte fuzzing burst vs CRC-16
+  single-bit 2000/2000 (100%), dirty-burst 6000/6000 (>=99.9%)
+[KILLED] MUT-11: Random-blob JSON fuzzing
+  2000 blobs: token_count always <= AIOS_MAX_TOKENS, no OOB
+[KILLED] MUT-12: Randomised ingest/forward chaos
+  4000 rounds: corruption=0 deadlock=0 bp+recovery=1
+[KILLED] MUT-13: Locked-slot fuzzing
+  5000 hits, 2469 on locked -> 0 mutations, fault_count match
+
+====================================================================
+  CHAOS KILL RATE: 100.0% (7 / 7 KILLED, 0 SURVIVED)
+====================================================================
+
+################################################################
+#  HARDWARE PROOF RESULT
+################################################################
+
+Verification (mock root)     : rc=0  (994216 us)
+Mutation     (mock root)     : rc=0  (1017333 us)
+Real HW root of truth        : rc=0  (55085 us)
+SCE5 TRNG + NIST subset      : rc=0  (473360 us)
+Hash-DRBG (CSPRNG)           : rc=0  (328330 us)
+Chaos engineering            : rc=0  (4944186 us)
+
+AIOS_HARDWARE_PROOF_VERDICT=PASS
+---- END OF PROOF (harness will heartbeat below) ----
+
