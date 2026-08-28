@@ -50,10 +50,9 @@ void setup() {
       line[j++] = hex[b[i] & 0xF];
     }
     line[j] = 0;
-    Serial.print(line);
+    Serial.println(line);              // 32 hex chars per line -> line-safe capture
     remaining -= n;
   }
-  Serial.println();
   Serial.println(F("AIOS_TRNG_DUMP_END"));
 }
 

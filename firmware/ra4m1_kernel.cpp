@@ -363,10 +363,20 @@ void aios_prng_seed(AiosPrng* prng, const AiosKernelStorage* storage,
 uint64_t aios_prng_next64(AiosPrng* prng) {
     if (!prng) return 0ULL;
 
-    uint64_t block_in[2];
-    block_in[0] = prng->counter;
-    block_in[1] = prng->key;
-    uint64_t out = aios_fast_hash64(block_in, sizeof(block_in), prng->key);
+    // Two dependent hash rounds XOR-combined. A single round of a
+    // non-cryptographic mixer leaves faint m>=3 serial correlation because
+    // consecutive inputs differ only in the Weyl-incremented counter; the
+    // second round breaks that by consuming the first round's full output.
+    uint64_t blk[2];
+    blk[0] = prng->counter;
+    blk[1] = prng->key;
+    uint64_t a = aios_fast_hash64(blk, sizeof(blk), prng->key);
+
+    blk[0] = ~prng->counter;
+    blk[1] = a;
+    uint64_t b = aios_fast_hash64(blk, sizeof(blk), prng->key ^ 0x9E3779B97F4A7C15ULL);
+
+    uint64_t out = a ^ b;
 
     prng->counter += 0x9E3779B97F4A7C15ULL;   // Weyl increment (full-period)
 

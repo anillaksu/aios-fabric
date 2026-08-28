@@ -241,6 +241,56 @@ bool esp32s3_bridge_process_and_forward(Esp32BridgeState* state, AiosWireFrame* 
     return true;
 }
 
+// ----------------------------------------------------------------------------
+// 5. WIRE-FRAME RECEIVER VERIFICATION + REPLAY SUPPRESSION
+// ----------------------------------------------------------------------------
+
+void aios_wire_seal(AiosWireFrame* frame) {
+    if (!frame) return;
+    frame->sync_magic = AIOS_WIRE_MAGIC;
+    frame->crc16 = aios_calc_crc16(frame, sizeof(AiosWireFrame) - sizeof(uint16_t));
+}
+
+AiosWireError aios_wire_verify(const uint8_t* buf, uint16_t len) {
+    if (!buf || len != AIOS_WIRE_FRAME_BYTES) return AIOS_WIRE_ERR_LENGTH;
+
+    AiosWireFrame f;
+    memcpy(&f, buf, sizeof(f));
+
+    if (f.sync_magic != AIOS_WIRE_MAGIC) return AIOS_WIRE_ERR_MAGIC;
+
+    if (f.msg_type != MSG_TYPE_MCP_TOOL_CALL &&
+        f.msg_type != MSG_TYPE_A2A_MESSAGE &&
+        f.msg_type != MSG_TYPE_STATUS_PROBE) {
+        return AIOS_WIRE_ERR_MSGTYPE;
+    }
+
+    if (f.agent_id > 5U) return AIOS_WIRE_ERR_AGENT;
+
+    if (f.payload_len > AIOS_WIRE_PAYLOAD_HARD_CAP) return AIOS_WIRE_ERR_LENRANGE;
+
+    uint16_t want = aios_calc_crc16(&f, sizeof(AiosWireFrame) - sizeof(uint16_t));
+    if (want != f.crc16) return AIOS_WIRE_ERR_CRC;
+
+    return AIOS_WIRE_OK;
+}
+
+void aios_replay_reset(AiosReplayGuard* g) {
+    if (!g) return;
+    memset(g, 0, sizeof(*g));
+}
+
+AiosWireError aios_replay_admit(AiosReplayGuard* g, uint64_t rpc_id) {
+    if (!g) return AIOS_WIRE_OK;
+    for (uint8_t i = 0; i < g->count; ++i) {
+        if (g->ids[i] == rpc_id) return AIOS_WIRE_ERR_REPLAY;
+    }
+    g->ids[g->pos] = rpc_id;
+    g->pos = (uint8_t)((g->pos + 1U) % AIOS_REPLAY_WINDOW);
+    if (g->count < AIOS_REPLAY_WINDOW) g->count++;
+    return AIOS_WIRE_OK;
+}
+
 #ifdef __cplusplus
 }
 #endif

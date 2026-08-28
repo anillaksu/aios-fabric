@@ -29,9 +29,11 @@ PASWORD*
 
 # --- firmware / hardware-in-the-loop proof ---
 firmware/**/build/
-firmware/arduino/artifacts/
+firmware/arduino/artifacts/hil/
 firmware/**/*.obj
 firmware/**/*.elf
 firmware/**/*.map
 # ...but the canonical on-silicon proof log IS tracked despite *.log above
 !firmware/arduino/hardware_proof_serial.log
+!firmware/arduino/artifacts/sts/
+firmware/arduino/artifacts/sts/trng_raw.txt

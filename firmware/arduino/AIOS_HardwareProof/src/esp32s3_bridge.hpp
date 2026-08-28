@@ -35,9 +35,33 @@ extern "C" {
 #endif
 
 #define AIOS_WIRE_MAGIC               (0xAA55U)
+#define AIOS_WIRE_FRAME_BYTES         (32U)
 #define MSG_TYPE_MCP_TOOL_CALL        (0x01U)
 #define MSG_TYPE_A2A_MESSAGE          (0x02U)
 #define MSG_TYPE_STATUS_PROBE         (0x03U)
+
+// Receiver-side wire-frame verdict (error class for the E2E bridge harness).
+typedef enum {
+    AIOS_WIRE_OK          = 0,
+    AIOS_WIRE_ERR_LENGTH  = 1,   // not exactly 32 bytes on the link
+    AIOS_WIRE_ERR_MAGIC   = 2,   // sync_magic != 0xAA55
+    AIOS_WIRE_ERR_AGENT   = 3,   // agent_id outside 0..5
+    AIOS_WIRE_ERR_MSGTYPE = 4,   // unknown msg_type
+    AIOS_WIRE_ERR_LENRANGE = 5,  // payload_len impossible (> hard cap)
+    AIOS_WIRE_ERR_CRC     = 6,   // CRC-16-CCITT mismatch (corruption in transit)
+    AIOS_WIRE_ERR_REPLAY  = 7,   // rpc_id already seen inside the replay window
+    AIOS_WIRE_ERR_TIMEOUT = 8    // link did not deliver a full frame in time
+} AiosWireError;
+
+// Bounded replay-suppression window (last N accepted rpc_ids, zero heap).
+#define AIOS_REPLAY_WINDOW   (16U)
+typedef struct {
+    uint64_t ids[AIOS_REPLAY_WINDOW];
+    uint8_t  count;
+    uint8_t  pos;
+} AiosReplayGuard;
+
+#define AIOS_WIRE_PAYLOAD_HARD_CAP   (8192U)
 
 // ============================================================================
 // 2. COMPACT WIRE FRAME (32-BYTE COMPRESSED TRANSPORT FOR RA4M1)
@@ -102,6 +126,34 @@ bool esp32s3_bridge_ingest_l4(Esp32BridgeState* state, const uint8_t* raw_data, 
  * @return true if a frame was dispatched, false if queue is empty or blocked.
  */
 bool esp32s3_bridge_process_and_forward(Esp32BridgeState* state, AiosWireFrame* out_frame);
+
+// ============================================================================
+// 4. WIRE-FRAME RECEIVER VERIFICATION + REPLAY SUPPRESSION (E2E link layer)
+// ============================================================================
+
+/**
+ * @brief Fill a wire frame's crc16 field over the first 30 bytes. Sender side.
+ */
+void aios_wire_seal(AiosWireFrame* frame);
+
+/**
+ * @brief Pure receiver-side validation of a raw on-link byte buffer. No side
+ * effects, no transport -- validate this on a byte buffer BEFORE wiring it to a
+ * physical UART/SPI link so a parser bug can never be mistaken for a link fault.
+ * @param buf  Bytes received from the link.
+ * @param len  Number of bytes actually received (a short read -> ERR_LENGTH).
+ * @return AIOS_WIRE_OK or the first failing error class.
+ */
+AiosWireError aios_wire_verify(const uint8_t* buf, uint16_t len);
+
+/** @brief Reset the replay-suppression window. */
+void aios_replay_reset(AiosReplayGuard* g);
+
+/**
+ * @brief Check rpc_id against the window; if new, record it and return
+ * AIOS_WIRE_OK, otherwise return AIOS_WIRE_ERR_REPLAY without recording.
+ */
+AiosWireError aios_replay_admit(AiosReplayGuard* g, uint64_t rpc_id);
 
 #ifdef __cplusplus
 }

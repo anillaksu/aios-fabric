@@ -19,9 +19,17 @@
  * PHASE 6  aios_run_chaos_suite()         -- DRBG-driven high-volume abuse:
  *          MUT-07..13 (truncation, oversize, replay, fuzz bursts, timing chaos,
  *          locked-slot fuzzing).
+ * PHASE 7  test_bridge_e2e()              -- RA4M1<->ESP32-S3 wire-bridge E2E:
+ *          framing/CRC, truncation, oversize, in-transit corruption, timeout+
+ *          retry, replay rejection, fault-storm recovery, throughput/latency --
+ *          over a physical RA4M1 SCI loopback if present, else a modeled link.
  *
- * Build flags (build_opt.h + --build-property):
- *   -DAIOS_ARDUINO_PROOF  -DAIOS_EMBED_SUITE  -DESP32S3_RING_BUFFER_SIZE=2048
+ * Emits a RELEASE GATES block and AIOS_HARDWARE_PROOF_VERDICT (PASS if every
+ * gate ran and passed; CONDITIONAL_PASS while AIOS_ESP32S3_BRIDGE_E2E is still
+ * PENDING -- i.e. bridge firmware not yet running on real S3 silicon).
+ *
+ * Build flags (via --build-property; build_opt.h is advisory for this core):
+ *   -DAIOS_ARDUINO_PROOF  -DAIOS_EMBED_SUITE  -DESP32S3_RING_BUFFER_SIZE=1024
  * -----------------------------------------------------------------------------
  */
 
@@ -31,6 +39,7 @@
 
 #include "src/ra4m1_kernel.hpp"
 #include "src/aios_randtest.h"
+#include "src/aios_bridge_e2e.h"
 
 int aios_run_verification_suite(void);
 int aios_run_mutation_suite(void);
@@ -204,7 +213,7 @@ static int test_hw_trng(void) {
     snprintf(bb, sizeof(bb), "  (%d NIST SP 800-22 subset tests executed on-silicon)", cnt);
     Serial.println(bb);
   }
-  CHK(failed == 0, "All applicable statistical tests pass (p >= 0.01)");
+  CHK(failed == 0, "NIST subset batch verdict OK (multiple-comparison aware)");
 
   // 4c. Fuse the live entropy into the Hardware Root of Truth.
   uint64_t e1_lo, e1_hi, e2_lo, e2_hi;
@@ -282,7 +291,7 @@ static int test_csprng(void) {
   Serial.println(F("  --- NIST SP 800-22 subset on DRBG output ---"));
   for (int i = 0; i < cnt; ++i)
     print_p(g_rt[i].name, g_rt[i].statistic, g_rt[i].p_value, g_rt[i].applicable, g_rt[i].pass);
-  CHK(failed == 0, "DRBG output passes all applicable statistical tests (p >= 0.01)");
+  CHK(failed == 0, "DRBG output passes the NIST subset batch verdict");
 
   // Device binding: same seed on a different identity -> different stream.
   static AiosKernelStorage kr2;
@@ -293,6 +302,63 @@ static int test_csprng(void) {
   CHK(aios_prng_next64(&a) != aios_prng_next64(&d),
       "Same seed, different device root -> different DRBG stream");
 
+  return (g_fail == 0) ? 0 : 1;
+}
+
+// =============================================================================
+// PHASE 7 -- RA4M1 <-> ESP32-S3 wire-bridge END-TO-END
+// =============================================================================
+static BridgeTestResult g_bridge[AIOS_BRIDGE_E2E_TESTS];
+
+static const char* wire_err_name(uint32_t e) {
+  switch (e) {
+    case AIOS_WIRE_OK: return "OK";
+    case AIOS_WIRE_ERR_LENGTH: return "ERR_LENGTH";
+    case AIOS_WIRE_ERR_MAGIC: return "ERR_MAGIC";
+    case AIOS_WIRE_ERR_AGENT: return "ERR_AGENT";
+    case AIOS_WIRE_ERR_MSGTYPE: return "ERR_MSGTYPE";
+    case AIOS_WIRE_ERR_LENRANGE: return "ERR_LENRANGE";
+    case AIOS_WIRE_ERR_CRC: return "ERR_CRC";
+    case AIOS_WIRE_ERR_REPLAY: return "ERR_REPLAY";
+    case AIOS_WIRE_ERR_TIMEOUT: return "ERR_TIMEOUT";
+    default: return "ERR_?";
+  }
+}
+
+static int test_bridge_e2e(void) {
+  g_fail = 0;
+
+  bool phys = aios_bridge_probe_serial1();
+  AiosBridgeLinkMode mode = phys ? AIOS_LINK_SERIAL1 : AIOS_LINK_MODELED;
+  Serial.print(F("  Link: "));
+  Serial.println(phys
+    ? F("PHYSICAL RA4M1 SCI (Serial1, D0<->D1 external loopback)")
+    : F("MODELED in-memory UART transport (no D0<->D1 jumper detected)"));
+  Serial.println(F("  NOTE: exercises the wire protocol + link layer. Running bridge"));
+  Serial.println(F("        firmware ON the ESP32-S3 silicon is aios-esp32s3-bridge-e2e (open)."));
+
+  uint32_t tp = 0, lat = 0;
+  int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &tp, &lat);
+
+  for (int i = 0; i < AIOS_BRIDGE_E2E_TESTS; ++i) {
+    char b[128];
+    snprintf(b, sizeof(b),
+      "  [%s] %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu",
+      g_bridge[i].passed ? "PASS" : "FAIL",
+      g_bridge[i].name,
+      (unsigned long)(g_bridge[i].seed & 0xFFFFFFFFUL),
+      wire_err_name(g_bridge[i].error_code),
+      wire_err_name(g_bridge[i].expected_code),
+      (unsigned long)g_bridge[i].detail);
+    Serial.println(b);
+  }
+  {
+    char b[96];
+    snprintf(b, sizeof(b), "  throughput ~ %lu bytes/s   latency ~ %lu us / 32B frame",
+             (unsigned long)tp, (unsigned long)lat);
+    Serial.println(b);
+  }
+  CHK(failed == 0, "All 8 bridge E2E tests pass over the real link layer");
   return (g_fail == 0) ? 0 : 1;
 }
 
@@ -310,35 +376,40 @@ void setup() {
   Serial.print(' '); Serial.println(F(__TIME__));
   Serial.print(F("CPU clock (F_CPU): ")); Serial.println((uint32_t)F_CPU);
 
-  banner("PHASE 1 / 6  --  CANONICAL VERIFICATION SUITE (5 checks, mock HW root)");
+  banner("PHASE 1 / 7  --  CANONICAL VERIFICATION SUITE (5 checks, mock HW root)");
   unsigned long a0 = micros();
   int vrc = aios_run_verification_suite();
   unsigned long aus = micros() - a0;
 
-  banner("PHASE 2 / 6  --  ADVERSARIAL MUTATION SUITE (6 kills, mock HW root)");
+  banner("PHASE 2 / 7  --  ADVERSARIAL MUTATION SUITE (6 kills, mock HW root)");
   unsigned long b0 = micros();
   int mrc = aios_run_mutation_suite();
   unsigned long bus = micros() - b0;
 
-  banner("PHASE 3 / 6  --  REAL HARDWARE ROOT OF TRUTH (FSP R_BSP_UniqueIdGet)");
+  banner("PHASE 3 / 7  --  REAL HARDWARE ROOT OF TRUTH (FSP R_BSP_UniqueIdGet)");
   unsigned long c0 = micros();
   int hrc = test_real_hw_root_of_truth();
   unsigned long cus = micros() - c0;
 
-  banner("PHASE 4 / 6  --  SCE5 HARDWARE TRNG + NIST SP 800-22 SUBSET");
+  banner("PHASE 4 / 7  --  SCE5 HARDWARE TRNG + NIST SP 800-22 SUBSET");
   unsigned long d0 = micros();
   int trc = test_hw_trng();
   unsigned long dus = micros() - d0;
 
-  banner("PHASE 5 / 6  --  DETERMINISTIC HASH-DRBG (CSPRNG) SEEDED FROM TRNG");
+  banner("PHASE 5 / 7  --  DETERMINISTIC HASH-DRBG (CSPRNG) SEEDED FROM TRNG");
   unsigned long e0 = micros();
   int prc = test_csprng();
   unsigned long eus = micros() - e0;
 
-  banner("PHASE 6 / 6  --  CHAOS ENGINEERING (DRBG-driven abuse, MUT-07..13)");
+  banner("PHASE 6 / 7  --  CHAOS ENGINEERING (DRBG-driven abuse, MUT-07..13)");
   unsigned long f0 = micros();
   int crc_ = aios_run_chaos_suite();
   unsigned long fus = micros() - f0;
+
+  banner("PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (8 tests)");
+  unsigned long g0 = micros();
+  int brc = test_bridge_e2e();
+  unsigned long gus = micros() - g0;
 
   banner("HARDWARE PROOF RESULT");
   Serial.print(F("Verification (mock root)     : rc=")); Serial.print(vrc);
@@ -353,11 +424,22 @@ void setup() {
   Serial.print(F("  (")); Serial.print(eus); Serial.println(F(" us)"));
   Serial.print(F("Chaos engineering            : rc=")); Serial.print(crc_);
   Serial.print(F("  (")); Serial.print(fus); Serial.println(F(" us)"));
+  Serial.print(F("Bridge E2E (link layer)      : rc=")); Serial.print(brc);
+  Serial.print(F("  (")); Serial.print(gus); Serial.println(F(" us)"));
 
-  bool pass = (vrc == 0) && (mrc == 0) && (hrc == 0) && (trc == 0) && (prc == 0) && (crc_ == 0);
+  bool exec_ok = (vrc==0) && (mrc==0) && (hrc==0) && (trc==0) && (prc==0) && (crc_==0) && (brc==0);
   Serial.println();
+  Serial.println(F("---- RELEASE GATES ----"));
+  Serial.print(F("AIOS_RA4M1_KERNEL_PROOF="));       Serial.println((vrc==0 && mrc==0 && hrc==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("AIOS_TRNG_ON_DEVICE_SUITE="));     Serial.println((trc==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("AIOS_DRBG_PROOF="));               Serial.println((prc==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("AIOS_CHAOS_SUITE="));              Serial.println((crc_==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("AIOS_ESP32S3_BRIDGE_LINK_LAYER=")); Serial.println((brc==0) ? F("PASS") : F("FAIL"));
+  Serial.println(F("AIOS_OFFDEVICE_TRNG_BATTERY=SEE_ARTIFACTS(nist_sts_lite)"));
+  Serial.println(F("AIOS_FULL_NIST_STS_REFERENCE_TOOL=NOT_RUN"));
+  Serial.println(F("AIOS_ESP32S3_BRIDGE_E2E=PENDING"));  // needs bridge firmware on the S3 silicon
   Serial.print(F("AIOS_HARDWARE_PROOF_VERDICT="));
-  Serial.println(pass ? F("PASS") : F("FAIL"));
+  Serial.println(exec_ok ? F("CONDITIONAL_PASS") : F("FAIL"));
   Serial.println(F("---- END OF PROOF (harness will heartbeat below) ----"));
 }
 

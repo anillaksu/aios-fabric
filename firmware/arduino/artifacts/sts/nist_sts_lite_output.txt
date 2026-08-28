@@ -1,0 +1,19 @@
+input      : trng_dump.bin
+bytes      : 129466   bits: 1035728
+sha256     : d879e7c2351e2a70aa15d25ac6191a78e18cddb6844d6f44e17bd7f25fbc5cbf
+numpy      : yes
+alpha      : 0.01
+----------------------------------------------------------------
+  [PASS] Monobit Frequency                p = 0.954552
+  [PASS] Block Frequency M=128            p = 0.355934
+  [PASS] Runs                             p = 0.062460
+  [PASS] Longest Run of Ones M=128        p = 0.638138
+  [PASS] Cumulative Sums (fwd)            p = 0.924194
+  [PASS] Cumulative Sums (bwd)            p = 0.956578
+  [PASS] Serial m=3 (nabla)               p = 0.204336
+  [PASS] Serial m=3 (nabla^2)             p = 0.292692
+  [PASS] Approximate Entropy m=2          p = 0.203543
+  [PASS] Byte chi-square (256 bins)       p = 0.800729
+  [PASS] DFT Spectral                     p = 0.703563
+----------------------------------------------------------------
+RESULT: 11/11 tests pass (p >= 0.01)
