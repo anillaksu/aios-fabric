@@ -139,14 +139,14 @@ fi
 cp "$LOG" "$OUT/hardware_proof_serial_${STAMP}.log" 2>/dev/null || true
 
 echo "-------------------------------------------------------------"
-grep -E "PHASE [0-9] /|rc=|AIOS_[A-Z0-9_]+=|\[PASS\]|\[FAIL\]|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
+grep -E "PHASE [0-9] /|rc=|^(AIOS|PHASE)_[A-Z0-9_]+=|\[PASS\]|\[FAIL\]|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
 echo "-------------------------------------------------------------"
 
 # A green HIL run == every gate that was EXECUTED passed. Gates still marked
-# PENDING / BLOCKED_UNTIL_EXECUTED do not fail CI (nothing regressed); an
-# explicit FAIL or a missing verdict does.
-if grep -qE "AIOS_[A-Z0-9_]+=FAIL" "$LOG"; then
-  echo "HIL PROOF: FAIL  (a gate reported FAIL -- log: $LOG)"
+# PENDING / NOT_RUN do not fail CI (nothing regressed); an explicit FAIL on any
+# gate, or a missing verdict, does.
+if grep -qE "^(AIOS|PHASE)_[A-Z0-9_]+=FAIL" "$LOG"; then
+  echo "HIL PROOF: FAIL  (a release gate reported FAIL -- log: $LOG)"
   exit 1
 fi
 if grep -qE "AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS" "$LOG"; then

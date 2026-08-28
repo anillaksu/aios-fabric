@@ -325,26 +325,40 @@ static const char* wire_err_name(uint32_t e) {
   }
 }
 
+static bool g_bridge_on_real_s3 = false;
+
 static int test_bridge_e2e(void) {
   g_fail = 0;
 
-  bool phys = aios_bridge_probe_serial1();
-  AiosBridgeLinkMode mode = phys ? AIOS_LINK_SERIAL1 : AIOS_LINK_MODELED;
+  AiosBridgeLinkMode mode;
+  const char* tag;
+  g_bridge_on_real_s3 = aios_bridge_probe_s3();
+  if (g_bridge_on_real_s3) {
+    mode = AIOS_LINK_S3_UART;  tag = "[phys-S3]";
+  } else if (aios_bridge_probe_serial1()) {
+    mode = AIOS_LINK_SERIAL1;  tag = "[phys-SCI]";
+  } else {
+    mode = AIOS_LINK_MODELED;  tag = "[link-model]";
+  }
   Serial.print(F("  Link: "));
-  Serial.println(phys
-    ? F("PHYSICAL RA4M1 SCI (Serial1, D0<->D1 external loopback)")
-    : F("MODELED in-memory UART transport (no D0<->D1 jumper detected)"));
-  Serial.println(F("  NOTE: exercises the wire protocol + link layer. Running bridge"));
-  Serial.println(F("        firmware ON the ESP32-S3 silicon is aios-esp32s3-bridge-e2e (open)."));
+  Serial.println(
+      mode == AIOS_LINK_S3_UART ? F("PHYSICAL RA4M1 SCI <-> ESP32-S3 (AIOS_S3_Bridge.ino)")
+    : mode == AIOS_LINK_SERIAL1 ? F("PHYSICAL RA4M1 SCI (Serial1, D0<->D1 external loopback)")
+    :                             F("MODELED in-memory UART transport (no physical link detected)"));
+  Serial.println(F("  SCOPE: proves the 32-byte wire protocol + link layer (framing, CRC,"));
+  Serial.println(F("         timeout/retry, replay window, error classification, recovery)."));
+  Serial.println(F("  NOT PROVEN HERE: bridge firmware on real ESP32-S3 silicon over a real"));
+  Serial.println(F("         R4<->S3 SPI/UART link  ->  gate PHASE7_REAL_S3_SILICON_E2E=PENDING."));
+  Serial.print  (F("  All counts / throughput below are qualified ")); Serial.println(tag);
 
   uint32_t tp = 0, lat = 0;
   int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &tp, &lat);
 
   for (int i = 0; i < AIOS_BRIDGE_E2E_TESTS; ++i) {
-    char b[128];
+    char b[136];
     snprintf(b, sizeof(b),
-      "  [%s] %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu",
-      g_bridge[i].passed ? "PASS" : "FAIL",
+      "  [%s] %s %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu",
+      g_bridge[i].passed ? "PASS" : "FAIL", tag,
       g_bridge[i].name,
       (unsigned long)(g_bridge[i].seed & 0xFFFFFFFFUL),
       wire_err_name(g_bridge[i].error_code),
@@ -353,12 +367,12 @@ static int test_bridge_e2e(void) {
     Serial.println(b);
   }
   {
-    char b[96];
-    snprintf(b, sizeof(b), "  throughput ~ %lu bytes/s   latency ~ %lu us / 32B frame",
-             (unsigned long)tp, (unsigned long)lat);
+    char b[112];
+    snprintf(b, sizeof(b), "  %s benchmark: throughput ~ %lu bytes/s   latency ~ %lu us / 32B frame",
+             tag, (unsigned long)tp, (unsigned long)lat);
     Serial.println(b);
   }
-  CHK(failed == 0, "All 8 bridge E2E tests pass over the real link layer");
+  CHK(failed == 0, "All 8 bridge tests pass over the wire protocol + link layer");
   return (g_fail == 0) ? 0 : 1;
 }
 
@@ -424,7 +438,7 @@ void setup() {
   Serial.print(F("  (")); Serial.print(eus); Serial.println(F(" us)"));
   Serial.print(F("Chaos engineering            : rc=")); Serial.print(crc_);
   Serial.print(F("  (")); Serial.print(fus); Serial.println(F(" us)"));
-  Serial.print(F("Bridge E2E (link layer)      : rc=")); Serial.print(brc);
+  Serial.print(F("Bridge wire+link E2E         : rc=")); Serial.print(brc);
   Serial.print(F("  (")); Serial.print(gus); Serial.println(F(" us)"));
 
   bool exec_ok = (vrc==0) && (mrc==0) && (hrc==0) && (trc==0) && (prc==0) && (crc_==0) && (brc==0);
@@ -434,12 +448,15 @@ void setup() {
   Serial.print(F("AIOS_TRNG_ON_DEVICE_SUITE="));     Serial.println((trc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("AIOS_DRBG_PROOF="));               Serial.println((prc==0) ? F("PASS") : F("FAIL"));
   Serial.print(F("AIOS_CHAOS_SUITE="));              Serial.println((crc_==0) ? F("PASS") : F("FAIL"));
-  Serial.print(F("AIOS_ESP32S3_BRIDGE_LINK_LAYER=")); Serial.println((brc==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("PHASE_7_BRIDGE_LINK_E2E="));       Serial.println((brc==0) ? F("PASS") : F("FAIL"));
+  Serial.print(F("PHASE_7_REAL_S3_SILICON_E2E="));
+  Serial.println(!g_bridge_on_real_s3 ? F("PENDING") : ((brc==0) ? F("PASS") : F("FAIL")));
   Serial.println(F("AIOS_OFFDEVICE_TRNG_BATTERY=SEE_ARTIFACTS(nist_sts_lite)"));
   Serial.println(F("AIOS_FULL_NIST_STS_REFERENCE_TOOL=NOT_RUN"));
-  Serial.println(F("AIOS_ESP32S3_BRIDGE_E2E=PENDING"));  // needs bridge firmware on the S3 silicon
   Serial.print(F("AIOS_HARDWARE_PROOF_VERDICT="));
-  Serial.println(exec_ok ? F("CONDITIONAL_PASS") : F("FAIL"));
+  // Full PASS only when the real-S3 gate also cleared on this run.
+  Serial.println(!exec_ok ? F("FAIL")
+                : (g_bridge_on_real_s3 ? F("PASS") : F("CONDITIONAL_PASS")));
   Serial.println(F("---- END OF PROOF (harness will heartbeat below) ----"));
 }
 

@@ -73,6 +73,26 @@ cd aios/aios-fabric/firmware/arduino
 echo $?      # 0 = gerçek donanım tüm fazları geçti
 ```
 
+## Git / CI kapanış sırası
+
+1. **Remote'a push:**
+   `git push -u origin feat/hil-deterministic-kernel-proof`
+2. **Self-hosted runner'ı yalnızca HIL donanımına yetkilendir:** runner'ı fiziksel
+   kartın bağlı olduğu makinede kur, `--labels self-hosted,aios-hil`. Repo →
+   Settings → Actions → Runners → runner grubunu bu repoya (veya org'da sadece
+   bu repoya) kısıtla. `hil-proof` job'ı yalnızca `[self-hosted, aios-hil]` etiketli
+   runner'da koşar.
+3. **CI'da `CONDITIONAL_PASS` kabulünü açıkça tanımla:** `aios-verify.sh` zaten
+   `AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS` ile exit 0 verir ve
+   `^(AIOS|PHASE)_[A-Z0-9_]+=FAIL` gördüğünde exit 1. Workflow'un son adımı
+   (`Assert VERDICT=PASS`) da `PASS|CONDITIONAL_PASS` kabul eder — değiştirme.
+4. **`FAIL`'ı branch protection için zorunlu başarısız kontrol yap:** Settings →
+   Branches → `master` (ve `feat/*` istersen) → ☑ Require status checks →
+   **`hil-proof`**. Artık herhangi bir gate `=FAIL` → PR merge edilemez.
+5. **Fiziksel S3 E2E tamamlanınca** (`BRIDGE_S3_E2E_PLAN.md`): `PHASE_7_REAL_S3_SILICON_E2E`
+   `PASS` olur, `.ino` verdict'i otomatik `PASS` basar; release verdict'ini o koşunun
+   `hardware_proof_serial.log`'u ile yeniden üret ve `hardware_proof_report.json`'u güncelle.
+
 ## Notlar / sınırlamalar
 
 - UNO R4 WiFi seri portu açılınca **reset olmaz**; `aios-verify.sh` `upload`

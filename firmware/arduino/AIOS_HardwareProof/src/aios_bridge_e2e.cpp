@@ -19,10 +19,14 @@ static AiosBridgeLinkMode s_mode = AIOS_LINK_MODELED;
 static uint8_t  s_fifo[64];
 static uint16_t s_flen = 0;
 
+static inline bool link_is_serial(AiosBridgeLinkMode m) {
+    return m == AIOS_LINK_SERIAL1 || m == AIOS_LINK_S3_UART;
+}
+
 static void link_begin(AiosBridgeLinkMode m) {
     s_mode = m;
     s_flen = 0;
-    if (m == AIOS_LINK_SERIAL1) {
+    if (link_is_serial(m)) {
         Serial1.begin(115200);
         delay(5);
         while (Serial1.available()) (void)Serial1.read();
@@ -31,7 +35,7 @@ static void link_begin(AiosBridgeLinkMode m) {
 
 static void link_drain(void) {
     s_flen = 0;
-    if (s_mode == AIOS_LINK_SERIAL1)
+    if (link_is_serial(s_mode))
         while (Serial1.available()) (void)Serial1.read();
 }
 
@@ -39,7 +43,7 @@ static void link_drain(void) {
 // (Test-controlled truncation / corruption is applied by the caller *before*
 // calling link_send, so both link modes behave identically.)
 static void link_send(const uint8_t* b, uint16_t n) {
-    if (s_mode == AIOS_LINK_SERIAL1) {
+    if (link_is_serial(s_mode)) {
         Serial1.write(b, n);
         Serial1.flush();
     } else {
@@ -50,11 +54,19 @@ static void link_send(const uint8_t* b, uint16_t n) {
 }
 
 static uint16_t link_recv(uint8_t* b, uint16_t maxn, uint32_t timeout_us) {
-    if (s_mode == AIOS_LINK_SERIAL1) {
+    if (link_is_serial(s_mode)) {
         uint32_t t0 = micros();
         uint16_t got = 0;
+        // S3 mode: the S3 replies <status byte><32-byte echo>. Drop the status
+        // byte so the harness verifies the same 32-byte frame either way; a
+        // status/verify disagreement would show as a test failure.
+        bool drop_status = (s_mode == AIOS_LINK_S3_UART);
         while ((micros() - t0) < timeout_us && got < maxn) {
-            if (Serial1.available()) b[got++] = (uint8_t)Serial1.read();
+            if (Serial1.available()) {
+                uint8_t c = (uint8_t)Serial1.read();
+                if (drop_status) { drop_status = false; continue; }
+                b[got++] = c;
+            }
         }
         return got;
     }
@@ -106,6 +118,30 @@ bool aios_bridge_probe_serial1(void) {
     while ((micros() - t0) < 8000 && n < 4)
         if (Serial1.available()) rx[n++] = (uint8_t)Serial1.read();
     return (n == 4) && (memcmp(rx, probe, 4) == 0);
+}
+
+bool aios_bridge_probe_s3(void) {
+    Serial1.begin(115200);
+    delay(5);
+    while (Serial1.available()) (void)Serial1.read();
+
+    AiosWireFrame f;
+    memset(&f, 0, sizeof(f));
+    f.msg_type = MSG_TYPE_STATUS_PROBE;
+    f.agent_id = AGENT_ID_MATRIX_MONITOR;
+    f.rpc_id = 0xA10501A10501A105ULL;
+    aios_wire_seal(&f);
+
+    Serial1.write((const uint8_t*)&f, 32);
+    Serial1.flush();
+
+    uint32_t t0 = micros();
+    uint8_t rx[40]; int n = 0;
+    while ((micros() - t0) < 40000 && n < 33)
+        if (Serial1.available()) rx[n++] = (uint8_t)Serial1.read();
+
+    // Expect: status byte 0x00 then the 32-byte echo unchanged.
+    return (n == 33) && (rx[0] == AIOS_WIRE_OK) && (memcmp(rx + 1, &f, 32) == 0);
 }
 
 // ---------------------------------------------------------------------------

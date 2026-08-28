@@ -13,12 +13,16 @@ AIOS_RA4M1_KERNEL_PROOF            = PASS
 AIOS_TRNG_ON_DEVICE_SUITE          = PASS
 AIOS_DRBG_PROOF                    = PASS
 AIOS_CHAOS_SUITE                   = PASS
-AIOS_ESP32S3_BRIDGE_LINK_LAYER     = PASS      (protokol + link katmanı, fiziksel/modeled UART)
+PHASE_7_BRIDGE_LINK_E2E            = PASS      (32-byte wire protokolü + link katmanı)
+PHASE_7_REAL_S3_SILICON_E2E        = PENDING   (bridge fw gerçek S3 silikonunda + gerçek R4<->S3 hattı)
 AIOS_OFFDEVICE_TRNG_BATTERY        = PASS      (nist_sts_lite, ~1M bit, 11/11 — artifacts/sts/)
 AIOS_FULL_NIST_STS_REFERENCE_TOOL  = NOT_RUN   (resmi 15-test STS/dieharder — komut hazır)
-AIOS_ESP32S3_BRIDGE_E2E            = PENDING   (bridge firmware S3 silikonunda + gerçek R4<->S3 linki)
 AIOS_HARDWARE_PROOF_VERDICT        = CONDITIONAL_PASS
 ```
+`.ino` verdict mantığı: her yürütülen gate PASS **ve** `PHASE_7_REAL_S3_SILICON_E2E=PASS`
+ise `PASS`; gerçek S3 hâlâ PENDING ise `CONDITIONAL_PASS`; herhangi bir `=FAIL` varsa `FAIL`.
+Proof harness `aios_bridge_probe_s3()` ile gerçek S3'ü otomatik tespit eder — kablo takılıysa
+PHASE 7 kendiliğinden gerçek link üzerinde koşar (bkz. `BRIDGE_S3_E2E_PLAN.md`).
 
 Bu rapor, `CANONICAL_VERIFICATION_REPORT.json` ve `MUTATION_AUDIT_REPORT.md` iddialarının,
 README'de adı geçen **RA4M1 + ESP32‑S3 heterojen mimarisinin fiziksel örneği** olan bir
@@ -123,24 +127,29 @@ harici loopback)** varsa onun üzerinde, yoksa modellenmiş UART transport üzer
 **aynı 8 test** koşar. Her test deterministik DRBG seed'i + beklenen `AiosWireError`
 + gözlenen sonuç + detay ile loglanır.
 
-| Test | Beklenen | Sonuç |
+> **Bu koşu `[link-model]` etiketlidir** — fiziksel R4↔S3 hattı takılı değil, S3 probe
+> başarısız → modellenmiş UART transport. Aşağıdaki tüm sayımlar ve throughput/latency
+> **link-model benchmark**'tır; fiziksel S3 hattından ölçülmedi.
+
+| Test | Beklenen | Sonuç `[link-model]` |
 |---|---|---|
 | T0 parser izole (link YOK) — önce byte-buffer üzerinde | OK / ERR_CRC / ERR_LENGTH | PASS |
 | T1 framing + CRC happy path | OK (got=32) | PASS |
 | T2 truncated frame (son 2 byte düşük) | ERR_LENGTH | PASS |
 | T3 oversized payload_len (60000) | ERR_LENRANGE | PASS |
-| T4 in-transit byte corruption (200 frame) | hepsi reddedildi (200/200) | PASS |
+| T4 in-transit byte corruption (200 frame, **modeled**) | hepsi reddedildi (200/200) | PASS |
 | T5 timeout + retry (link ilk 3 denemeyi düşürür) | OK, retries=3 | PASS |
 | T6 replay rejection | 2. gönderim ERR_REPLAY, taze rpc_id OK | PASS |
-| T7 recovery after 100-frame fault storm | 10/10 temiz frame teslim | PASS |
-| throughput / latency | ~380 kB/s · ~84 µs / 32B frame (modeled) | ölçüldü |
+| T7 recovery after 100-frame fault storm (**modeled**) | 10/10 temiz frame teslim | PASS |
+| throughput / latency (**link-model benchmark**) | ~380 kB/s · ~84 µs / 32B frame | ölçüldü |
 
-**Bu ne kanıtlar:** 32-byte wire protokolü + link katmanı (framing, CRC, timeout/retry,
-replay penceresi, hata sınıflandırması, fault-storm recovery). **Ne kanıtlamaz:** bridge
-firmware'inin gerçek ESP32-S3 silikonunda çalışması + gerçek R4↔S3 SPI/UART hattı —
-bu `AIOS_ESP32S3_BRIDGE_E2E` gate'i (hâlâ PENDING). Debug disiplini (tasarım notu):
-`aios_wire_verify` saf fonksiyondur, T0'da linksiz doğrulanır → parser hatası ile
-transfer hatası karışmaz.
+**`PHASE_7_BRIDGE_LINK_E2E` ne kanıtlar:** 32-byte wire protokolü + link katmanı (framing,
+CRC, timeout/retry, replay penceresi, hata sınıflandırması, fault-storm recovery).
+**`PHASE_7_REAL_S3_SILICON_E2E` ne bekler (PENDING):** bridge firmware'inin gerçek ESP32-S3
+silikonunda çalışması + gerçek R4↔S3 SPI/UART hattı. Prosedür + minimum kapanış kriterleri:
+`BRIDGE_S3_E2E_PLAN.md`. S3 tarafı skeleton: `AIOS_S3_Bridge/AIOS_S3_Bridge.ino`.
+Debug disiplini (tasarım notu): `aios_wire_verify` saf fonksiyondur, T0'da linksiz
+doğrulanır → parser hatası ile transfer hatası karışmaz.
 
 ### Off-device TRNG battery (release gate 1)
 

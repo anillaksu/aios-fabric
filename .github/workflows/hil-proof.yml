@@ -53,7 +53,10 @@ jobs:
           path: hil-artifacts/
           retention-days: 30
 
-      - name: Assert VERDICT=PASS
+      - name: Assert no gate FAILed and a verdict was reached
         if: always()
         shell: bash
-        run: grep -q 'AIOS_HARDWARE_PROOF_VERDICT=PASS' hil-artifacts/hardware_proof_serial.log
+        run: |
+          L=hil-artifacts/hardware_proof_serial.log
+          grep -qE '^(AIOS|PHASE)_[A-Z0-9_]+=FAIL' "$L" && { echo "a release gate FAILed"; exit 1; }
+          grep -qE 'AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS' "$L"

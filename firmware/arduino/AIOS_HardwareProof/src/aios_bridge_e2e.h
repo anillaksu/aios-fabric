@@ -22,7 +22,9 @@ extern "C" {
 
 typedef enum {
     AIOS_LINK_MODELED = 0,   // in-memory UART-semantics transport
-    AIOS_LINK_SERIAL1 = 1    // physical RA4M1 SCI (D0/D1) external loopback
+    AIOS_LINK_SERIAL1 = 1,   // physical RA4M1 SCI (D0/D1) external loopback
+    AIOS_LINK_S3_UART = 2    // physical RA4M1 SCI (D0/D1) <-> ESP32-S3 running
+                             // AIOS_S3_Bridge.ino (S3 replies status byte + echo)
 } AiosBridgeLinkMode;
 
 typedef struct {
@@ -41,6 +43,13 @@ typedef struct {
  * @return true if a byte written to Serial1 echoes back within a few ms.
  */
 bool aios_bridge_probe_serial1(void);
+
+/**
+ * @brief Probe for an ESP32-S3 running AIOS_S3_Bridge.ino on Serial1: send one
+ * STATUS_PROBE frame, expect a status byte (0) followed by the 32-byte echo.
+ * @return true if the S3 answered the protocol.
+ */
+bool aios_bridge_probe_s3(void);
 
 /**
  * @brief Run the 8-test E2E suite over the chosen link.

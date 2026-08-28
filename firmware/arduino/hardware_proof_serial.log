@@ -3,7 +3,7 @@
 #  AIOS ON-SILICON HARDWARE PROOF  |  Renesas RA4M1 @ 48 MHz
 ################################################################
 
-Sketch build: Aug 28 2026 15:54:51
+Sketch build: Aug 28 2026 16:08:19
 CPU clock (F_CPU): 48000000
 
 ################################################################
@@ -27,7 +27,7 @@ CPU clock (F_CPU): 48000000
   -> PASS: Zero-copy Token Offset Hashing extracted keys and values in O(1).
 [TEST 4] Verifying ESP32-S3 Ring Buffer & Pipe Stall Deadlock Evasion...
   Saturating ring buffer to test Deadlock / Pipe Buffer Stall Evasion...
-[STDERR] ...x100 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held, no deadlock)...
+[STDERR] ...x100 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held)...
   Accepted: 0 packets, Rejected (Backpressure asserted): 100 packets
   -> PASS: Deadlock avoided, 64 KB Ring Buffer backpressure actively asserted.
 [TEST 5] Verifying 12x8 Charlieplexed LED Matrix Monitor & Concurrency Heatmap...
@@ -45,7 +45,7 @@ CPU clock (F_CPU): 48000000
   AIOS CANONICAL MUTATION & ADVERSARIAL FAULT INJECTION SUITE
 ====================================================================
 
-[STDERR] ...x100 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held, no deadlock)...
+[STDERR] ...x100 L4_RING_BUFFER_STALL_WATERMARK_TRIPPED (backpressure held)...
 [AIOS_KERNEL_ERR] AGENT_SLOT_LOCKED_VIOLATION ID=0x0000000000000002
 [KILLED] MUT-01: Wire Frame Bit-Flip Injection
   Vector:    Single-bit flip in 64-bit contract_hash during transit
@@ -96,18 +96,18 @@ CPU clock (F_CPU): 48000000
 ################################################################
 
   SCE5 TRNG collected 2048 bytes (16384 bits)
-  draw[0]=E45EE53F5A6C409A1AC0057C52C6BD7B
+  draw[0]=FF46958A4BFF5B488CEC789D864EA1D6
   [OK]   SCE5 hardware TRNG readable (HW_SCE_RNG_Read)
   [OK]   Consecutive TRNG draws differ
   --- NIST SP 800-22 subset (alpha = 0.01, on-silicon) ---
-  [PASS] Monobit Frequency              stat=0.109  p=0.912905
-  [PASS] Runs                           stat=8133.000  p=0.356642
-  [PASS] Block Frequency M=128          stat=131.969  p=0.387016
-  [PASS] Longest Run of Ones M=128      stat=6.598  p=0.252301
-  [PASS] Byte chi-square (256 bins)     stat=242.750  p=0.699071
+  [PASS] Monobit Frequency              stat=2.313  p=0.020750
+  [PASS] Runs                           stat=8262.000  p=0.255999
+  [PASS] Block Frequency M=128          stat=124.563  p=0.569469
+  [PASS] Longest Run of Ones M=128      stat=5.501  p=0.357804
+  [PASS] Byte chi-square (256 bins)     stat=237.500  p=0.777473
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=122.000  p=0.672568
-  [PASS] Cumulative Sums (bwd)          stat=108.000  p=0.774936
+  [PASS] Cumulative Sums (fwd)          stat=342.000  p=0.015086
+  [PASS] Cumulative Sums (bwd)          stat=301.000  p=0.037389
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -130,14 +130,14 @@ CPU clock (F_CPU): 48000000
   [OK]   1-bit seed change -> different stream
   [OK]   Captured mid-stream state does not re-emit earlier blocks
   --- NIST SP 800-22 subset on DRBG output ---
-  [PASS] Monobit Frequency              stat=0.297  p=0.766562
-  [PASS] Runs                           stat=8261.000  p=0.280668
-  [PASS] Block Frequency M=128          stat=110.906  p=0.859447
-  [PASS] Longest Run of Ones M=128      stat=2.841  p=0.724459
-  [PASS] Byte chi-square (256 bins)     stat=231.750  p=0.849160
+  [PASS] Monobit Frequency              stat=0.141  p=0.888166
+  [PASS] Runs                           stat=8229.000  p=0.563075
+  [PASS] Block Frequency M=128          stat=126.406  p=0.523245
+  [PASS] Longest Run of Ones M=128      stat=7.900  p=0.161826
+  [PASS] Byte chi-square (256 bins)     stat=223.750  p=0.921448
   [PASS] Draw non-repetition / not-stuck stat=128.000  p=1.000000
-  [PASS] Cumulative Sums (fwd)          stat=110.000  p=0.760434
-  [PASS] Cumulative Sums (bwd)          stat=148.000  p=0.494112
+  [PASS] Cumulative Sums (fwd)          stat=74.000  p=0.968242
+  [PASS] Cumulative Sums (bwd)          stat=70.000  p=0.979422
   [n/a ] Serial m=3 (nabla psi2)        (prerequisite not met)
   [n/a ] Serial m=3 (nabla^2 psi2)      (prerequisite not met)
   [n/a ] Approximate Entropy m=2        (prerequisite not met)
@@ -175,19 +175,22 @@ CPU clock (F_CPU): 48000000
 #  PHASE 7 / 7  --  RA4M1 <-> ESP32-S3 WIRE-BRIDGE END-TO-END (8 tests)
 ################################################################
 
-  Link: MODELED in-memory UART transport (no D0<->D1 jumper detected)
-  NOTE: exercises the wire protocol + link layer. Running bridge
-        firmware ON the ESP32-S3 silicon is aios-esp32s3-bridge-e2e (open).
-  [PASS] T0 parser isolated (no link)   seed=0xB19D6E2E got=OK          want=OK          detail=0
-  [PASS] T1 framing + CRC happy path    seed=0xB19D6E8F got=OK          want=OK          detail=32
-  [PASS] T2 truncated frame             seed=0xB19D6E9C got=ERR_LENGTH  want=ERR_LENGTH  detail=30
-  [PASS] T3 oversized payload_len       seed=0xB19D6EED got=ERR_LENRANGE want=ERR_LENRANGE detail=60000
-  [PASS] T4 in-transit byte corruption  seed=0xB19D6EFA got=OK          want=OK          detail=200
-  [PASS] T5 timeout + retry             seed=0xB19D6ECB got=OK          want=OK          detail=3
-  [PASS] T6 replay rejection            seed=0xB19D6ED8 got=ERR_REPLAY  want=ERR_REPLAY  detail=0
-  [PASS] T7 recovery after fault storm  seed=0xB19D6E59 got=OK          want=OK          detail=10
-  throughput ~ 296145 bytes/s   latency ~ 108 us / 32B frame
-  [OK]   All 8 bridge E2E tests pass over the real link layer
+  Link: MODELED in-memory UART transport (no physical link detected)
+  SCOPE: proves the 32-byte wire protocol + link layer (framing, CRC,
+         timeout/retry, replay window, error classification, recovery).
+  NOT PROVEN HERE: bridge firmware on real ESP32-S3 silicon over a real
+         R4<->S3 SPI/UART link  ->  gate PHASE7_REAL_S3_SILICON_E2E=PENDING.
+  All counts / throughput below are qualified [link-model]
+  [PASS] [link-model] T0 parser isolated (no link)   seed=0xB19D6E2E got=OK          want=OK          detail=0
+  [PASS] [link-model] T1 framing + CRC happy path    seed=0xB19D6E8F got=OK          want=OK          detail=32
+  [PASS] [link-model] T2 truncated frame             seed=0xB19D6E9C got=ERR_LENGTH  want=ERR_LENGTH  detail=30
+  [PASS] [link-model] T3 oversized payload_len       seed=0xB19D6EED got=ERR_LENRANGE want=ERR_LENRANGE detail=60000
+  [PASS] [link-model] T4 in-transit byte corruption  seed=0xB19D6EFA got=OK          want=OK          detail=200
+  [PASS] [link-model] T5 timeout + retry             seed=0xB19D6ECB got=OK          want=OK          detail=3
+  [PASS] [link-model] T6 replay rejection            seed=0xB19D6ED8 got=ERR_REPLAY  want=ERR_REPLAY  detail=0
+  [PASS] [link-model] T7 recovery after fault storm  seed=0xB19D6E59 got=OK          want=OK          detail=10
+  [link-model] benchmark: throughput ~ 295775 bytes/s   latency ~ 108 us / 32B frame
+  [OK]   All 8 bridge tests pass over the wire protocol + link layer
 
 ################################################################
 #  HARDWARE PROOF RESULT
@@ -196,20 +199,20 @@ CPU clock (F_CPU): 48000000
 Verification (mock root)     : rc=0  (1002683 us)
 Mutation     (mock root)     : rc=0  (1025713 us)
 Real HW root of truth        : rc=0  (55077 us)
-SCE5 TRNG + NIST subset      : rc=0  (498570 us)
-Hash-DRBG (CSPRNG)           : rc=0  (349286 us)
-Chaos engineering            : rc=0  (6491367 us)
-Bridge E2E (link layer)      : rc=0  (184952 us)
+SCE5 TRNG + NIST subset      : rc=0  (465908 us)
+Hash-DRBG (CSPRNG)           : rc=0  (384823 us)
+Chaos engineering            : rc=0  (6498488 us)
+Bridge wire+link E2E         : rc=0  (262259 us)
 
 ---- RELEASE GATES ----
 AIOS_RA4M1_KERNEL_PROOF=PASS
 AIOS_TRNG_ON_DEVICE_SUITE=PASS
 AIOS_DRBG_PROOF=PASS
 AIOS_CHAOS_SUITE=PASS
-AIOS_ESP32S3_BRIDGE_LINK_LAYER=PASS
+PHASE_7_BRIDGE_LINK_E2E=PASS
+PHASE_7_REAL_S3_SILICON_E2E=PENDING
 AIOS_OFFDEVICE_TRNG_BATTERY=SEE_ARTIFACTS(nist_sts_lite)
 AIOS_FULL_NIST_STS_REFERENCE_TOOL=NOT_RUN
-AIOS_ESP32S3_BRIDGE_E2E=PENDING
 AIOS_HARDWARE_PROOF_VERDICT=CONDITIONAL_PASS
 ---- END OF PROOF (harness will heartbeat below) ----
 
