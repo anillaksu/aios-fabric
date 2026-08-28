@@ -17,6 +17,12 @@ concurrency:
   group: aios-hil-${{ github.ref }}
   cancel-in-progress: false        # never interrupt a live flash
 
+# Self-hosted Windows runner: `shell: bash` can resolve to the WSL stub
+# (C:\Windows\System32\bash.exe) which has no distro. Pin Git for Windows' bash.
+defaults:
+  run:
+    shell: 'C:\Program Files\Git\bin\bash.exe --noprofile --norc -eo pipefail {0}'
+
 jobs:
   hil-proof:
     runs-on: [self-hosted, aios-hil]
@@ -30,7 +36,6 @@ jobs:
 
       - name: Decide whether HIL is required for this change
         id: gate
-        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             RANGE="origin/${{ github.base_ref }}...HEAD"
@@ -46,7 +51,6 @@ jobs:
 
       - if: steps.gate.outputs.run == 'true'
         name: Toolchain
-        shell: bash
         run: |
           # self-hosted Windows runner: make sure the machine's tools are on PATH
           for p in "/c/Program Files/Arduino CLI" "/c/Python314" "/c/Python314/Scripts"; do
@@ -58,7 +62,6 @@ jobs:
 
       - if: steps.gate.outputs.run == 'true'
         name: src/ in sync + both sketches compile clean (pre-flash gate)
-        shell: bash
         run: |
           cd firmware/arduino
           chmod +x aios-verify.sh AIOS_HardwareProof/sync-from-firmware.sh
@@ -75,7 +78,6 @@ jobs:
 
       - if: steps.gate.outputs.run == 'true'
         name: On-silicon proof (7 phases)
-        shell: bash
         run: cd firmware/arduino && ./aios-verify.sh --out "$GITHUB_WORKSPACE/hil-artifacts"
 
       - if: ${{ always() && steps.gate.outputs.run == 'true' }}
@@ -87,7 +89,6 @@ jobs:
 
       - if: ${{ always() && steps.gate.outputs.run == 'true' }}
         name: Assert no gate FAILed and a verdict was reached
-        shell: bash
         run: |
           L=hil-artifacts/hardware_proof_serial.log
           grep -qE '^(AIOS|PHASE)_[A-Z0-9_]+=FAIL' "$L" && { echo "a release gate FAILed"; exit 1; }
