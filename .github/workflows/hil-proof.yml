@@ -49,11 +49,18 @@ jobs:
             $range = "${{ github.event.before }}..${{ github.sha }}"
           }
           $changed = git diff --name-only $range 2>$null
-          if ($changed -match '^firmware/' -or $changed -match '^\.github/workflows/hil-proof\.yml') {
+          # HIL runs on real code/harness changes; docs/reports/logs under
+          # firmware/ do not re-flash the board.
+          $code = $changed | Where-Object {
+            $_ -match '^firmware/' -and $_ -notmatch '\.(md|log)$' -and
+            $_ -notmatch 'hardware_proof_report\.json$'
+          }
+          if ($code -or ($changed -match '^\.github/workflows/hil-proof\.yml')) {
             "run=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "HIL required. Triggering files:`n$($code -join "`n")"
           } else {
             "run=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            Write-Host "No firmware/** or workflow changes -- HIL proof not required."
+            Write-Host "No code/harness changes under firmware/** -- HIL proof not required."
           }
 
       - if: steps.gate.outputs.run == 'true'
