@@ -2,11 +2,20 @@
   "$schema": "https://aios.foundation/schemas/hardware-proof-v1.json",
   "proofMetadata": {
     "timestamp": "2026-08-28T16:00:00+03:00",
-    "revision": 6,
+    "revision": 7,
     "kind": "ON_SILICON_EXECUTION",
     "verdict": "CONDITIONAL_PASS",
     "operator": "Claude Code (aksu094094@gmail.com)",
-    "note": "rev.6: PHASE 7 gate renamed PHASE_7_BRIDGE_LINK_E2E (PASS, [link-model]) + PHASE_7_REAL_S3_SILICON_E2E (PENDING); AIOS_S3_Bridge.ino S3-side skeleton + AIOS_LINK_S3_UART harness mode + aios_bridge_probe_s3 auto-detect; BRIDGE_S3_E2E_PLAN.md minimum closure criteria + dual-side log format; git/CI closure sequence in HIL_CI_SETUP.md; workflow accepts CONDITIONAL_PASS, fails on any *=FAIL."
+    "note": "rev.7 (commit d427691): minimum code closure before physical HIL -- (1) S3 status byte cross-checked vs independent aios_wire_verify(echo) per round_trip + new T8 'S3 status vs echo agreement' row (drift -> run FAIL); (2) T2 truncated accepts ERR_LENGTH (modeled) OR ERR_TIMEOUT (physical), S3 skeleton answers short/gap-timeout with <ERR_TIMEOUT> status byte; (3) sync-from-firmware.sh --check gate, src/ committed+authoritative, clean git clone + arduino-cli compile needs no setup; (4) clean-checkout compile EXIT 0 verified for BOTH AIOS_HardwareProof (RA4M1) and AIOS_S3_Bridge (esp32:esp32:esp32s3@3.3.11, 276KB/1.3MB).",
+    "minimumCodeClosureBeforePhysicalHIL": {
+      "s3_status_byte_compared": true,
+      "T2_dual_transport_semantics": true,
+      "canonical_sources_committed_and_sync_checked": true,
+      "clean_checkout_compile_exit0": {
+        "AIOS_HardwareProof": true,
+        "AIOS_S3_Bridge": true
+      }
+    }
   },
   "hardware": {
     "board": "Arduino UNO R4 WiFi",
@@ -57,7 +66,7 @@
   },
   "artifacts": {
     "AIOS_HardwareProof.ino.bin": {
-      "sha256": "3d7dce176614a866b0bd81ab8044b366009da71cfa071314de93d2c5138a6e87"
+      "sha256": "622681c6127e3db2470d86c3d34bc7c4c0854fbbe453450f89d6c71b8282e302"
     },
     "AIOS_HardwareProof.ino.hex": {
       "sha256": "6e06713eede1e584735f12e3c72b9b5c2c0f0544da77102b4ef490f013935906"
@@ -150,8 +159,8 @@
     },
     "bridgeE2E": {
       "returnCode": 0,
-      "tests": 8,
-      "passed": 8,
+      "tests": 9,
+      "passed": 9,
       "linkMode": "MODELED (no physical link detected). Auto-upgrades: aios_bridge_probe_s3() -> AIOS_LINK_S3_UART if an ESP32-S3 running AIOS_S3_Bridge.ino answers; else aios_bridge_probe_serial1() -> AIOS_LINK_SERIAL1 for a D0<->D1 jumper.",
       "kernelAdditions": [
         "aios_wire_seal",
@@ -174,7 +183,7 @@
         {
           "id": "T2",
           "name": "truncated frame",
-          "expected": "ERR_LENGTH",
+          "expected": "ERR_LENGTH (modeled) | ERR_TIMEOUT (physical)",
           "got": "ERR_LENGTH",
           "passed": true
         },
@@ -209,6 +218,13 @@
           "name": "recovery after 100-frame fault storm",
           "detail": "10/10 delivered",
           "passed": true
+        },
+        {
+          "id": "T8",
+          "name": "S3 status byte vs independent echo re-verify agreement",
+          "detail": "mismatch=0",
+          "passed": true,
+          "note": "modeled: trivially PASS; physical S3: catches any drift of the S3 wire_verify from firmware/esp32s3_bridge.cpp"
         }
       ],
       "throughputBytesPerSec": 380182,
@@ -218,7 +234,9 @@
       "linkTag": "[link-model]",
       "modeledCaveat": "T4 (200/200) and T7 (10/10) counts and the ~380 kB/s / ~84 us benchmark are over the modeled transport, not a physical S3 link.",
       "s3SideSkeleton": "AIOS_S3_Bridge/AIOS_S3_Bridge.ino",
-      "closurePlan": "BRIDGE_S3_E2E_PLAN.md"
+      "closurePlan": "BRIDGE_S3_E2E_PLAN.md",
+      "s3StatusCrossCheck": "round_trip compares the S3-reported status byte against an independent aios_wire_verify() of the echoed 32 bytes (stateless verdict); REPLAY/TIMEOUT allowed to differ (stateful/transport).",
+      "s3SketchCompile": "esp32:esp32:esp32s3@3.3.11 -> EXIT 0 (276465 B / 1310720 B flash)"
     },
     "offDeviceTrngBattery": {
       "tool": "tools/nist_sts_lite.py (independent re-implementation, NOT the NIST STS reference)",
@@ -263,10 +281,12 @@
       "confirm aios-verify.sh + workflow accept CONDITIONAL_PASS (already do)",
       "master branch protection -> require hil-proof status check",
       "after real-S3 E2E: PHASE_7_REAL_S3_SILICON_E2E=PASS -> verdict auto PASS -> regenerate release report"
-    ]
+    ],
+    "preFlashGate": "workflow step 'src/ in sync + both sketches compile clean' runs sync --check + arduino-cli compile for AIOS_HardwareProof and (if esp32 core present) AIOS_S3_Bridge before the on-silicon proof step",
+    "cleanCheckoutBuild": "git archive <commit> | tar -x  ->  arduino-cli compile  ->  EXIT 0 (no sync/setup step); verified for both sketches at commit d427691"
   },
   "openItems": [
-    "PHASE_7_REAL_S3_SILICON_E2E: flash AIOS_S3_Bridge.ino to real ESP32-S3, wire R4<->S3 UART, re-run the 8 tests + reset/framing/timeout/replay/malformed on the real link, save fw version + chip id + baud/SPI + dual-side serial log (BRIDGE_S3_E2E_PLAN.md). Do not make overall verdict PASS without it.",
+    "PHASE_7_REAL_S3_SILICON_E2E: flash AIOS_S3_Bridge.ino (compiles EXIT 0) to real ESP32-S3, wire R4<->S3 UART, re-run the 9 tests (incl T8 status agreement) + reset/framing/timeout/replay/malformed on the real link, save fw version + chip id + baud/SPI + dual-side serial log (BRIDGE_S3_E2E_PLAN.md). Overall verdict stays CONDITIONAL_PASS until then.",
     "AIOS_FULL_NIST_STS_REFERENCE_TOOL: run dieharder -a / NIST STS 'assess' on a >=1.25 MB dump (aios-verify.sh --dump-trng ready).",
     "HIL CI: GitHub remote + self-hosted runner + branch protection (user side).",
     "aios-multiboard-determinism: 3+ boards cross-board Variance=0.",
