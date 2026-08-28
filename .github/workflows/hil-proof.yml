@@ -1,0 +1,125 @@
+name: AIOS Hardware-in-the-Loop Proof
+
+# Single job on the self-hosted [self-hosted, aios-hil] runner (free for private
+# and public repos -- no GitHub-hosted minutes). It self-gates: a change that
+# does not touch firmware/** or this workflow returns immediately; otherwise it
+# runs the full on-silicon proof. Required status check for `master` = hil-proof.
+#
+# Steps use pwsh (always present) and call Git-for-Windows bash explicitly for
+# the shell scripts -- `shell: bash` on this self-hosted runner resolves to the
+# WSL stub, and a custom `shell:` string with a space in the exe path breaks the
+# runner's path handling.
+#
+# Setup: firmware/arduino/HIL_CI_SETUP.md
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: aios-hil-${{ github.ref }}
+  cancel-in-progress: false        # never interrupt a live flash
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  hil-proof:
+    runs-on: [self-hosted, aios-hil]
+    timeout-minutes: 25
+    env:
+      AIOS_HIL_PORT: ${{ vars.AIOS_HIL_PORT || 'COM4' }}
+      AIOS_HIL_FQBN: arduino:renesas_uno:unor4wifi
+      BASH: 'C:\Program Files\Git\bin\bash.exe'
+      ARDUINO_CLI_DIR: 'C:\Program Files\Arduino CLI'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Decide whether HIL is required for this change
+        id: gate
+        run: |
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $range = "origin/${{ github.base_ref }}...HEAD"
+          } else {
+            $range = "${{ github.event.before }}..${{ github.sha }}"
+          }
+          $changed = git diff --name-only $range 2>$null
+          # HIL runs on real code/harness changes; docs/reports/logs under
+          # firmware/ do not re-flash the board.
+          $code = $changed | Where-Object {
+            $_ -match '^firmware/' -and $_ -notmatch '\.(md|log)$' -and
+            $_ -notmatch 'hardware_proof_report\.json$'
+          }
+          if ($code -or ($changed -match '^\.github/workflows/hil-proof\.yml')) {
+            "run=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "HIL required. Triggering files:`n$($code -join "`n")"
+          } else {
+            "run=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "No code/harness changes under firmware/** -- HIL proof not required."
+          }
+
+      - if: steps.gate.outputs.run == 'true'
+        name: PATH + toolchain
+        run: |
+          "$env:ARDUINO_CLI_DIR"       | Out-File $env:GITHUB_PATH -Append
+          "C:\Program Files\Git\bin"   | Out-File $env:GITHUB_PATH -Append
+          $env:PATH = "$env:ARDUINO_CLI_DIR;C:\Program Files\Git\bin;$env:PATH"
+          arduino-cli version
+          if (-not (arduino-cli core list | Select-String renesas_uno)) { arduino-cli core install arduino:renesas_uno }
+
+      - if: steps.gate.outputs.run == 'true'
+        name: src/ in sync + both sketches compile clean (pre-flash gate)
+        run: |
+          $env:PATH = "$env:ARDUINO_CLI_DIR;C:\Program Files\Git\bin;$env:PATH"
+          cd firmware/arduino
+          & $env:BASH AIOS_HardwareProof/sync-from-firmware.sh --check
+          if ($LASTEXITCODE -ne 0) { throw "src/ drift" }
+          $defs = "-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024"
+          arduino-cli compile -b arduino:renesas_uno:unor4wifi --warnings none `
+            --build-property "compiler.cpp.extra_flags=$defs" `
+            --build-property "compiler.c.extra_flags=$defs" AIOS_HardwareProof
+          if ($LASTEXITCODE -ne 0) { throw "RA4M1 compile failed" }
+          if (arduino-cli core list | Select-String 'esp32:esp32') {
+            arduino-cli compile -b esp32:esp32:esp32s3 --warnings none AIOS_S3_Bridge
+            if ($LASTEXITCODE -ne 0) { throw "S3 compile failed" }
+          } else { Write-Host "::notice::esp32 core absent -- AIOS_S3_Bridge compile skipped" }
+
+      - if: steps.gate.outputs.run == 'true'
+        name: On-silicon proof (7 phases)
+        run: |
+          $env:PATH = "$env:ARDUINO_CLI_DIR;C:\Program Files\Git\bin;$env:PATH"
+          New-Item -ItemType Directory -Force "$env:GITHUB_WORKSPACE\hil-artifacts" | Out-Null
+          cd firmware/arduino
+          & $env:BASH aios-verify.sh --out "$env:GITHUB_WORKSPACE/hil-artifacts"
+          if ($LASTEXITCODE -ne 0) { throw "aios-verify.sh exit $LASTEXITCODE" }
+
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        name: Trim artifacts (drop the 3 MB .map)
+        run: Remove-Item -Force "$env:GITHUB_WORKSPACE\hil-artifacts\*.map" -ErrorAction SilentlyContinue
+
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        continue-on-error: true      # artifact storage quota must not fail the proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: aios-hil-proof-${{ github.run_number }}
+          path: |
+            hil-artifacts/*.log
+            hil-artifacts/*.json
+            hil-artifacts/*.bin
+            hil-artifacts/*.hex
+          retention-days: 14
+
+      - if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        name: Assert no gate FAILed and a verdict was reached
+        run: |
+          $log = "$env:GITHUB_WORKSPACE\hil-artifacts\hardware_proof_serial.log"
+          if (-not (Test-Path $log)) { throw "no serial log" }
+          $t = Get-Content -Raw $log
+          if ($t -match '(?m)^(AIOS|PHASE)_[A-Z0-9_]+=FAIL') { throw "a release gate reported FAIL" }
+          if ($t -notmatch 'AIOS_HARDWARE_PROOF_VERDICT=(CONDITIONAL_)?PASS') { throw "no PASS verdict" }
+          Write-Host "verdict OK"
