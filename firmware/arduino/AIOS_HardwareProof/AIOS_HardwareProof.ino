@@ -321,6 +321,8 @@ static const char* wire_err_name(uint32_t e) {
     case AIOS_WIRE_ERR_CRC: return "ERR_CRC";
     case AIOS_WIRE_ERR_REPLAY: return "ERR_REPLAY";
     case AIOS_WIRE_ERR_TIMEOUT: return "ERR_TIMEOUT";
+    case 0xFE: return "count(0=pass)";
+    case 0xFF: return "n/a";
     default: return "ERR_?";
   }
 }
@@ -354,19 +356,24 @@ static int test_bridge_e2e(void) {
   uint32_t tp = 0, lat = 0;
   int failed = aios_bridge_e2e_run(mode, 0xB19D6E2EULL, g_bridge, &tp, &lat);
 
+  static const char* const link_name[] = { "link-model", "phys-SCI", "phys-S3" };
   for (int i = 0; i < AIOS_BRIDGE_E2E_TESTS; ++i) {
-    char s3[20] = "";
-    if (g_bridge[i].link_status != 0xFF)
-      snprintf(s3, sizeof(s3), " s3=%s", wire_err_name(g_bridge[i].link_status));
-    char b[152];
+    const BridgeTestResult* r = &g_bridge[i];
+    char expc[32];
+    if (r->expected_alt != 0xFF)
+      snprintf(expc, sizeof(expc), "{%s,%s}", wire_err_name(r->expected_code), wire_err_name(r->expected_alt));
+    else
+      snprintf(expc, sizeof(expc), "{%s}", wire_err_name(r->expected_code));
+    char s3[24] = "";
+    if (r->link_status != 0xFF)
+      snprintf(s3, sizeof(s3), " s3_status=%s", wire_err_name(r->link_status));
+    char b[168];
     snprintf(b, sizeof(b),
-      "  [%s] %s %-30s seed=0x%08lX got=%-11s want=%-11s detail=%lu%s",
-      g_bridge[i].passed ? "PASS" : "FAIL", tag,
-      g_bridge[i].name,
-      (unsigned long)(g_bridge[i].seed & 0xFFFFFFFFUL),
-      wire_err_name(g_bridge[i].error_code),
-      wire_err_name(g_bridge[i].expected_code),
-      (unsigned long)g_bridge[i].detail, s3);
+      "  %-33s transport=%-10s expected=%-22s observed=%-11s detail=%lu passed=%d%s",
+      r->name,
+      link_name[r->transport <= 2 ? r->transport : 0],
+      expc, wire_err_name(r->error_code),
+      (unsigned long)r->detail, r->passed ? 1 : 0, s3);
     Serial.println(b);
   }
   {

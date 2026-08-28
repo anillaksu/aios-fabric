@@ -88,6 +88,62 @@ static uint16_t link_recv(uint8_t* b, uint16_t maxn, uint32_t timeout_us) {
 }
 
 // ---------------------------------------------------------------------------
+// Golden vectors -- deterministic, mirrored by tools/gen_golden_vectors.py.
+// Base frame uses fixed field values so C and Python produce identical bytes.
+// ---------------------------------------------------------------------------
+void aios_golden_vectors(AiosGoldenVector out[AIOS_GOLDEN_VECTORS]) {
+    AiosWireFrame base;
+    memset(&base, 0, sizeof(base));
+    base.sync_magic    = AIOS_WIRE_MAGIC;
+    base.msg_type      = MSG_TYPE_MCP_TOOL_CALL;
+    base.agent_id      = 3;
+    base.rpc_id        = 0x0123456789ABCDEFULL;
+    base.method_hash   = 0x1111222233334444ULL;
+    base.contract_hash = 0x5555666677778888ULL;
+    base.payload_len   = 256;
+
+    // 0 valid
+    { AiosWireFrame g = base; aios_wire_seal(&g);
+      out[0].name = "valid";     out[0].len = 32; out[0].expected = AIOS_WIRE_OK;         out[0].stateful = false;
+      memcpy(out[0].bytes, &g, 32); }
+
+    // 1 truncated (same valid bytes, 31 on the wire)
+    out[1].name = "truncated";   out[1].len = 31; out[1].expected = AIOS_WIRE_ERR_LENGTH; out[1].stateful = false;
+    memcpy(out[1].bytes, out[0].bytes, 32);
+
+    // 2 bad magic (magic checked before CRC, so CRC over the bad-magic bytes)
+    { AiosWireFrame g = base; g.sync_magic = 0x1234;
+      g.crc16 = aios_calc_crc16(&g, sizeof(AiosWireFrame) - sizeof(uint16_t));
+      out[2].name = "bad_magic"; out[2].len = 32; out[2].expected = AIOS_WIRE_ERR_MAGIC;  out[2].stateful = false;
+      memcpy(out[2].bytes, &g, 32); }
+
+    // 3 bad msg type
+    { AiosWireFrame g = base; g.msg_type = 0x09; aios_wire_seal(&g);
+      out[3].name = "bad_msgtype"; out[3].len = 32; out[3].expected = AIOS_WIRE_ERR_MSGTYPE; out[3].stateful = false;
+      memcpy(out[3].bytes, &g, 32); }
+
+    // 4 bad agent
+    { AiosWireFrame g = base; g.agent_id = 7; aios_wire_seal(&g);
+      out[4].name = "bad_agent"; out[4].len = 32; out[4].expected = AIOS_WIRE_ERR_AGENT; out[4].stateful = false;
+      memcpy(out[4].bytes, &g, 32); }
+
+    // 5 length out of range
+    { AiosWireFrame g = base; g.payload_len = 50000; aios_wire_seal(&g);
+      out[5].name = "len_out_of_range"; out[5].len = 32; out[5].expected = AIOS_WIRE_ERR_LENRANGE; out[5].stateful = false;
+      memcpy(out[5].bytes, &g, 32); }
+
+    // 6 bad CRC (valid frame, flip one covered byte, do NOT re-seal)
+    { AiosWireFrame g = base; aios_wire_seal(&g);
+      uint8_t b[32]; memcpy(b, &g, 32); b[5] ^= 0x01;
+      out[6].name = "bad_crc"; out[6].len = 32; out[6].expected = AIOS_WIRE_ERR_CRC; out[6].stateful = false;
+      memcpy(out[6].bytes, b, 32); }
+
+    // 7 replay (a second, byte-identical valid frame -- stateful)
+    out[7].name = "replay"; out[7].len = 32; out[7].expected = AIOS_WIRE_ERR_REPLAY; out[7].stateful = true;
+    memcpy(out[7].bytes, out[0].bytes, 32);
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 static void build_valid_frame(AiosPrng* rng, AiosWireFrame* f) {
@@ -167,8 +223,17 @@ bool aios_bridge_probe_s3(void) {
     return (n == 33) && (rx[0] == AIOS_WIRE_OK) && (memcmp(rx + 1, &f, 32) == 0);
 }
 
+// Fill a result row. link_status / transport come from the current run state.
+static void set_res(BridgeTestResult* r, const char* name, uint64_t seed, bool passed,
+                    uint32_t observed, uint32_t expected, uint32_t expected_alt,
+                    uint32_t detail) {
+    r->name = name; r->seed = seed; r->passed = passed;
+    r->error_code = observed; r->expected_code = expected; r->expected_alt = expected_alt;
+    r->detail = detail; r->link_status = s_last_status; r->transport = (uint32_t)s_mode;
+}
+
 // ---------------------------------------------------------------------------
-// The 9 tests (T0..T7 + T8 S3 status agreement)
+// The 9 tests (T0..T7 + T8 golden-vector cross-validation)
 // ---------------------------------------------------------------------------
 int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
                         BridgeTestResult* out,
@@ -193,10 +258,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         uint8_t bad[32]; memcpy(bad, &f, 32); bad[7] ^= 0x40;
         ok = ok && (aios_wire_verify(bad, 32) == AIOS_WIRE_ERR_CRC);
         ok = ok && (aios_wire_verify((uint8_t*)&f, 31) == AIOS_WIRE_ERR_LENGTH);
-        out[0].name = "T0 parser isolated (no link)";
-        out[0].seed = base_seed; out[0].expected_code = AIOS_WIRE_OK;
-        out[0].error_code = ok ? 0 : 99; out[0].passed = ok; out[0].detail = 0;
-        out[0].link_status = S3_STATUS_NA;
+        set_res(&out[0], "T0 parser isolated (no link)", base_seed, ok, ok ? 0u : 99u, AIOS_WIRE_OK, 0xFF, 0);
         if (!ok) failed++;
     }
 
@@ -209,7 +271,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         AiosWireError e = round_trip(&f, 32, TO, &got);
         AiosWireError r = (e == AIOS_WIRE_OK) ? aios_replay_admit(&guard, f.rpc_id) : e;
         bool ok = (e == AIOS_WIRE_OK) && (r == AIOS_WIRE_OK) && (got == 32);
-        out[1] = BridgeTestResult{ "T1 framing + CRC happy path", seed, ok, (uint32_t)e, AIOS_WIRE_OK, got, s_last_status };
+        set_res(&out[1], "T1 framing + CRC happy path", seed, ok, (uint32_t)e, AIOS_WIRE_OK, 0xFF, got);
         if (!ok) failed++;
     }
 
@@ -224,10 +286,22 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         uint16_t got = 0;
         AiosWireError e = round_trip(&f, 30, TO, &got);   // drop last 2 bytes
         bool ok = (e == AIOS_WIRE_ERR_LENGTH || e == AIOS_WIRE_ERR_TIMEOUT);
-        out[2] = BridgeTestResult{ "T2 truncated frame", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENGTH, got, s_last_status };
+        set_res(&out[2], "T2 truncated frame", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENGTH, AIOS_WIRE_ERR_TIMEOUT, got);
         if (!ok) failed++;
     }
 
+    // T3..T5, T7 and the throughput benchmark are skipped in smoke mode so the
+    // first physical-S3 bring-up run only exercises framing / timeout / replay
+    // (T0..T2, T6) + golden vectors (T8) before any performance number is taken.
+#ifdef AIOS_BRIDGE_SMOKE
+    {
+        static const int skip[] = { 3, 4, 5, 7 };
+        for (unsigned s = 0; s < sizeof(skip) / sizeof(skip[0]); ++s)
+            set_res(&out[skip[s]], "(skipped: -DAIOS_BRIDGE_SMOKE)", base_seed, true, 0xFF, 0xFF, 0xFF, 0);
+    }
+    if (tp_bytes_per_s)  *tp_bytes_per_s  = 0;
+    if (lat_us_per_frame) *lat_us_per_frame = 0;
+#else
     // ---- T3  oversized payload_len ----------------------------------
     {
         uint64_t seed = base_seed ^ 0xC3;
@@ -237,7 +311,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         aios_wire_seal(&f);               // CRC now covers the bogus length
         AiosWireError e = round_trip(&f, 32, TO, 0);
         bool ok = (e == AIOS_WIRE_ERR_LENRANGE);
-        out[3] = BridgeTestResult{ "T3 oversized payload_len", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENRANGE, 60000, s_last_status };
+        set_res(&out[3], "T3 oversized payload_len", seed, ok, (uint32_t)e, AIOS_WIRE_ERR_LENRANGE, 0xFF, 60000);
         if (!ok) failed++;
     }
 
@@ -258,7 +332,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
             if (e != AIOS_WIRE_OK) rejected++;
         }
         bool ok = (rejected == total);
-        out[4] = BridgeTestResult{ "T4 in-transit byte corruption", seed, ok, (uint32_t)(total - rejected), 0, (uint32_t)rejected, s_last_status };
+        set_res(&out[4], "T4 in-transit byte corruption", seed, ok, (uint32_t)(total - rejected), 0xFE, 0xFF, (uint32_t)rejected);
         if (!ok) failed++;
     }
 
@@ -282,11 +356,12 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
             retries++;
         }
         bool ok = (e == AIOS_WIRE_OK) && (retries == K);
-        out[5] = BridgeTestResult{ "T5 timeout + retry", seed, ok, (uint32_t)e, AIOS_WIRE_OK, retries, s_last_status };
+        set_res(&out[5], "T5 timeout + retry", seed, ok, (uint32_t)e, AIOS_WIRE_OK, 0xFF, retries);
         if (!ok) failed++;
     }
+#endif  // AIOS_BRIDGE_SMOKE
 
-    // ---- T6  replay rejection --------------------------------------
+    // ---- T6  replay rejection  (always -- smoke set) --------------
     {
         uint64_t seed = base_seed ^ 0xF6;
         AiosPrng rng; aios_prng_seed(&rng, &kk, seed, 6);
@@ -303,10 +378,11 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         bool ok = (e1 == AIOS_WIRE_OK) && (a1 == AIOS_WIRE_OK) &&
                   (e2 == AIOS_WIRE_OK) && (a2 == AIOS_WIRE_ERR_REPLAY) &&
                   (a3 == AIOS_WIRE_OK);
-        out[6] = BridgeTestResult{ "T6 replay rejection", seed, ok, (uint32_t)a2, AIOS_WIRE_ERR_REPLAY, 0, s_last_status };
+        set_res(&out[6], "T6 replay rejection", seed, ok, (uint32_t)a2, AIOS_WIRE_ERR_REPLAY, 0xFF, 0);
         if (!ok) failed++;
     }
 
+#ifndef AIOS_BRIDGE_SMOKE
     // ---- T7  recovery after a fault storm -------------------------
     {
         uint64_t seed = base_seed ^ 0x77;
@@ -324,24 +400,68 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
             if (e == AIOS_WIRE_OK && aios_replay_admit(&g, f.rpc_id) == AIOS_WIRE_OK) delivered++;
         }
         bool ok = (delivered == 10);
-        out[7] = BridgeTestResult{ "T7 recovery after fault storm", seed, ok, (uint32_t)(10 - delivered), 0, (uint32_t)delivered, s_last_status };
+        set_res(&out[7], "T7 recovery after fault storm", seed, ok, (uint32_t)(10 - delivered), 0xFE, 0xFF, (uint32_t)delivered);
         if (!ok) failed++;
     }
+#endif  // AIOS_BRIDGE_SMOKE
 
-    // ---- T8  S3 status byte agrees with independent re-verify -------
+    // ---- T8  golden-vector cross-validation  (always) -------------
+    // 3-way: hardcoded golden truth  vs  RA4M1 aios_wire_verify  vs  S3 status.
+    // Each vector's bytes are printed so a host can diff them against the
+    // committed tools/golden_vectors.txt (same generator, off-device).
     {
+        AiosGoldenVector gv[AIOS_GOLDEN_VECTORS];
+        aios_golden_vectors(gv);
         bool s3 = (mode == AIOS_LINK_S3_UART);
-        bool ok = !s3 || (s_status_mismatch == 0 && s_status_checks > 0);
-        out[8].name = "T8 S3 status vs echo agreement";
+        int gv_ra_mismatch = 0, gv_s3_mismatch = 0;
+        AiosReplayGuard rg; aios_replay_reset(&rg);
+
+        for (int i = 0; i < AIOS_GOLDEN_VECTORS; ++i) {
+            // print the vector so aios-verify.sh can cross-check the committed file
+            char line[128];
+            int p = snprintf(line, sizeof(line), "  GOLDEN %s len=%u expect=%lu bytes=",
+                             gv[i].name, gv[i].len, (unsigned long)gv[i].expected);
+            for (int b = 0; b < 32 && p < (int)sizeof(line) - 3; ++b)
+                p += snprintf(line + p, sizeof(line) - p, "%02X", gv[i].bytes[b]);
+            Serial.println(line);
+
+            // RA4M1 oracle vs golden truth
+            AiosWireError ra = gv[i].stateful
+                ? aios_replay_admit(&rg, ((const AiosWireFrame*)gv[i].bytes)->rpc_id)
+                : aios_wire_verify(gv[i].bytes, gv[i].len);
+            if ((uint32_t)ra != gv[i].expected) {
+                gv_ra_mismatch++;
+                char m[80];
+                snprintf(m, sizeof(m), "  GOLDEN MISMATCH %s: RA4M1=%lu expect=%lu",
+                         gv[i].name, (unsigned long)ra, (unsigned long)gv[i].expected);
+                Serial.println(m);
+            }
+            // seed the RA4M1 replay guard with the "valid" vector so "replay" trips
+            if (i == 0) aios_replay_admit(&rg, ((const AiosWireFrame*)gv[i].bytes)->rpc_id);
+
+            // S3 status vs golden truth (physical link only, non-stateful classes)
+            if (s3 && !gv[i].stateful) {
+                uint16_t got = 0;
+                round_trip((const AiosWireFrame*)gv[i].bytes, gv[i].len, TO, &got);
+                if (s_last_status != gv[i].expected) gv_s3_mismatch++;
+            }
+        }
+
+        bool run_agree = !s3 || (s_status_mismatch == 0 && s_status_checks > 0);
+        bool ok = (gv_ra_mismatch == 0) && (gv_s3_mismatch == 0) && run_agree;
+        out[8].name = "T8 golden-vector cross-validation";
         out[8].seed = base_seed;
         out[8].expected_code = 0;
-        out[8].error_code = (uint32_t)s_status_mismatch;
-        out[8].detail = (uint32_t)s_status_checks;
-        out[8].link_status = S3_STATUS_NA;             // meta-check, not a single frame
+        out[8].expected_alt = 0xFF;
+        out[8].error_code = (uint32_t)(gv_ra_mismatch * 100 + gv_s3_mismatch);
+        out[8].detail = (uint32_t)s_status_checks;     // run-wide status/echo checks
+        out[8].link_status = S3_STATUS_NA;
+        out[8].transport = (uint32_t)mode;
         out[8].passed = ok;
         if (!ok) failed++;
     }
 
+#ifndef AIOS_BRIDGE_SMOKE
     // ---- Throughput + latency (reuses the link, not a pass/fail row) --
     {
         uint64_t seed = base_seed ^ 0x88;
@@ -358,6 +478,7 @@ int aios_bridge_e2e_run(AiosBridgeLinkMode mode, uint64_t base_seed,
         if (lat_us_per_frame) *lat_us_per_frame = us / (uint32_t)N;
         (void)okc;
     }
+#endif  // AIOS_BRIDGE_SMOKE
 
     return failed;
 }

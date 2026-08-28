@@ -135,13 +135,23 @@ harici loopback)** varsa onun üzerinde, yoksa modellenmiş UART transport üzer
 |---|---|---|
 | T0 parser izole (link YOK) — önce byte-buffer üzerinde | OK / ERR_CRC / ERR_LENGTH | PASS |
 | T1 framing + CRC happy path | OK (got=32) | PASS |
-| T2 truncated frame (son 2 byte düşük) | ERR_LENGTH (modeled) / ERR_TIMEOUT (fiziksel) | PASS |
+| T2 truncated frame (son 2 byte düşük) | `expected={ERR_LENGTH,ERR_TIMEOUT}` observed=ERR_LENGTH (modeled) / ERR_TIMEOUT (fiziksel) | PASS |
 | T3 oversized payload_len (60000) | ERR_LENRANGE | PASS |
 | T4 in-transit byte corruption (200 frame, **modeled**) | hepsi reddedildi (200/200) | PASS |
 | T5 timeout + retry (link ilk 3 denemeyi düşürür) | OK, retries=3 | PASS |
 | T6 replay rejection | 2. gönderim ERR_REPLAY, taze rpc_id OK | PASS |
 | T7 recovery after 100-frame fault storm (**modeled**) | 10/10 temiz frame teslim | PASS |
-| T8 S3 status byte ↔ bağımsız `aios_wire_verify(echo)` uyumu | mismatch=0 | PASS (modeled: trivial; fiziksel: S3 verdict drift'i yakalar) |
+| T8 **golden-vector çapraz doğrulama** (3-yönlü: `tools/golden_vectors.txt` sabit referans ↔ RA4M1 `aios_wire_verify` ↔ S3 status) | 8 sınıf (valid, truncated, bad magic/msgtype/agent, len-out-of-range, bad CRC, replay), mismatch=0 | PASS |
+
+> **T2 raporlama:** `expected={ERR_LENGTH,ERR_TIMEOUT}` — transport'a göre tanımlı **iki geçerli
+> semantik**; test "beklenmeyen sonucu kabul etti" değil, fiziksel/modeled ayrımı açık.
+> **T8 bağımsızlık:** golden vektörlerin `expected` verdict'i `tools/gen_golden_vectors.py` ile
+> off-device üretilip commit edilen **insan-iddialı sabit gerçek** — RA4M1 ve S3 aynı hatayı
+> paylaşsa bile golden truth yakalar. Cihaz her vektörün byte'larını loglar; `aios-verify.sh`
+> bunları `tools/golden_vectors.txt` ile diff'ler (drift → HIL FAIL).
+> **Smoke mod:** `-DAIOS_BRIDGE_SMOKE` → PHASE 7 yalnızca T0/T1/T2/T6 + T8 golden koşar,
+> T3/T4/T5/T7 ve throughput atlanır. İlk fiziksel S3 bring-up'ında performans ölçmeden önce
+> temel framing/timeout/replay doğrulaması için (`BRIDGE_S3_E2E_PLAN.md`).
 | throughput / latency (**link-model benchmark**) | ~380 kB/s · ~84 µs / 32B frame | ölçüldü |
 
 **`PHASE_7_BRIDGE_LINK_E2E` ne kanıtlar:** 32-byte wire protokolü + link katmanı (framing,

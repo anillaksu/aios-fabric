@@ -32,12 +32,31 @@ typedef struct {
     uint64_t     seed;
     bool         passed;
     uint32_t     error_code;    // AiosWireError the RA4M1 harness observed (0 = OK)
-    uint32_t     expected_code; // AiosWireError the test asserts
+    uint32_t     expected_code; // primary AiosWireError the test asserts
+    uint32_t     expected_alt;  // second valid AiosWireError (0xFF = none); e.g. T2
     uint32_t     detail;        // test-specific number (retries, bytes/s, us, ...)
     uint32_t     link_status;   // status byte reported by the S3 peer (0xFF = N/A)
+    uint32_t     transport;     // AiosBridgeLinkMode the run used
 } BridgeTestResult;
 
-#define AIOS_BRIDGE_E2E_TESTS   (9)   // T0..T7 + T8 (S3 status/echo agreement)
+#define AIOS_BRIDGE_E2E_TESTS   (9)   // T0..T7 + T8 (golden-vector cross-validation)
+#define AIOS_GOLDEN_VECTORS     (8)
+
+// One frame-class golden vector: fixed bytes + the human-asserted verdict. The
+// expected verdict is a hardcoded constant here (and in tools/gen_golden_vectors.py
+// / tools/golden_vectors.txt) -- an INDEPENDENT reference, so if both
+// aios_wire_verify() and the S3 wire_verify share a bug the golden truth still
+// catches it.
+typedef struct {
+    const char*   name;
+    uint8_t       bytes[32];
+    uint16_t      len;          // 32, or 31 for the truncated class
+    uint32_t      expected;     // AiosWireError
+    bool          stateful;     // replay: only meaningful over a link with a guard
+} AiosGoldenVector;
+
+/** @brief Fill `out` with the 8 golden vectors (deterministic, no RNG). */
+void aios_golden_vectors(AiosGoldenVector out[AIOS_GOLDEN_VECTORS]);
 
 /**
  * @brief Probe whether a physical Serial1 loopback is wired (D0<->D1 jumper).

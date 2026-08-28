@@ -55,18 +55,46 @@ cd aios/aios-fabric/firmware/arduino
 
 # 1. S3 tarafı (ayrı ESP32-S3 kartı; UNO R4 dahili S3 ise supervised passthrough)
 arduino-cli core install esp32:esp32
-arduino-cli compile -b esp32:esp32:esp32s3 AIOS_S3_Bridge
+arduino-cli compile -b esp32:esp32:esp32s3 AIOS_S3_Bridge          # EXIT 0 SART
 arduino-cli upload  -b esp32:esp32:esp32s3 -p <S3_PORT> AIOS_S3_Bridge
-arduino-cli monitor -p <S3_PORT> -c baudrate=115200 > artifacts/s3/s3_side.log &   # AIOS_S3_BRIDGE_READY ...
+arduino-cli monitor -p <S3_PORT> -c baudrate=115200 > artifacts/s3/s3_side.log &
+#   -> "AIOS_S3_BRIDGE_READY chip_id=... sdk=... baud=115200 fw=aios-s3-bridge-0.1"  (HELLO / identity)
 
-# 2. R4 tarafı — proof harness S3'ü otomatik tespit eder (aios_bridge_probe_s3)
+# 2. ILK KOSU -- SMOKE: yalnizca framing/timeout/replay + golden vektorler.
+#    Performans olcumu YOK. Temel davranis dogrulanmadan throughput'u release
+#    artifact'i olarak kabul etme (debug tip).
+DEFS="-DAIOS_ARDUINO_PROOF -DAIOS_EMBED_SUITE -DESP32S3_RING_BUFFER_SIZE=1024 -DAIOS_BRIDGE_SMOKE"
+arduino-cli compile -b arduino:renesas_uno:unor4wifi -p <R4_PORT> --upload -e \
+  --build-property "compiler.cpp.extra_flags=$DEFS" --build-property "compiler.c.extra_flags=$DEFS" \
+  AIOS_HardwareProof
+# beklenen: T0/T1/T2/T6 + T8 golden = passed=1, transport=phys-S3;
+#           T3/T4/T5/T7 = (skipped: -DAIOS_BRIDGE_SMOKE)
+
+# 3. TAM KOSU -- smoke temiz gecince:
 ./aios-verify.sh --port <R4_PORT> --out artifacts/s3
+# beklenen: Link: PHYSICAL RA4M1 SCI <-> ESP32-S3
+#           9/9 passed=1  (T8 golden: S3 status == golden expect, her sinif)
+#           golden vectors: on-device frames MATCH tools/golden_vectors.txt
+#           PHASE_7_BRIDGE_LINK_E2E=PASS
+#           PHASE_7_REAL_S3_SILICON_E2E=PASS
+#           AIOS_HARDWARE_PROOF_VERDICT=PASS   (diger tum gate'ler PASS ise)
 
-# 3. Beklenen: Link: PHYSICAL RA4M1 SCI <-> ESP32-S3
-#              PHASE_7_BRIDGE_LINK_E2E=PASS
-#              PHASE_7_REAL_S3_SILICON_E2E=PASS
-#              AIOS_HARDWARE_PROOF_VERDICT=PASS   (diğer tüm gate'ler PASS ise)
+# 4. Herhangi bir test modeled fallback'e duserse (Link: MODELED ...) veya golden
+#    diff FAIL verirse -> genel verdict PASS YAPILMAZ.
 ```
+
+### Golden vektor cross-validation (T8)
+
+`tools/gen_golden_vectors.py` off-device 8 frame sinifi uretir (`valid`, `truncated`,
+`bad_magic`, `bad_msgtype`, `bad_agent`, `len_out_of_range`, `bad_crc`, `replay`) ve her
+birinin **beklenen `AiosWireError`**'unu sabit olarak yazar (`tools/golden_vectors.txt`,
+committed). Fiziksel kosuda T8:
+1. golden truth (sabit) vs RA4M1 `aios_wire_verify` -> her sinif esit olmali
+2. golden truth (sabit) vs S3 status byte -> her sinif esit olmali
+3. cihazin logladigi vektor byte'lari vs `tools/golden_vectors.txt` -> byte-ozdes olmali
+
+Bu, T8'i "iki implementasyon ayni sonucu verdi" testinden cikarip **bagimsiz referansa
+karsi** gercek capraz-dogrulamaya donusturur.
 
 ## İki taraflı log formatı (modeled ↔ fiziksel sapmayı tek satır diff yapar)
 

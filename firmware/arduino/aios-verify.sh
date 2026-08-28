@@ -141,8 +141,22 @@ fi
 cp "$LOG" "$OUT/hardware_proof_serial_${STAMP}.log" 2>/dev/null || true
 
 echo "-------------------------------------------------------------"
-grep -E "PHASE [0-9] /|rc=|^(AIOS|PHASE)_[A-Z0-9_]+=|\[PASS\]|\[FAIL\]|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
+grep -E "PHASE [0-9] /|rc=|^(AIOS|PHASE)_[A-Z0-9_]+=|passed=|\[OK\]|\[KILLED\]|SURVIVED" "$LOG" || true
 echo "-------------------------------------------------------------"
+
+# Golden-vector cross-check: the frames PHASE 7 / T8 emitted must byte-match the
+# committed reference produced off-device by tools/gen_golden_vectors.py.
+GV="$HERE/tools/golden_vectors.txt"
+if grep -qE 'GOLDEN [a-z_]+ len=' "$LOG" && [ -f "$GV" ]; then
+  norm() { grep -oE 'GOLDEN [a-z_]+ len=[0-9]+ expect=[0-9]+ bytes=[0-9A-Fa-f]+' "$1" \
+           | awk '{ b=$5; sub(/bytes=/,"",b); print $2, $3, $4, toupper(b) }' | sort; }
+  if diff <(norm "$LOG") <(norm "$GV") >/dev/null; then
+    echo "golden vectors: on-device frames MATCH tools/golden_vectors.txt"
+  else
+    echo "golden vectors: MISMATCH vs tools/golden_vectors.txt"; diff <(norm "$LOG") <(norm "$GV") | head
+    echo "HIL PROOF: FAIL (golden vector drift -- log: $LOG)"; exit 1
+  fi
+fi
 
 # A green HIL run == every gate that was EXECUTED passed. Gates still marked
 # PENDING / NOT_RUN do not fail CI (nothing regressed); an explicit FAIL on any
